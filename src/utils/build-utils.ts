@@ -75,6 +75,22 @@ export async function executeXcodeBuildCommand(
       .filter(Boolean) as { type: 'warning' | 'error'; content: string }[];
   }
 
+  function isTestProgressLine(line: string): boolean {
+    return (
+      /^Test Case '.+' (passed|failed) \(/.test(line) ||
+      /^Test Suite '.+' (passed|failed) at /.test(line) ||
+      /^Executed \d+ tests?, with \d+ failures?/.test(line)
+    );
+  }
+
+  function extractTestProgressLines(text: string): string[] {
+    return text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .filter(isTestProgressLine);
+  }
+
   log('info', `Starting ${platformOptions.logPrefix} ${buildAction} for scheme ${params.scheme}`);
 
   // Check if xcodemake is enabled and available
@@ -209,6 +225,54 @@ export async function executeXcodeBuildCommand(
     command.push(buildAction);
 
     // Execute the command using xcodemake or xcodebuild
+    const shouldShowTestProgress = buildAction === 'test' && platformOptions.showTestProgress;
+    const shouldStreamCliTestProgress =
+      shouldShowTestProgress &&
+      process.env.XCODEBUILDMCP_RUNTIME === 'cli' &&
+      process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT !== 'json';
+
+    let testProgressStreamBuffer = '';
+    const streamTestProgressChunk = (chunk: string): void => {
+      if (!shouldStreamCliTestProgress) {
+        return;
+      }
+
+      testProgressStreamBuffer += chunk;
+      const lines = testProgressStreamBuffer.split(/\r?\n/);
+      testProgressStreamBuffer = lines.pop() ?? '';
+
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (!line || !isTestProgressLine(line)) {
+          continue;
+        }
+        process.stdout.write(`🧪 ${line}\n`);
+      }
+    };
+
+    const flushTestProgressStream = (): void => {
+      if (!shouldStreamCliTestProgress) {
+        return;
+      }
+
+      const line = testProgressStreamBuffer.trim();
+      testProgressStreamBuffer = '';
+      if (line && isTestProgressLine(line)) {
+        process.stdout.write(`🧪 ${line}\n`);
+      }
+    };
+
+    if (shouldStreamCliTestProgress) {
+      const sourceLabel = workspacePath
+        ? `workspace=${workspacePath}`
+        : projectPath
+          ? `project=${projectPath}`
+          : 'source=unknown';
+      process.stdout.write(
+        `🧪 Test configuration: scheme=${params.scheme}, configuration=${params.configuration}, destination=${destinationString}, ${sourceLabel}\n`,
+      );
+    }
+
     let result;
     if (
       isXcodemakeEnabledFlag &&
@@ -250,6 +314,20 @@ export async function executeXcodeBuildCommand(
       result = await executor(command, platformOptions.logPrefix, false, {
         ...execOpts,
         cwd: projectDir,
+        ...(shouldShowTestProgress ? { onStdout: streamTestProgressChunk } : {}),
+      });
+    }
+
+    flushTestProgressStream();
+
+    // Optional test progress output (per-test pass/fail and suite totals)
+    if (shouldShowTestProgress && !shouldStreamCliTestProgress) {
+      const progressLines = extractTestProgressLines(result.output);
+      progressLines.forEach((line) => {
+        buildMessages.push({
+          type: 'text',
+          text: `🧪 ${line}`,
+        });
       });
     }
 

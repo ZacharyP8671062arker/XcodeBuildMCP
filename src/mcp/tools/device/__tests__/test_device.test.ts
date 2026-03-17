@@ -41,7 +41,7 @@ describe('test_device plugin', () => {
       );
 
       const schemaKeys = Object.keys(schema).sort();
-      expect(schemaKeys).toEqual(['extraArgs', 'testRunnerEnv']);
+      expect(schemaKeys).toEqual(['extraArgs', 'progress', 'testRunnerEnv']);
     });
 
     it('should validate XOR between projectPath and workspacePath', async () => {

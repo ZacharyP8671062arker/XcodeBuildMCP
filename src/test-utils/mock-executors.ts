@@ -19,7 +19,11 @@ import { ChildProcess } from 'child_process';
 import type { WriteStream } from 'fs';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import type { CommandExecutor, CommandResponse } from '../utils/CommandExecutor.ts';
+import type {
+  CommandExecutor,
+  CommandResponse,
+  CommandExecOptions,
+} from '../utils/CommandExecutor.ts';
 import type { FileSystemExecutor } from '../utils/FileSystemExecutor.ts';
 import type { InteractiveProcess, InteractiveSpawner } from '../utils/execution/index.ts';
 
@@ -57,7 +61,7 @@ export function createMockExecutor(
           command: string[],
           logPrefix?: string,
           useShell?: boolean,
-          opts?: { env?: Record<string, string>; cwd?: string },
+          opts?: CommandExecOptions,
           detached?: boolean,
         ) => void;
       }

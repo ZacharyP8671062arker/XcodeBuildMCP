@@ -139,4 +139,5 @@ export interface PlatformBuildOptions {
   useLatestOS?: boolean;
   arch?: string;
   logPrefix: string;
+  showTestProgress?: boolean;
 }

@@ -6,6 +6,8 @@ export const _typeModule = true as const;
 export interface CommandExecOptions {
   env?: Record<string, string>;
   cwd?: string;
+  onStdout?: (chunk: string) => void;
+  onStderr?: (chunk: string) => void;
 }
 
 /**

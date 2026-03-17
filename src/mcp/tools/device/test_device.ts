@@ -28,6 +28,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { filterStderrContent, type XcresultSummary } from '../../../utils/test-result-content.ts';
+import { resolveTestProgressEnabled } from '../../../utils/test-common.ts';
 
 // Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
@@ -46,6 +47,10 @@ const baseSchemaObject = z.object({
     .describe(
       'Environment variables to pass to the test runner (TEST_RUNNER_ prefix added automatically)',
     ),
+  progress: z
+    .boolean()
+    .optional()
+    .describe('Show detailed test progress output (MCP defaults to true, CLI defaults to false)'),
 });
 
 const testDeviceSchema = z.preprocess(
@@ -212,6 +217,7 @@ export async function testDeviceLogic(
     const execOpts: CommandExecOptions | undefined = params.testRunnerEnv
       ? { env: normalizeTestRunnerEnv(params.testRunnerEnv) }
       : undefined;
+    const progress = resolveTestProgressEnabled(params.progress);
 
     // Run the test command
     const testResult = await executeXcodeBuildCommand(
@@ -230,6 +236,7 @@ export async function testDeviceLogic(
         deviceId: params.deviceId,
         useLatestOS: false,
         logPrefix: 'Test Run',
+        showTestProgress: progress,
       },
       params.preferXcodebuild,
       'test',

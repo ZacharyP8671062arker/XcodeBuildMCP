@@ -46,6 +46,14 @@ function readProfileOverrideFromProcessArgv(): string | undefined {
   return typeof profile === 'string' ? profile : undefined;
 }
 
+function formatMissingRequiredError(missingFlags: string[]): string {
+  if (missingFlags.length === 1) {
+    return `Missing required argument: ${missingFlags[0]}`;
+  }
+
+  return `Missing required arguments: ${missingFlags.join(', ')}`;
+}
+
 /**
  * Register all tool commands from the catalog with yargs, grouped by workflow.
  */
@@ -124,6 +132,9 @@ function registerToolSubcommand(
   const unsupportedKeys = getUnsupportedSchemaKeys(tool.cliSchema);
 
   const commandName = tool.cliName;
+  const requiredFlagNames = [...yargsOptions.entries()]
+    .filter(([, config]) => Boolean(config.demandOption))
+    .map(([flagName]) => flagName);
 
   yargs.command(
     commandName,
@@ -132,10 +143,15 @@ function registerToolSubcommand(
       // Hide root-level options from tool help
       subYargs.option('log-level', { hidden: true }).option('style', { hidden: true });
 
+      // Parse option-like values as arguments (e.g. --extra-args "-only-testing:...")
+      subYargs.parserConfiguration({
+        'unknown-options-as-args': true,
+      });
+
       // Register schema-derived options (tool arguments)
       const toolArgNames: string[] = [];
       for (const [flagName, config] of yargsOptions) {
-        subYargs.option(flagName, config);
+        subYargs.option(flagName, { ...config, demandOption: false });
         toolArgNames.push(flagName);
       }
 
@@ -176,6 +192,18 @@ function registerToolSubcommand(
       return subYargs;
     },
     async (argv) => {
+      const unexpectedArgs = (argv._ as unknown[])
+        .slice(2)
+        .filter((value): value is string => typeof value === 'string' && value.startsWith('-'));
+
+      if (unexpectedArgs.length > 0) {
+        console.error(
+          `Unknown argument${unexpectedArgs.length === 1 ? '' : 's'}: ${unexpectedArgs.join(', ')}`,
+        );
+        process.exitCode = 1;
+        return;
+      }
+
       // Extract our options
       const jsonArg = argv.json as string | undefined;
       const profileOverride = argv.profile as string | undefined;
@@ -237,16 +265,40 @@ function registerToolSubcommand(
         explicitArgs,
       });
 
-      // Invoke the tool
-      const response = await invoker.invokeDirect(tool, args, {
-        runtime: 'cli',
-        cliExposedWorkflowIds,
-        socketPath,
-        workspaceRoot: opts.workspaceRoot,
-        logLevel,
+      const missingRequiredFlags = requiredFlagNames.filter((flagName) => {
+        const camelKey = convertArgvToToolParams({ [flagName]: true });
+        const [toolKey] = Object.keys(camelKey);
+        const value = args[toolKey];
+        return value === undefined || value === null || value === '';
       });
 
-      printToolResponse(response, { format: outputFormat, style: outputStyle });
+      if (missingRequiredFlags.length > 0) {
+        console.error(formatMissingRequiredError(missingRequiredFlags));
+        process.exitCode = 1;
+        return;
+      }
+
+      const previousCliOutputFormat = process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
+      process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = outputFormat;
+
+      try {
+        // Invoke the tool
+        const response = await invoker.invokeDirect(tool, args, {
+          runtime: 'cli',
+          cliExposedWorkflowIds,
+          socketPath,
+          workspaceRoot: opts.workspaceRoot,
+          logLevel,
+        });
+
+        printToolResponse(response, { format: outputFormat, style: outputStyle });
+      } finally {
+        if (previousCliOutputFormat === undefined) {
+          delete process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
+        } else {
+          process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = previousCliOutputFormat;
+        }
+      }
     },
   );
 }

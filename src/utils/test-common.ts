@@ -54,6 +54,14 @@ interface TestSummary {
   }>;
 }
 
+export function resolveTestProgressEnabled(progress: boolean | undefined): boolean {
+  if (typeof progress === 'boolean') {
+    return progress;
+  }
+
+  return process.env.XCODEBUILDMCP_RUNTIME === 'mcp';
+}
+
 /**
  * Parse xcresult bundle using xcrun xcresulttool
  */
@@ -169,6 +177,7 @@ export async function handleTestLogic(
     preferXcodebuild?: boolean;
     platform: XcodePlatform;
     testRunnerEnv?: Record<string, string>;
+    progress?: boolean;
   },
   executor: CommandExecutor = getDefaultCommandExecutor(),
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
@@ -184,6 +193,8 @@ export async function handleTestLogic(
       join(fileSystemExecutor.tmpdir(), 'xcodebuild-test-'),
     );
     const resultBundlePath = join(tempDir, 'TestResults.xcresult');
+
+    const progress = resolveTestProgressEnabled(params.progress);
 
     // Add resultBundlePath to extraArgs
     const extraArgs = [...(params.extraArgs ?? []), `-resultBundlePath`, resultBundlePath];
@@ -206,6 +217,7 @@ export async function handleTestLogic(
         deviceId: params.deviceId,
         useLatestOS: params.useLatestOS,
         logPrefix: 'Test Run',
+        showTestProgress: progress,
       },
       params.preferXcodebuild,
       'test',

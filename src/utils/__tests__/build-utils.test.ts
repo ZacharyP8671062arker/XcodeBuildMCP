@@ -2,7 +2,7 @@
  * Tests for build-utils Sentry classification logic
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import path from 'node:path';
 import { createMockExecutor } from '../../test-utils/mock-executors.ts';
 import { executeXcodeBuildCommand } from '../build-utils.ts';
@@ -262,6 +262,158 @@ describe('build-utils Sentry Classification', () => {
     });
   });
 
+  describe('Test Progress Output', () => {
+    it('should include per-test progress lines when showTestProgress is enabled', async () => {
+      const mockExecutor = createMockExecutor({
+        success: true,
+        output:
+          "Test Case '-[Suite testA]' passed (0.001 seconds)\n" +
+          "Test Suite 'Suite' failed at 2026-01-01 00:00:00.000\n" +
+          'Executed 2 tests, with 1 failures (0 unexpected) in 0.123 (0.124) seconds',
+        exitCode: 0,
+      });
+
+      const result = await executeXcodeBuildCommand(
+        mockParams,
+        {
+          ...mockPlatformOptions,
+          showTestProgress: true,
+        },
+        false,
+        'test',
+        mockExecutor,
+      );
+
+      const text = result.content.map((item) => item.text).join('\n');
+      expect(text).toContain("🧪 Test Case '-[Suite testA]' passed (0.001 seconds)");
+      expect(text).toContain("🧪 Test Suite 'Suite' failed at 2026-01-01 00:00:00.000");
+      expect(text).toContain(
+        '🧪 Executed 2 tests, with 1 failures (0 unexpected) in 0.123 (0.124) seconds',
+      );
+    });
+
+    it('should omit per-test progress lines when showTestProgress is disabled', async () => {
+      const mockExecutor = createMockExecutor({
+        success: true,
+        output: "Test Case '-[Suite testA]' passed (0.001 seconds)",
+        exitCode: 0,
+      });
+
+      const result = await executeXcodeBuildCommand(
+        mockParams,
+        {
+          ...mockPlatformOptions,
+          showTestProgress: false,
+        },
+        false,
+        'test',
+        mockExecutor,
+      );
+
+      const text = result.content.map((item) => item.text).join('\n');
+      expect(text).not.toContain('🧪 Test Case');
+    });
+
+    it('should stream test progress immediately in CLI text output mode', async () => {
+      const originalRuntime = process.env.XCODEBUILDMCP_RUNTIME;
+      const originalOutputFormat = process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
+      process.env.XCODEBUILDMCP_RUNTIME = 'cli';
+      process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = 'text';
+
+      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      const mockExecutor = createMockExecutor({
+        success: true,
+        output: "Test Case '-[Suite streamed]' passed (0.010 seconds)",
+        exitCode: 0,
+        onExecute: (_command, _logPrefix, _useShell, opts) => {
+          opts?.onStdout?.("Test Case '-[Suite streamed]' passed (0.010 seconds)\\n");
+        },
+      });
+
+      try {
+        const result = await executeXcodeBuildCommand(
+          mockParams,
+          {
+            ...mockPlatformOptions,
+            showTestProgress: true,
+          },
+          false,
+          'test',
+          mockExecutor,
+        );
+
+        const streamedOutput = stdoutWrite.mock.calls.flat().join('');
+        expect(streamedOutput).toContain('🧪 Test configuration: scheme=TestScheme');
+        expect(streamedOutput).toContain("🧪 Test Case '-[Suite streamed]' passed (0.010 seconds)");
+
+        const responseText = result.content.map((item) => item.text).join('\n');
+        expect(responseText).not.toContain('🧪 Test Case');
+      } finally {
+        stdoutWrite.mockRestore();
+        if (originalRuntime === undefined) {
+          delete process.env.XCODEBUILDMCP_RUNTIME;
+        } else {
+          process.env.XCODEBUILDMCP_RUNTIME = originalRuntime;
+        }
+        if (originalOutputFormat === undefined) {
+          delete process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
+        } else {
+          process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = originalOutputFormat;
+        }
+      }
+    });
+
+    it('should not stream progress in CLI JSON output mode', async () => {
+      const originalRuntime = process.env.XCODEBUILDMCP_RUNTIME;
+      const originalOutputFormat = process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
+      process.env.XCODEBUILDMCP_RUNTIME = 'cli';
+      process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = 'json';
+
+      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+      const mockExecutor = createMockExecutor({
+        success: true,
+        output: "Test Case '-[Suite json]' passed (0.020 seconds)",
+        exitCode: 0,
+        onExecute: (_command, _logPrefix, _useShell, opts) => {
+          opts?.onStdout?.("Test Case '-[Suite json]' passed (0.020 seconds)\\n");
+        },
+      });
+
+      try {
+        const result = await executeXcodeBuildCommand(
+          mockParams,
+          {
+            ...mockPlatformOptions,
+            showTestProgress: true,
+          },
+          false,
+          'test',
+          mockExecutor,
+        );
+
+        const streamedOutput = stdoutWrite.mock.calls.flat().join('');
+        expect(streamedOutput).not.toContain("🧪 Test Case '-[Suite json]' passed (0.020 seconds)");
+
+        const responseText = result.content.map((item) => item.text).join('\n');
+        expect(responseText).toContain("🧪 Test Case '-[Suite json]' passed (0.020 seconds)");
+      } finally {
+        stdoutWrite.mockRestore();
+        if (originalRuntime === undefined) {
+          delete process.env.XCODEBUILDMCP_RUNTIME;
+        } else {
+          process.env.XCODEBUILDMCP_RUNTIME = originalRuntime;
+        }
+        if (originalOutputFormat === undefined) {
+          delete process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
+        } else {
+          process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = originalOutputFormat;
+        }
+      }
+    });
+  });
+
   describe('Working Directory (cwd) Handling', () => {
     it('should pass project directory as cwd for workspace builds', async () => {
       let capturedOptions: any;
@@ -385,7 +537,9 @@ describe('build-utils Sentry Classification', () => {
       expect(capturedCommand).toBeDefined();
       expect(capturedCommand).toContain(expectedProjectPath);
       expect(capturedCommand).toContain(expectedDerivedDataPath);
-      expect(capturedOptions).toEqual({ cwd: path.dirname(expectedProjectPath) });
+      expect(capturedOptions).toEqual(
+        expect.objectContaining({ cwd: path.dirname(expectedProjectPath) }),
+      );
     });
   });
 });

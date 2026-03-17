@@ -159,6 +159,8 @@ describe('registerToolCommands', () => {
   });
 
   it('keeps the normal missing-argument error when no hydrated default exists', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     const tool = createTool();
     const app = createApp(createCatalog([tool]), {
       ...baseRuntimeConfig,
@@ -167,15 +169,10 @@ describe('registerToolCommands', () => {
       activeSessionDefaultsProfile: undefined,
     });
 
-    let error: Error | undefined;
-    try {
-      await app.parseAsync(['simulator', 'run-tool']);
-    } catch (thrown) {
-      error = thrown as Error;
-    }
+    await expect(app.parseAsync(['simulator', 'run-tool'])).resolves.toBeDefined();
 
-    expect(error?.message).toContain('Missing required argument: workspace-path');
-    expect(error?.message).not.toMatch(/session defaults/i);
+    expect(consoleError).toHaveBeenCalledWith('Missing required argument: workspace-path');
+    expect(process.exitCode).toBe(1);
   });
 
   it('hydrates args before daemon-routed invocation', async () => {
@@ -275,6 +272,88 @@ describe('registerToolCommands', () => {
       tool,
       {
         workspacePath: 'Json.xcworkspace',
+      },
+      expect.any(Object),
+    );
+
+    stdoutWrite.mockRestore();
+  });
+
+  it('allows --json to satisfy required arguments', async () => {
+    const invokeDirect = vi.spyOn(DefaultToolInvoker.prototype, 'invokeDirect').mockResolvedValue({
+      content: [createTextContent('ok')],
+      isError: false,
+    });
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    const tool = createTool();
+    const app = createApp(createCatalog([tool]), {
+      ...baseRuntimeConfig,
+      sessionDefaults: undefined,
+      sessionDefaultsProfiles: undefined,
+      activeSessionDefaultsProfile: undefined,
+    });
+
+    await expect(
+      app.parseAsync([
+        'simulator',
+        'run-tool',
+        '--json',
+        JSON.stringify({ workspacePath: 'FromJson.xcworkspace' }),
+      ]),
+    ).resolves.toBeDefined();
+
+    expect(invokeDirect).toHaveBeenCalledWith(
+      tool,
+      {
+        workspacePath: 'FromJson.xcworkspace',
+      },
+      expect.any(Object),
+    );
+
+    stdoutWrite.mockRestore();
+  });
+
+  it('allows array args that begin with a dash', async () => {
+    const invokeDirect = vi.spyOn(DefaultToolInvoker.prototype, 'invokeDirect').mockResolvedValue({
+      content: [createTextContent('ok')],
+      isError: false,
+    });
+    const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+
+    const tool = createTool({
+      cliSchema: {
+        workspacePath: z.string().describe('Workspace path'),
+        extraArgs: z.array(z.string()).optional().describe('Extra args'),
+      },
+      mcpSchema: {
+        workspacePath: z.string().describe('Workspace path'),
+        extraArgs: z.array(z.string()).optional().describe('Extra args'),
+      },
+    });
+    const app = createApp(createCatalog([tool]), {
+      ...baseRuntimeConfig,
+      sessionDefaults: undefined,
+      sessionDefaultsProfiles: undefined,
+      activeSessionDefaultsProfile: undefined,
+    });
+
+    await expect(
+      app.parseAsync([
+        'simulator',
+        'run-tool',
+        '--workspace-path',
+        'App.xcworkspace',
+        '--extra-args',
+        '-only-testing:AppTests',
+      ]),
+    ).resolves.toBeDefined();
+
+    expect(invokeDirect).toHaveBeenCalledWith(
+      tool,
+      {
+        workspacePath: 'App.xcworkspace',
+        extraArgs: ['-only-testing:AppTests'],
       },
       expect.any(Object),
     );

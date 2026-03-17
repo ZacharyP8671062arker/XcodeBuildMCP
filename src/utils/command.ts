@@ -99,11 +99,15 @@ async function defaultExecutor(
     let stderr = '';
 
     childProcess.stdout?.on('data', (data: Buffer) => {
-      stdout += data.toString();
+      const chunk = data.toString();
+      stdout += chunk;
+      opts?.onStdout?.(chunk);
     });
 
     childProcess.stderr?.on('data', (data: Buffer) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
+      opts?.onStderr?.(chunk);
     });
 
     // For detached processes, handle differently to avoid race conditions

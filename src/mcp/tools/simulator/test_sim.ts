@@ -56,6 +56,10 @@ const baseSchemaObject = z.object({
     .describe(
       'Environment variables to pass to the test runner (TEST_RUNNER_ prefix added automatically)',
     ),
+  progress: z
+    .boolean()
+    .optional()
+    .describe('Show detailed test progress output (MCP defaults to true, CLI defaults to false)'),
 });
 
 // Apply XOR validation: exactly one of projectPath OR workspacePath, and exactly one of simulatorId OR simulatorName required
@@ -120,6 +124,7 @@ export async function test_simLogic(
       preferXcodebuild: params.preferXcodebuild ?? false,
       platform: inferred.platform,
       testRunnerEnv: params.testRunnerEnv,
+      progress: params.progress,
     },
     executor,
   );

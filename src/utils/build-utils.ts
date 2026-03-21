@@ -32,12 +32,32 @@ import {
 } from './xcodemake.ts';
 import { sessionStore } from './session-store.ts';
 import path from 'path';
+import os from 'node:os';
+import type { XcodebuildPipeline } from './xcodebuild-pipeline.ts';
+import { createNoticeEvent } from './xcodebuild-output.ts';
 
 function resolvePathFromCwd(pathValue: string): string {
   if (path.isAbsolute(pathValue)) {
     return pathValue;
   }
   return path.resolve(process.cwd(), pathValue);
+}
+
+function getDefaultSwiftPackageCachePath(): string {
+  return path.join(os.homedir(), 'Library', 'Caches', 'org.swift.swiftpm');
+}
+
+function grepWarningsAndErrors(text: string): { type: 'warning' | 'error'; content: string }[] {
+  return text
+    .split('\n')
+    .map((content) => {
+      if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)warning:\s/i.test(content))
+        return { type: 'warning', content };
+      if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)(?:fatal )?error:\s/i.test(content))
+        return { type: 'error', content };
+      return null;
+    })
+    .filter(Boolean) as { type: 'warning' | 'error'; content: string }[];
 }
 
 /**
@@ -56,39 +76,19 @@ export async function executeXcodeBuildCommand(
   buildAction: string = 'build',
   executor: CommandExecutor,
   execOpts?: CommandExecOptions,
+  pipeline?: XcodebuildPipeline,
 ): Promise<ToolResponse> {
-  // Collect warnings, errors, and stderr messages from the build output
   const buildMessages: { type: 'text'; text: string }[] = [];
-  function grepWarningsAndErrors(text: string): { type: 'warning' | 'error'; content: string }[] {
-    // Require "error:"/"warning:" at line start (with optional tool prefix like "ld: ")
-    // or after a file:line:col location prefix, to avoid false positives from source
-    // code like "var authError: Error?" echoed during compilation.
-    return text
-      .split('\n')
-      .map((content) => {
-        if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)warning:\s/i.test(content))
-          return { type: 'warning', content };
-        if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)(?:fatal )?error:\s/i.test(content))
-          return { type: 'error', content };
-        return null;
-      })
-      .filter(Boolean) as { type: 'warning' | 'error'; content: string }[];
-  }
 
-  function isTestProgressLine(line: string): boolean {
-    return (
-      /^Test Case '.+' (passed|failed) \(/.test(line) ||
-      /^Test Suite '.+' (passed|failed) at /.test(line) ||
-      /^Executed \d+ tests?, with \d+ failures?/.test(line)
-    );
-  }
+  function addBuildMessage(message: string, level: 'info' | 'success' = 'info'): void {
+    if (pipeline) {
+      pipeline.emitEvent(
+        createNoticeEvent('BUILD', message.replace(/^[^\p{L}\p{N}]+/u, '').trim(), level),
+      );
+      return;
+    }
 
-  function extractTestProgressLines(text: string): string[] {
-    return text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .filter(isTestProgressLine);
+    buildMessages.push({ type: 'text', text: message });
   }
 
   log('info', `Starting ${platformOptions.logPrefix} ${buildAction} for scheme ${params.scheme}`);
@@ -105,22 +105,15 @@ export async function executeXcodeBuildCommand(
         'info',
         'xcodemake is enabled but preferXcodebuild is set to true. Falling back to xcodebuild.',
       );
-      buildMessages.push({
-        type: 'text',
-        text: '⚠️ incremental build support is enabled but preferXcodebuild is set to true. Falling back to xcodebuild.',
-      });
+      addBuildMessage(
+        '⚠️ incremental build support is enabled but preferXcodebuild is set to true. Falling back to xcodebuild.',
+      );
     } else if (!xcodemakeAvailableFlag) {
-      buildMessages.push({
-        type: 'text',
-        text: '⚠️ xcodemake is enabled but not available. Falling back to xcodebuild.',
-      });
+      addBuildMessage('⚠️ xcodemake is enabled but not available. Falling back to xcodebuild.');
       log('info', 'xcodemake is enabled but not available. Falling back to xcodebuild.');
     } else {
       log('info', 'xcodemake is enabled and available, using it for incremental builds.');
-      buildMessages.push({
-        type: 'text',
-        text: 'ℹ️ xcodemake is enabled and available, using it for incremental builds.',
-      });
+      addBuildMessage('ℹ️ xcodemake is enabled and available, using it for incremental builds.');
     }
   }
 
@@ -184,35 +177,37 @@ export async function executeXcodeBuildCommand(
         false,
         platformOptions.arch,
       );
-    } else if (platformOptions.platform === XcodePlatform.iOS) {
+    } else if (
+      [
+        XcodePlatform.iOS,
+        XcodePlatform.watchOS,
+        XcodePlatform.tvOS,
+        XcodePlatform.visionOS,
+      ].includes(platformOptions.platform)
+    ) {
+      const platformName = platformOptions.platform as string;
       if (platformOptions.deviceId) {
-        destinationString = `platform=iOS,id=${platformOptions.deviceId}`;
+        destinationString = `platform=${platformName},id=${platformOptions.deviceId}`;
       } else {
-        destinationString = 'generic/platform=iOS';
-      }
-    } else if (platformOptions.platform === XcodePlatform.watchOS) {
-      if (platformOptions.deviceId) {
-        destinationString = `platform=watchOS,id=${platformOptions.deviceId}`;
-      } else {
-        destinationString = 'generic/platform=watchOS';
-      }
-    } else if (platformOptions.platform === XcodePlatform.tvOS) {
-      if (platformOptions.deviceId) {
-        destinationString = `platform=tvOS,id=${platformOptions.deviceId}`;
-      } else {
-        destinationString = 'generic/platform=tvOS';
-      }
-    } else if (platformOptions.platform === XcodePlatform.visionOS) {
-      if (platformOptions.deviceId) {
-        destinationString = `platform=visionOS,id=${platformOptions.deviceId}`;
-      } else {
-        destinationString = 'generic/platform=visionOS';
+        destinationString = `generic/platform=${platformName}`;
       }
     } else {
       return createTextResponse(`Unsupported platform: ${platformOptions.platform}`, true);
     }
 
     command.push('-destination', destinationString);
+
+    if (
+      ['test', 'build-for-testing', 'test-without-building'].includes(buildAction) &&
+      isSimulatorPlatform
+    ) {
+      command.push('COMPILER_INDEX_STORE_ENABLE=NO');
+      command.push('ONLY_ACTIVE_ARCH=YES');
+      command.push(
+        '-packageCachePath',
+        platformOptions.packageCachePath ?? getDefaultSwiftPackageCachePath(),
+      );
+    }
 
     if (derivedDataPath) {
       command.push('-derivedDataPath', derivedDataPath);
@@ -224,55 +219,6 @@ export async function executeXcodeBuildCommand(
 
     command.push(buildAction);
 
-    // Execute the command using xcodemake or xcodebuild
-    const shouldShowTestProgress = buildAction === 'test' && platformOptions.showTestProgress;
-    const shouldStreamCliTestProgress =
-      shouldShowTestProgress &&
-      process.env.XCODEBUILDMCP_RUNTIME === 'cli' &&
-      process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT !== 'json';
-
-    let testProgressStreamBuffer = '';
-    const streamTestProgressChunk = (chunk: string): void => {
-      if (!shouldStreamCliTestProgress) {
-        return;
-      }
-
-      testProgressStreamBuffer += chunk;
-      const lines = testProgressStreamBuffer.split(/\r?\n/);
-      testProgressStreamBuffer = lines.pop() ?? '';
-
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
-        if (!line || !isTestProgressLine(line)) {
-          continue;
-        }
-        process.stdout.write(`🧪 ${line}\n`);
-      }
-    };
-
-    const flushTestProgressStream = (): void => {
-      if (!shouldStreamCliTestProgress) {
-        return;
-      }
-
-      const line = testProgressStreamBuffer.trim();
-      testProgressStreamBuffer = '';
-      if (line && isTestProgressLine(line)) {
-        process.stdout.write(`🧪 ${line}\n`);
-      }
-    };
-
-    if (shouldStreamCliTestProgress) {
-      const sourceLabel = workspacePath
-        ? `workspace=${workspacePath}`
-        : projectPath
-          ? `project=${projectPath}`
-          : 'source=unknown';
-      process.stdout.write(
-        `🧪 Test configuration: scheme=${params.scheme}, configuration=${params.configuration}, destination=${destinationString}, ${sourceLabel}\n`,
-      );
-    }
-
     let result;
     if (
       isXcodemakeEnabledFlag &&
@@ -280,28 +226,17 @@ export async function executeXcodeBuildCommand(
       buildAction === 'build' &&
       !preferXcodebuild
     ) {
-      // Check if Makefile already exists
       const makefileExists = doesMakefileExist(projectDir);
       log('debug', 'Makefile exists: ' + makefileExists);
 
-      // Check if Makefile log already exists
       const makeLogFileExists = doesMakeLogFileExist(projectDir, command);
       log('debug', 'Makefile log exists: ' + makeLogFileExists);
 
       if (makefileExists && makeLogFileExists) {
-        // Use make for incremental builds
-        buildMessages.push({
-          type: 'text',
-          text: 'ℹ️ Using make for incremental build',
-        });
+        addBuildMessage('ℹ️ Using make for incremental build');
         result = await executeMakeCommand(projectDir, platformOptions.logPrefix);
       } else {
-        // Generate Makefile using xcodemake
-        buildMessages.push({
-          type: 'text',
-          text: 'ℹ️ Generating Makefile with xcodemake (first build may take longer)',
-        });
-        // Remove 'xcodebuild' from the command array before passing to executeXcodemakeCommand
+        addBuildMessage('ℹ️ Generating Makefile with xcodemake (first build may take longer)');
         result = await executeXcodemakeCommand(
           projectDir,
           command.slice(1),
@@ -309,48 +244,43 @@ export async function executeXcodeBuildCommand(
         );
       }
     } else {
-      // Use standard xcodebuild
+      const streamHandlers = pipeline
+        ? {
+            onStdout: (chunk: string) => pipeline.onStdout(chunk),
+            onStderr: (chunk: string) => pipeline.onStderr(chunk),
+          }
+        : {};
+
       // Pass projectDir as cwd to ensure CocoaPods relative paths resolve correctly
       result = await executor(command, platformOptions.logPrefix, false, {
         ...execOpts,
         cwd: projectDir,
-        ...(shouldShowTestProgress ? { onStdout: streamTestProgressChunk } : {}),
+        ...streamHandlers,
       });
     }
 
-    flushTestProgressStream();
-
-    // Optional test progress output (per-test pass/fail and suite totals)
-    if (shouldShowTestProgress && !shouldStreamCliTestProgress) {
-      const progressLines = extractTestProgressLines(result.output);
-      progressLines.forEach((line) => {
+    // When pipeline is active, skip warning/error grepping - the parser handles it
+    let warningOrErrorLines: { type: 'warning' | 'error'; content: string }[] = [];
+    if (!pipeline) {
+      warningOrErrorLines = grepWarningsAndErrors(result.output);
+      const suppressWarnings = sessionStore.get('suppressWarnings');
+      for (const { type, content } of warningOrErrorLines) {
+        if (type === 'warning' && suppressWarnings) {
+          continue;
+        }
         buildMessages.push({
           type: 'text',
-          text: `🧪 ${line}`,
+          text: type === 'warning' ? `⚠️ Warning: ${content}` : `❌ Error: ${content}`,
         });
-      });
+      }
     }
 
-    // Grep warnings and errors from stdout (build output)
-    const warningOrErrorLines = grepWarningsAndErrors(result.output);
-    const suppressWarnings = sessionStore.get('suppressWarnings');
-    warningOrErrorLines.forEach(({ type, content }) => {
-      if (type === 'warning' && suppressWarnings) {
-        return;
-      }
-      buildMessages.push({
-        type: 'text',
-        text: type === 'warning' ? `⚠️ Warning: ${content}` : `❌ Error: ${content}`,
-      });
-    });
-
-    // Include all stderr lines as errors
-    if (result.error) {
-      result.error.split('\n').forEach((content) => {
+    if (!pipeline && result.error) {
+      for (const content of result.error.split('\n')) {
         if (content.trim()) {
           buildMessages.push({ type: 'text', text: `❌ [stderr] ${content}` });
         }
-      });
+      }
     }
 
     if (!result.success) {
@@ -370,9 +300,8 @@ export async function executeXcodeBuildCommand(
         errorResponse.content.unshift(...buildMessages);
       }
 
-      // If using xcodemake and build failed but no compiling errors, suggest using xcodebuild
       if (
-        warningOrErrorLines.length == 0 &&
+        warningOrErrorLines.length === 0 &&
         isXcodemakeEnabledFlag &&
         xcodemakeAvailableFlag &&
         buildAction === 'build' &&
@@ -389,24 +318,21 @@ export async function executeXcodeBuildCommand(
 
     log('info', `✅ ${platformOptions.logPrefix} ${buildAction} succeeded.`);
 
-    // Create additional info based on platform and action
     let additionalInfo = '';
 
-    // Add xcodemake info if relevant
     if (
       isXcodemakeEnabledFlag &&
       xcodemakeAvailableFlag &&
       buildAction === 'build' &&
       !preferXcodebuild
     ) {
-      additionalInfo += `xcodemake: Using faster incremental builds with xcodemake. 
+      additionalInfo += `xcodemake: Using faster incremental builds with xcodemake.
 Future builds will use the generated Makefile for improved performance.
 
 `;
     }
 
-    // Only show next steps for 'build' action
-    if (buildAction === 'build') {
+    if (!pipeline && buildAction === 'build') {
       if (platformOptions.platform === XcodePlatform.macOS) {
         additionalInfo = `Next Steps:
 1. Get app path: get_mac_app_path({ scheme: '${params.scheme}' })
@@ -439,7 +365,6 @@ Future builds will use the generated Makefile for improved performance.
       ],
     };
 
-    // Only add additional info if we have any
     if (additionalInfo) {
       successResponse.content.push({
         type: 'text',

@@ -59,36 +59,24 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ Available schemes:',
-          },
-          {
-            type: 'text',
-            text: 'MyProject\nMyProjectTests',
-          },
-          {
-            type: 'text',
-            text: 'Hint: Consider saving a default scheme with session-set-defaults { scheme: "MyProject" } to avoid repeating it.',
-          },
-        ],
-        nextStepParams: {
-          build_macos: { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyProject' },
-          build_run_sim: {
-            projectPath: '/path/to/MyProject.xcodeproj',
-            scheme: 'MyProject',
-            simulatorName: 'iPhone 17',
-          },
-          build_sim: {
-            projectPath: '/path/to/MyProject.xcodeproj',
-            scheme: 'MyProject',
-            simulatorName: 'iPhone 17',
-          },
-          show_build_settings: { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyProject' },
+      expect(result.isError).toBe(false);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
+      expect(result.content[0].text).toContain('Project: /path/to/MyProject.xcodeproj');
+      expect(result.content[0].text).toContain('Schemes:\n  - MyProject\n  - MyProjectTests');
+      expect(result.nextStepParams).toEqual({
+        build_macos: { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyProject' },
+        build_run_sim: {
+          projectPath: '/path/to/MyProject.xcodeproj',
+          scheme: 'MyProject',
+          simulatorName: 'iPhone 17',
         },
-        isError: false,
+        build_sim: {
+          projectPath: '/path/to/MyProject.xcodeproj',
+          scheme: 'MyProject',
+          simulatorName: 'iPhone 17',
+        },
+        show_build_settings: { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyProject' },
       });
     });
 
@@ -103,10 +91,14 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Failed to list schemes: Project not found' }],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
+      expect(result.content[0].text).toContain('Project: /path/to/MyProject.xcodeproj');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain('\u{2717} Project not found');
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should return error when no schemes found in output', async () => {
@@ -120,10 +112,13 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'No schemes found in the output' }],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain('\u{2717} No schemes found in the output');
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should return success with empty schemes list', async () => {
@@ -147,19 +142,11 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ Available schemes:',
-          },
-          {
-            type: 'text',
-            text: '',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBe(false);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
+      expect(result.content[0].text).toContain('Schemes:\n  (none)');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should handle Error objects in catch blocks', async () => {
@@ -172,10 +159,13 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Error listing schemes: Command execution failed' }],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain('\u{2717} Command execution failed');
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should handle string error objects in catch blocks', async () => {
@@ -188,10 +178,13 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Error listing schemes: String error' }],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain('\u{2717} String error');
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('returns parsed schemes for setup flows', async () => {
@@ -302,36 +295,24 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ Available schemes:',
-          },
-          {
-            type: 'text',
-            text: 'MyApp\nMyAppTests',
-          },
-          {
-            type: 'text',
-            text: 'Hint: Consider saving a default scheme with session-set-defaults { scheme: "MyApp" } to avoid repeating it.',
-          },
-        ],
-        nextStepParams: {
-          build_macos: { workspacePath: '/path/to/MyProject.xcworkspace', scheme: 'MyApp' },
-          build_run_sim: {
-            workspacePath: '/path/to/MyProject.xcworkspace',
-            scheme: 'MyApp',
-            simulatorName: 'iPhone 17',
-          },
-          build_sim: {
-            workspacePath: '/path/to/MyProject.xcworkspace',
-            scheme: 'MyApp',
-            simulatorName: 'iPhone 17',
-          },
-          show_build_settings: { workspacePath: '/path/to/MyProject.xcworkspace', scheme: 'MyApp' },
+      expect(result.isError).toBe(false);
+      expect(result.content).toHaveLength(1);
+      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
+      expect(result.content[0].text).toContain('Workspace: /path/to/MyProject.xcworkspace');
+      expect(result.content[0].text).toContain('Schemes:\n  - MyApp\n  - MyAppTests');
+      expect(result.nextStepParams).toEqual({
+        build_macos: { workspacePath: '/path/to/MyProject.xcworkspace', scheme: 'MyApp' },
+        build_run_sim: {
+          workspacePath: '/path/to/MyProject.xcworkspace',
+          scheme: 'MyApp',
+          simulatorName: 'iPhone 17',
         },
-        isError: false,
+        build_sim: {
+          workspacePath: '/path/to/MyProject.xcworkspace',
+          scheme: 'MyApp',
+          simulatorName: 'iPhone 17',
+        },
+        show_build_settings: { workspacePath: '/path/to/MyProject.xcworkspace', scheme: 'MyApp' },
       });
     });
 

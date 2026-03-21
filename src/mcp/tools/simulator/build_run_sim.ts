@@ -8,7 +8,6 @@
 
 import * as z from 'zod';
 import type { ToolResponse, SharedBuildParams } from '../../../types/common.ts';
-import { XcodePlatform } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
@@ -18,12 +17,23 @@ import {
 import { createTextResponse } from '../../../utils/responses/index.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
-import { determineSimulatorUuid } from '../../../utils/simulator-utils.ts';
+import {
+  determineSimulatorUuid,
+  validateAvailableSimulatorId,
+} from '../../../utils/simulator-utils.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { inferPlatform } from '../../../utils/infer-platform.ts';
 import { constructDestinationString } from '../../../utils/xcode.ts';
+import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
+import { formatToolPreflight } from '../../../utils/build-preflight.ts';
+import {
+  createPendingXcodebuildResponse,
+  emitPipelineError,
+  emitPipelineNotice,
+} from '../../../utils/xcodebuild-output.ts';
+import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
+import { extractBundleIdFromAppPath } from '../../../utils/bundle-id.ts';
 
-// Unified schema: XOR between projectPath and workspacePath, and XOR between simulatorId and simulatorName
 const baseOptions = {
   scheme: z.string().describe('The scheme to use (Required)'),
   simulatorId: z
@@ -79,72 +89,9 @@ const buildRunSimulatorSchema = z.preprocess(
 
 export type BuildRunSimulatorParams = z.infer<typeof buildRunSimulatorSchema>;
 
-// Internal logic for building Simulator apps.
-async function _handleSimulatorBuildLogic(
-  params: BuildRunSimulatorParams,
-  executor: CommandExecutor,
-  executeXcodeBuildCommandFn: typeof executeXcodeBuildCommand = executeXcodeBuildCommand,
-): Promise<{ response: ToolResponse; detectedPlatform: XcodePlatform }> {
-  const projectType = params.projectPath ? 'project' : 'workspace';
-  const filePath = params.projectPath ?? params.workspacePath;
-
-  // Log warning if useLatestOS is provided with simulatorId
-  if (params.simulatorId && params.useLatestOS !== undefined) {
-    log(
-      'warn',
-      `useLatestOS parameter is ignored when using simulatorId (UUID implies exact device/OS)`,
-    );
-  }
-
-  const inferred = await inferPlatform(
-    {
-      projectPath: params.projectPath,
-      workspacePath: params.workspacePath,
-      scheme: params.scheme,
-      simulatorId: params.simulatorId,
-      simulatorName: params.simulatorName,
-    },
-    executor,
-  );
-  const detectedPlatform = inferred.platform;
-  const platformName = detectedPlatform.replace(' Simulator', '');
-  const logPrefix = `${platformName} Simulator Build`;
-
-  log('info', `Starting ${logPrefix} for scheme ${params.scheme} from ${projectType}: ${filePath}`);
-  log('info', `Inferred simulator platform: ${detectedPlatform} (source: ${inferred.source})`);
-
-  // Create SharedBuildParams object with required configuration property
-  const sharedBuildParams: SharedBuildParams = {
-    workspacePath: params.workspacePath,
-    projectPath: params.projectPath,
-    scheme: params.scheme,
-    configuration: params.configuration ?? 'Debug',
-    derivedDataPath: params.derivedDataPath,
-    extraArgs: params.extraArgs,
-  };
-
-  const response = await executeXcodeBuildCommandFn(
-    sharedBuildParams,
-    {
-      platform: detectedPlatform,
-      simulatorId: params.simulatorId,
-      simulatorName: params.simulatorName,
-      useLatestOS: params.simulatorId ? false : params.useLatestOS,
-      logPrefix,
-    },
-    params.preferXcodebuild as boolean,
-    'build',
-    executor,
-  );
-
-  return { response, detectedPlatform };
-}
-
-// Exported business logic function for building and running iOS Simulator apps.
 export async function build_run_simLogic(
   params: BuildRunSimulatorParams,
   executor: CommandExecutor,
-  executeXcodeBuildCommandFn: typeof executeXcodeBuildCommand = executeXcodeBuildCommand,
 ): Promise<ToolResponse> {
   const projectType = params.projectPath ? 'project' : 'workspace';
   const filePath = params.projectPath ?? params.workspacePath;
@@ -155,118 +102,186 @@ export async function build_run_simLogic(
   );
 
   try {
-    // --- Build Step ---
-    const { response: buildResult, detectedPlatform } = await _handleSimulatorBuildLogic(
-      params,
+    if (params.simulatorId && params.useLatestOS !== undefined) {
+      log(
+        'warn',
+        `useLatestOS parameter is ignored when using simulatorId (UUID implies exact device/OS)`,
+      );
+    }
+
+    const inferred = await inferPlatform(
+      {
+        projectPath: params.projectPath,
+        workspacePath: params.workspacePath,
+        scheme: params.scheme,
+        simulatorName: params.simulatorId ? undefined : params.simulatorName,
+      },
       executor,
-      executeXcodeBuildCommandFn,
+    );
+    const detectedPlatform = inferred.platform;
+    const displayPlatform =
+      params.simulatorId && inferred.source !== 'simulator-runtime'
+        ? 'Simulator'
+        : String(detectedPlatform);
+    const platformName = detectedPlatform.replace(' Simulator', '');
+    const logPrefix = `${platformName} Simulator Build`;
+    const configuration = params.configuration ?? 'Debug';
+
+    log(
+      'info',
+      `Starting ${logPrefix} for scheme ${params.scheme} from ${projectType}: ${filePath}`,
+    );
+    log('info', `Inferred simulator platform: ${detectedPlatform} (source: ${inferred.source})`);
+
+    const preflightText = formatToolPreflight({
+      operation: 'Build & Run',
+      scheme: params.scheme,
+      workspacePath: params.workspacePath,
+      projectPath: params.projectPath,
+      configuration,
+      platform: displayPlatform,
+      simulatorName: params.simulatorName,
+      simulatorId: params.simulatorId,
+    });
+
+    const started = startBuildPipeline({
+      operation: 'BUILD',
+      toolName: 'build_run_sim',
+      params: {
+        scheme: params.scheme,
+        configuration,
+        platform: displayPlatform,
+        preflight: preflightText,
+      },
+      message: preflightText,
+    });
+
+    // Validate explicit simulator ID before build
+    if (params.simulatorId) {
+      const validation = await validateAvailableSimulatorId(params.simulatorId, executor);
+      if (validation.error) {
+        const errorText = validation.error.content
+          .filter((item) => item.type === 'text')
+          .flatMap((item) => item.text.split('\n'))
+          .map((line) => line.trim())
+          .find((line) => line.startsWith('Error:'))
+          ?.replace(/^Error:\s*/, '')
+          .trim();
+        emitPipelineError(
+          started,
+          'BUILD',
+          errorText ?? `No available simulator matched: ${params.simulatorId}`,
+        );
+        return createPendingXcodebuildResponse(started, {
+          content: [],
+          isError: true,
+        });
+      }
+    }
+
+    // Build
+    const sharedBuildParams: SharedBuildParams = {
+      workspacePath: params.workspacePath,
+      projectPath: params.projectPath,
+      scheme: params.scheme,
+      configuration,
+      derivedDataPath: params.derivedDataPath,
+      extraArgs: params.extraArgs,
+    };
+
+    const platformOptions = {
+      platform: detectedPlatform,
+      simulatorId: params.simulatorId,
+      simulatorName: params.simulatorName,
+      useLatestOS: params.simulatorId ? false : params.useLatestOS,
+      logPrefix,
+    };
+
+    const buildResult = await executeXcodeBuildCommand(
+      sharedBuildParams,
+      platformOptions,
+      params.preferXcodebuild ?? false,
+      'build',
+      executor,
+      undefined,
+      started.pipeline,
     );
 
     if (buildResult.isError) {
-      return buildResult; // Return the build error
+      return createPendingXcodebuildResponse(started, buildResult, {
+        errorFallbackPolicy: 'if-no-structured-diagnostics',
+      });
     }
 
-    const platformName = detectedPlatform.replace(' Simulator', '');
+    // Resolve app path
+    emitPipelineNotice(started, 'BUILD', 'Resolving app path', 'info', {
+      code: 'build-run-step',
+      data: { step: 'resolve-app-path', status: 'started' },
+    });
 
-    // --- Get App Path Step ---
-    // Create the command array for xcodebuild with -showBuildSettings option
-    const command = ['xcodebuild', '-showBuildSettings'];
-
-    // Add the workspace or project
-    if (params.workspacePath) {
-      command.push('-workspace', params.workspacePath);
-    } else if (params.projectPath) {
-      command.push('-project', params.projectPath);
-    }
-
-    // Add the scheme and configuration
-    command.push('-scheme', params.scheme);
-    command.push('-configuration', params.configuration ?? 'Debug');
-
-    // Handle destination for simulator
-    let destinationString: string;
+    let destination: string;
     if (params.simulatorId) {
-      destinationString = constructDestinationString(
-        detectedPlatform,
-        undefined,
-        params.simulatorId,
-      );
+      destination = constructDestinationString(detectedPlatform, undefined, params.simulatorId);
     } else if (params.simulatorName) {
-      destinationString = constructDestinationString(
+      destination = constructDestinationString(
         detectedPlatform,
         params.simulatorName,
         undefined,
         params.useLatestOS ?? true,
       );
     } else {
-      // This shouldn't happen due to validation, but handle it
-      destinationString = constructDestinationString(detectedPlatform);
-    }
-    command.push('-destination', destinationString);
-
-    // Add derived data path if provided
-    if (params.derivedDataPath) {
-      command.push('-derivedDataPath', params.derivedDataPath);
+      destination = constructDestinationString(detectedPlatform);
     }
 
-    // Add extra args if provided
-    if (params.extraArgs && params.extraArgs.length > 0) {
-      command.push(...params.extraArgs);
-    }
-
-    // Execute the command directly
-    const result = await executor(command, 'Get App Path', false, undefined);
-
-    // If there was an error with the command execution, return it
-    if (!result.success) {
-      return createTextResponse(
-        `Build succeeded, but failed to get app path: ${result.error ?? 'Unknown error'}`,
-        true,
+    let appBundlePath: string;
+    try {
+      appBundlePath = await resolveAppPathFromBuildSettings(
+        {
+          projectPath: params.projectPath,
+          workspacePath: params.workspacePath,
+          scheme: params.scheme,
+          configuration: params.configuration,
+          platform: detectedPlatform,
+          destination,
+          derivedDataPath: params.derivedDataPath,
+          extraArgs: params.extraArgs,
+        },
+        executor,
       );
-    }
-
-    // Parse the output to extract the app path
-    const buildSettingsOutput = result.output;
-
-    // Try both approaches to get app path - first the project approach (CODESIGNING_FOLDER_PATH)
-    let appBundlePath: string | null = null;
-
-    // Project approach: Extract CODESIGNING_FOLDER_PATH from build settings to get app path
-    const appPathMatch = buildSettingsOutput.match(/CODESIGNING_FOLDER_PATH = (.+\.app)/);
-    if (appPathMatch?.[1]) {
-      appBundlePath = appPathMatch[1].trim();
-    } else {
-      // Workspace approach: Extract BUILT_PRODUCTS_DIR and FULL_PRODUCT_NAME
-      const builtProductsDirMatch = buildSettingsOutput.match(
-        /^\s*BUILT_PRODUCTS_DIR\s*=\s*(.+)$/m,
-      );
-      const fullProductNameMatch = buildSettingsOutput.match(/^\s*FULL_PRODUCT_NAME\s*=\s*(.+)$/m);
-
-      if (builtProductsDirMatch && fullProductNameMatch) {
-        const builtProductsDir = builtProductsDirMatch[1].trim();
-        const fullProductName = fullProductNameMatch[1].trim();
-        appBundlePath = `${builtProductsDir}/${fullProductName}`;
-      }
-    }
-
-    if (!appBundlePath) {
-      return createTextResponse(
-        `Build succeeded, but could not find app path in build settings.`,
-        true,
-      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log('error', 'Build succeeded, but failed to get app path to launch.');
+      emitPipelineError(started, 'BUILD', `Failed to get app path to launch: ${errorMessage}`);
+      return createPendingXcodebuildResponse(started, {
+        content: [],
+        isError: true,
+      });
     }
 
     log('info', `App bundle path for run: ${appBundlePath}`);
+    emitPipelineNotice(started, 'BUILD', 'App path resolved', 'success', {
+      code: 'build-run-step',
+      data: { step: 'resolve-app-path', status: 'succeeded', appPath: appBundlePath },
+    });
 
-    // --- Find/Boot Simulator Step ---
-    // Use our helper to determine the simulator UUID
-    const uuidResult = await determineSimulatorUuid(
-      { simulatorId: params.simulatorId, simulatorName: params.simulatorName },
-      executor,
-    );
+    // Resolve simulator UUID
+    const uuidResult = params.simulatorId
+      ? { uuid: params.simulatorId }
+      : await determineSimulatorUuid(
+          { simulatorId: params.simulatorId, simulatorName: params.simulatorName },
+          executor,
+        );
 
     if (uuidResult.error) {
-      return createTextResponse(`Build succeeded, but ${uuidResult.error.content[0].text}`, true);
+      const errorMsg = uuidResult.error.content
+        .filter((item) => item.type === 'text')
+        .map((item) => item.text)
+        .join(' ');
+      emitPipelineError(started, 'BUILD', `Failed to resolve simulator UUID: ${errorMsg}`);
+      return createPendingXcodebuildResponse(started, {
+        content: [],
+        isError: true,
+      });
     }
 
     if (uuidResult.warning) {
@@ -276,13 +291,23 @@ export async function build_run_simLogic(
     const simulatorId = uuidResult.uuid;
 
     if (!simulatorId) {
-      return createTextResponse(
-        'Build succeeded, but no simulator specified and failed to find a suitable one.',
-        true,
+      emitPipelineError(
+        started,
+        'BUILD',
+        'Failed to resolve simulator: no simulator identifier provided',
       );
+      return createPendingXcodebuildResponse(started, {
+        content: [],
+        isError: true,
+      });
     }
 
-    // Check simulator state and boot if needed
+    // Boot simulator if needed
+    emitPipelineNotice(started, 'BUILD', 'Booting simulator', 'info', {
+      code: 'build-run-step',
+      data: { step: 'boot-simulator', status: 'started' },
+    });
+
     try {
       log('info', `Checking simulator state for UUID: ${simulatorId}`);
       const simulatorListResult = await executor(
@@ -298,7 +323,6 @@ export async function build_run_simLogic(
       };
       let targetSimulator: { udid: string; name: string; state: string } | null = null;
 
-      // Find the target simulator
       for (const runtime in simulatorsData.devices) {
         const devices = simulatorsData.devices[runtime];
         if (Array.isArray(devices)) {
@@ -327,13 +351,13 @@ export async function build_run_simLogic(
       }
 
       if (!targetSimulator) {
-        return createTextResponse(
-          `Build succeeded, but could not find simulator with UUID: ${simulatorId}`,
-          true,
-        );
+        emitPipelineError(started, 'BUILD', `Failed to find simulator with UUID: ${simulatorId}`);
+        return createPendingXcodebuildResponse(started, {
+          content: [],
+          isError: true,
+        });
       }
 
-      // Boot if needed
       if (targetSimulator.state !== 'Booted') {
         log('info', `Booting simulator ${targetSimulator.name}...`);
         const bootResult = await executor(
@@ -348,14 +372,20 @@ export async function build_run_simLogic(
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('error', `Error checking/booting simulator: ${errorMessage}`);
-      return createTextResponse(
-        `Build succeeded, but error checking/booting simulator: ${errorMessage}`,
-        true,
-      );
+      log('error', `Failed to boot simulator: ${errorMessage}`);
+      emitPipelineError(started, 'BUILD', `Failed to boot simulator: ${errorMessage}`);
+      return createPendingXcodebuildResponse(started, {
+        content: [],
+        isError: true,
+      });
     }
 
-    // --- Open Simulator UI Step ---
+    emitPipelineNotice(started, 'BUILD', 'Simulator ready', 'success', {
+      code: 'build-run-step',
+      data: { step: 'boot-simulator', status: 'succeeded' },
+    });
+
+    // Open Simulator.app (non-fatal)
     try {
       log('info', 'Opening Simulator app');
       const openResult = await executor(['open', '-a', 'Simulator'], 'Open Simulator App');
@@ -365,10 +395,14 @@ export async function build_run_simLogic(
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       log('warn', `Warning: Could not open Simulator app: ${errorMessage}`);
-      // Don't fail the whole operation for this
     }
 
-    // --- Install App Step ---
+    // Install app
+    emitPipelineNotice(started, 'BUILD', 'Installing app', 'info', {
+      code: 'build-run-step',
+      data: { step: 'install-app', status: 'started' },
+    });
+
     try {
       log('info', `Installing app at path: ${appBundlePath} to simulator: ${simulatorId}`);
       const installResult = await executor(
@@ -380,84 +414,44 @@ export async function build_run_simLogic(
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('error', `Error installing app: ${errorMessage}`);
-      return createTextResponse(
-        `Build succeeded, but error installing app on simulator: ${errorMessage}`,
-        true,
-      );
+      log('error', `Failed to install app: ${errorMessage}`);
+      emitPipelineError(started, 'BUILD', `Failed to install app on simulator: ${errorMessage}`);
+      return createPendingXcodebuildResponse(started, {
+        content: [],
+        isError: true,
+      });
     }
 
-    // --- Get Bundle ID Step ---
-    let bundleId;
+    emitPipelineNotice(started, 'BUILD', 'App installed', 'success', {
+      code: 'build-run-step',
+      data: { step: 'install-app', status: 'succeeded' },
+    });
+
+    // Extract bundle ID
+    let bundleId: string;
     try {
       log('info', `Extracting bundle ID from app: ${appBundlePath}`);
-
-      // Try multiple methods to get bundle ID - first PlistBuddy, then plutil, then defaults
-      let bundleIdResult = null;
-
-      // Method 1: PlistBuddy (most reliable)
-      try {
-        bundleIdResult = await executor(
-          [
-            '/usr/libexec/PlistBuddy',
-            '-c',
-            'Print :CFBundleIdentifier',
-            `${appBundlePath}/Info.plist`,
-          ],
-          'Get Bundle ID with PlistBuddy',
-        );
-        if (bundleIdResult.success) {
-          bundleId = bundleIdResult.output.trim();
-        }
-      } catch {
-        // Continue to next method
+      bundleId = (await extractBundleIdFromAppPath(appBundlePath, executor)).trim();
+      if (bundleId.length === 0) {
+        throw new Error('Empty bundle ID returned');
       }
-
-      // Method 2: plutil (workspace approach)
-      if (!bundleId) {
-        try {
-          bundleIdResult = await executor(
-            ['plutil', '-extract', 'CFBundleIdentifier', 'raw', `${appBundlePath}/Info.plist`],
-            'Get Bundle ID with plutil',
-          );
-          if (bundleIdResult?.success) {
-            bundleId = bundleIdResult.output?.trim();
-          }
-        } catch {
-          // Continue to next method
-        }
-      }
-
-      // Method 3: defaults (fallback)
-      if (!bundleId) {
-        try {
-          bundleIdResult = await executor(
-            ['defaults', 'read', `${appBundlePath}/Info`, 'CFBundleIdentifier'],
-            'Get Bundle ID with defaults',
-          );
-          if (bundleIdResult?.success) {
-            bundleId = bundleIdResult.output?.trim();
-          }
-        } catch {
-          // All methods failed
-        }
-      }
-
-      if (!bundleId) {
-        throw new Error('Could not extract bundle ID from Info.plist using any method');
-      }
-
       log('info', `Bundle ID for run: ${bundleId}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('error', `Error getting bundle ID: ${errorMessage}`);
-      return createTextResponse(
-        `Build and install succeeded, but error getting bundle ID: ${errorMessage}`,
-        true,
-      );
+      log('error', `Failed to extract bundle ID: ${errorMessage}`);
+      emitPipelineError(started, 'BUILD', `Failed to extract bundle ID: ${errorMessage}`);
+      return createPendingXcodebuildResponse(started, {
+        content: [],
+        isError: true,
+      });
     }
 
-    // --- Launch App Step ---
+    // Launch app
+    emitPipelineNotice(started, 'BUILD', 'Launching app', 'info', {
+      code: 'build-run-step',
+      data: { step: 'launch-app', status: 'started', appPath: appBundlePath },
+    });
+
     try {
       log('info', `Launching app with bundle ID: ${bundleId} on simulator: ${simulatorId}`);
       const launchResult = await executor(
@@ -469,43 +463,55 @@ export async function build_run_simLogic(
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('error', `Error launching app: ${errorMessage}`);
-      return createTextResponse(
-        `Build and install succeeded, but error launching app on simulator: ${errorMessage}`,
-        true,
-      );
+      log('error', `Failed to launch app: ${errorMessage}`);
+      emitPipelineError(started, 'BUILD', `Failed to launch app ${appBundlePath}: ${errorMessage}`);
+      return createPendingXcodebuildResponse(started, {
+        content: [],
+        isError: true,
+      });
     }
 
-    // --- Success ---
     log('info', `${platformName} simulator build & run succeeded.`);
 
-    const target = params.simulatorId
-      ? `simulator UUID '${params.simulatorId}'`
-      : `simulator name '${params.simulatorName}'`;
-    const sourceType = params.projectPath ? 'project' : 'workspace';
-    const sourcePath = params.projectPath ?? params.workspacePath;
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `${platformName} simulator build and run succeeded for scheme ${params.scheme} from ${sourceType} ${sourcePath} targeting ${target}.\n\nThe app (${bundleId}) is now running in the ${platformName} Simulator.\nIf you don't see the simulator window, it may be hidden behind other windows. The Simulator app should be open.`,
+    return createPendingXcodebuildResponse(
+      started,
+      {
+        content: [],
+        isError: false,
+        nextStepParams: {
+          start_sim_log_cap: [
+            { simulatorId, bundleId },
+            { simulatorId, bundleId, captureConsole: true },
+          ],
+          stop_app_sim: { simulatorId, bundleId },
+          launch_app_logs_sim: { simulatorId, bundleId },
         },
-      ],
-      nextStepParams: {
-        start_sim_log_cap: [
-          { simulatorId, bundleId },
-          { simulatorId, bundleId, captureConsole: true },
-        ],
-        stop_app_sim: { simulatorId, bundleId },
-        launch_app_logs_sim: { simulatorId, bundleId },
       },
-      isError: false,
-    };
+      {
+        tailEvents: [
+          {
+            type: 'notice',
+            timestamp: new Date().toISOString(),
+            operation: 'BUILD',
+            level: 'success',
+            message: 'Build & Run complete',
+            code: 'build-run-result',
+            data: {
+              scheme: params.scheme,
+              platform: displayPlatform,
+              target: `${platformName} Simulator`,
+              appPath: appBundlePath,
+              bundleId,
+              launchState: 'requested',
+            },
+          },
+        ],
+      },
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error in Simulator build and run: ${errorMessage}`);
-    return createTextResponse(`Error in Simulator build and run: ${errorMessage}`, true);
+    return createTextResponse(`Error during simulator build and run: ${errorMessage}`, true);
   }
 }
 

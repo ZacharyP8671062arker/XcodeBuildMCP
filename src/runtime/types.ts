@@ -7,6 +7,7 @@ export interface NextStepTemplate {
   toolId?: string;
   params?: Record<string, string | number | boolean>;
   priority?: number;
+  when?: 'always' | 'success' | 'failure';
 }
 
 export type RuntimeKind = 'cli' | 'daemon' | 'mcp';

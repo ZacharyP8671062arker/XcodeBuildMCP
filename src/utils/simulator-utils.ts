@@ -12,6 +12,49 @@ import { createErrorResponse } from './responses/index.ts';
  */
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export async function validateAvailableSimulatorId(
+  simulatorId: string,
+  executor: CommandExecutor,
+): Promise<{ error?: ToolResponse }> {
+  const listResult = await executor(
+    ['xcrun', 'simctl', 'list', 'devices', 'available', '-j'],
+    'List available simulators',
+  );
+
+  if (!listResult.success) {
+    return {
+      error: createErrorResponse('Failed to list simulators', listResult.error ?? 'Unknown error'),
+    };
+  }
+
+  try {
+    const devicesData = JSON.parse(listResult.output ?? '{}') as {
+      devices: Record<string, Array<{ udid: string; isAvailable: boolean }>>;
+    };
+    const matchedDevice = Object.values(devicesData.devices)
+      .flat()
+      .find((device) => device.udid === simulatorId && device.isAvailable === true);
+
+    if (matchedDevice) {
+      return {};
+    }
+
+    return {
+      error: createErrorResponse(
+        `No available simulator matched: ${simulatorId}`,
+        'Tip: run "xcrun simctl list devices available" to see names and UDIDs.',
+      ),
+    };
+  } catch (parseError) {
+    return {
+      error: createErrorResponse(
+        'Failed to parse simulator list',
+        parseError instanceof Error ? parseError.message : String(parseError),
+      ),
+    };
+  }
+}
+
 /**
  * Determines the simulator UUID from either a UUID or name.
  *

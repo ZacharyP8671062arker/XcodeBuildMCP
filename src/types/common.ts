@@ -28,6 +28,8 @@ export interface NextStep {
   params?: Record<string, string | number | boolean>;
   /** Optional ordering hint for merged steps */
   priority?: number;
+  /** When to show this step: 'always' (default), 'success', or 'failure' */
+  when?: 'always' | 'success' | 'failure';
 }
 
 export type NextStepParams = Record<string, string | number | boolean>;
@@ -139,5 +141,5 @@ export interface PlatformBuildOptions {
   useLatestOS?: boolean;
   arch?: string;
   logPrefix: string;
-  showTestProgress?: boolean;
+  packageCachePath?: string;
 }

@@ -11,3 +11,6 @@ annotations:
   readOnlyHint: false
   destructiveHint: false
   openWorldHint: false
+nextSteps:
+  - label: Interact with the launched app in the foreground
+    priority: 1

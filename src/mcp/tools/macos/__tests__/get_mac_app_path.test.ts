@@ -130,7 +130,6 @@ describe('get_mac_app_path plugin', () => {
         ],
         'Get App Path',
         false,
-        undefined,
       ]);
     });
 
@@ -168,7 +167,6 @@ describe('get_mac_app_path plugin', () => {
         ],
         'Get App Path',
         false,
-        undefined,
       ]);
     });
 
@@ -210,7 +208,6 @@ describe('get_mac_app_path plugin', () => {
         ],
         'Get App Path',
         false,
-        undefined,
       ]);
     });
 
@@ -252,7 +249,6 @@ describe('get_mac_app_path plugin', () => {
         ],
         'Get App Path',
         false,
-        undefined,
       ]);
     });
 
@@ -296,7 +292,6 @@ describe('get_mac_app_path plugin', () => {
         ],
         'Get App Path',
         false,
-        undefined,
       ]);
     });
 
@@ -337,7 +332,6 @@ describe('get_mac_app_path plugin', () => {
         ],
         'Get App Path',
         false,
-        undefined,
       ]);
     });
   });
@@ -370,23 +364,20 @@ FULL_PRODUCT_NAME = MyApp.app
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App path retrieved successfully: /Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app',
-          },
-        ],
-        nextStepParams: {
-          get_mac_bundle_id: {
-            appPath:
-              '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app',
-          },
-          launch_mac_app: {
-            appPath:
-              '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app',
-          },
-        },
+      const appPath =
+        '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app';
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Scheme: MyScheme');
+      expect(result.content[0].text).toContain('Workspace: /path/to/MyProject.xcworkspace');
+      expect(result.content[0].text).toContain('Configuration: Debug');
+      expect(result.content[0].text).toContain('Platform: macOS');
+      expect(result.content[0].text).toContain(`\u{2514} App Path: ${appPath}`);
+      expect(result.content[0].text).not.toContain('\u{2705}');
+      expect(result.nextStepParams).toEqual({
+        get_mac_bundle_id: { appPath },
+        launch_mac_app: { appPath },
       });
     });
 
@@ -407,30 +398,27 @@ FULL_PRODUCT_NAME = MyApp.app
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App path retrieved successfully: /Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app',
-          },
-        ],
-        nextStepParams: {
-          get_mac_bundle_id: {
-            appPath:
-              '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app',
-          },
-          launch_mac_app: {
-            appPath:
-              '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app',
-          },
-        },
+      const appPath =
+        '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app';
+
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Scheme: MyScheme');
+      expect(result.content[0].text).toContain('Project: /path/to/MyProject.xcodeproj');
+      expect(result.content[0].text).toContain('Configuration: Debug');
+      expect(result.content[0].text).toContain('Platform: macOS');
+      expect(result.content[0].text).toContain(`\u{2514} App Path: ${appPath}`);
+      expect(result.content[0].text).not.toContain('\u{2705}');
+      expect(result.nextStepParams).toEqual({
+        get_mac_bundle_id: { appPath },
+        launch_mac_app: { appPath },
       });
     });
 
     it('should return exact build settings failure response', async () => {
       const mockExecutor = createMockExecutor({
         success: false,
-        error: 'error: No such scheme',
+        error: 'xcodebuild: error: No such scheme',
       });
 
       const result = await get_mac_app_pathLogic(
@@ -441,15 +429,13 @@ FULL_PRODUCT_NAME = MyApp.app
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Failed to get macOS app path\nDetails: error: No such scheme',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Scheme: MyScheme');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain('\u{2717} No such scheme');
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should return exact missing build settings response', async () => {
@@ -466,15 +452,14 @@ FULL_PRODUCT_NAME = MyApp.app
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Failed to get macOS app path\nDetails: Could not extract app path from build settings',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain(
+        '\u{2717} Could not extract app path from build settings',
+      );
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should return exact exception handling response', async () => {
@@ -490,15 +475,12 @@ FULL_PRODUCT_NAME = MyApp.app
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Failed to get macOS app path\nDetails: Network error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain('\u{2717} Network error');
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
   });
 });

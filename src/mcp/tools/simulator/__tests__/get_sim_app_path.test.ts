@@ -159,9 +159,16 @@ describe('get_sim_app_path tool', () => {
       ]);
 
       expect(result.isError).toBe(false);
-      expect(result.content[0].text).toContain(
-        '✅ App path retrieved successfully: /tmp/DerivedData/Build/MyApp.app',
-      );
+      const text = result.content[0].text;
+      expect(text).toContain('\u{1F50D} Get App Path');
+      expect(text).toContain('Scheme: MyScheme');
+      expect(text).toContain('Workspace: /path/to/workspace.xcworkspace');
+      expect(text).toContain('Configuration: Debug');
+      expect(text).toContain('Platform: iOS Simulator');
+      expect(text).toContain('Simulator: iPhone 17');
+      expect(text).toContain('\u{2514} App Path: /tmp/DerivedData/Build/MyApp.app');
+      expect(text).not.toContain('\u{2705}');
+      expect(result.nextStepParams).toBeDefined();
     });
 
     it('should surface executor failures when build settings cannot be retrieved', async () => {
@@ -181,8 +188,13 @@ describe('get_sim_app_path tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Failed to get app path');
-      expect(result.content[0].text).toContain('Failed to run xcodebuild');
+      const text = result.content[0].text;
+      expect(text).toContain('\u{1F50D} Get App Path');
+      expect(text).toContain('Scheme: MyScheme');
+      expect(text).toContain('Errors (');
+      expect(text).toContain('\u{2717}');
+      expect(text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
   });
 });

@@ -180,7 +180,7 @@ describe('next-steps-renderer', () => {
 
       const result = renderNextStepsSection(steps, 'cli');
       expect(result).toBe(
-        '\n\nNext steps:\n' +
+        'Next steps:\n' +
           '1. Open Simulator: xcodebuildmcp open-sim\n' +
           '2. Install app: xcodebuildmcp install-app-sim --simulator-id "X"',
       );
@@ -194,7 +194,7 @@ describe('next-steps-renderer', () => {
 
       const result = renderNextStepsSection(steps, 'mcp');
       expect(result).toBe(
-        '\n\nNext steps:\n' +
+        'Next steps:\n' +
           '1. Open Simulator: open_sim()\n' +
           '2. Install app: install_app_sim({ simulatorId: "X" })',
       );

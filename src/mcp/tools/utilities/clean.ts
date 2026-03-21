@@ -17,6 +17,9 @@ import type { ToolResponse, SharedBuildParams } from '../../../types/common.ts';
 import { XcodePlatform } from '../../../types/common.ts';
 import { createErrorResponse } from '../../../utils/responses/index.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
+import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
+import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
+import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 
 // Unified schema: XOR between projectPath and workspacePath, sharing common options
 const baseOptions = {
@@ -128,7 +131,30 @@ export async function cleanLogic(
 
   const cleanPlatform = cleanPlatformMap[platformEnum] ?? platformEnum;
 
-  return executeXcodeBuildCommand(
+  const preflightText = formatToolPreflight({
+    operation: 'Clean',
+    scheme: typedParams.scheme,
+    workspacePath: params.workspacePath as string | undefined,
+    projectPath: params.projectPath as string | undefined,
+    configuration: typedParams.configuration,
+    platform: String(cleanPlatform),
+  });
+
+  const pipelineParams = {
+    scheme: typedParams.scheme,
+    configuration: typedParams.configuration,
+    platform: String(cleanPlatform),
+    preflight: preflightText,
+  };
+
+  const started = startBuildPipeline({
+    operation: 'BUILD',
+    toolName: 'clean',
+    params: pipelineParams,
+    message: preflightText,
+  });
+
+  const buildResult = await executeXcodeBuildCommand(
     typedParams,
     {
       platform: cleanPlatform,
@@ -137,7 +163,11 @@ export async function cleanLogic(
     false,
     'clean',
     executor,
+    undefined,
+    started.pipeline,
   );
+
+  return createPendingXcodebuildResponse(started, buildResult);
 }
 
 const publicSchemaObject = baseSchemaObject.omit({

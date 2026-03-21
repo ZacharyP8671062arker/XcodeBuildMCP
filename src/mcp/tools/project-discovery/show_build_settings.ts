@@ -9,13 +9,17 @@ import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { createTextResponse } from '../../../utils/responses/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
+import { formatToolPreflight } from '../../../utils/build-preflight.ts';
+import {
+  formatQueryError,
+  formatQueryFailureSummary,
+} from '../../../utils/xcodebuild-error-utils.ts';
 
 // Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
@@ -37,6 +41,15 @@ const showBuildSettingsSchema = z.preprocess(
 
 export type ShowBuildSettingsParams = z.infer<typeof showBuildSettingsSchema>;
 
+function stripXcodebuildPreamble(output: string): string {
+  const lines = output.split('\n');
+  const startIndex = lines.findIndex((line) => line.startsWith('Build settings for action'));
+  if (startIndex === -1) {
+    return output;
+  }
+  return lines.slice(startIndex).join('\n');
+}
+
 /**
  * Business logic for showing build settings from a project or workspace.
  * Exported for direct testing and reuse.
@@ -47,12 +60,19 @@ export async function showBuildSettingsLogic(
 ): Promise<ToolResponse> {
   log('info', `Showing build settings for scheme ${params.scheme}`);
 
-  try {
-    // Create the command array for xcodebuild
-    const command = ['xcodebuild', '-showBuildSettings']; // -showBuildSettings as an option, not an action
+  const hasProjectPath = typeof params.projectPath === 'string';
+  const path = hasProjectPath ? params.projectPath : params.workspacePath;
 
-    const hasProjectPath = typeof params.projectPath === 'string';
-    const path = hasProjectPath ? params.projectPath : params.workspacePath;
+  const preflight = formatToolPreflight({
+    operation: 'Show Build Settings',
+    scheme: params.scheme,
+    ...(hasProjectPath
+      ? { projectPath: params.projectPath }
+      : { workspacePath: params.workspacePath }),
+  });
+
+  try {
+    const command = ['xcodebuild', '-showBuildSettings'];
 
     if (hasProjectPath) {
       command.push('-project', params.projectPath!);
@@ -60,31 +80,26 @@ export async function showBuildSettingsLogic(
       command.push('-workspace', params.workspacePath!);
     }
 
-    // Add the scheme
     command.push('-scheme', params.scheme);
 
-    // Execute the command directly
     const result = await executor(command, 'Show Build Settings', false);
 
     if (!result.success) {
-      return createTextResponse(`Failed to show build settings: ${result.error}`, true);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `${preflight}\n${formatQueryError(result.error || 'Unknown error')}\n\n${formatQueryFailureSummary()}`,
+          },
+        ],
+        isError: true,
+      };
     }
 
-    // Create response based on which type was used
-    const content: Array<{ type: 'text'; text: string }> = [
-      {
-        type: 'text',
-        text: hasProjectPath
-          ? `✅ Build settings for scheme ${params.scheme}:`
-          : '✅ Build settings retrieved successfully',
-      },
-      {
-        type: 'text',
-        text: result.output || 'Build settings retrieved successfully.',
-      },
-    ];
+    const settingsOutput = stripXcodebuildPreamble(
+      result.output || 'Build settings retrieved successfully.',
+    );
 
-    // Build next step params
     let nextStepParams: Record<string, Record<string, string | number | boolean>> | undefined;
 
     if (path) {
@@ -97,14 +112,22 @@ export async function showBuildSettingsLogic(
     }
 
     return {
-      content,
+      content: [{ type: 'text', text: `${preflight}\n${settingsOutput}` }],
       ...(nextStepParams ? { nextStepParams } : {}),
       isError: false,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error showing build settings: ${errorMessage}`);
-    return createTextResponse(`Error showing build settings: ${errorMessage}`, true);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `${preflight}\n${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
+        },
+      ],
+      isError: true,
+    };
   }
 }
 

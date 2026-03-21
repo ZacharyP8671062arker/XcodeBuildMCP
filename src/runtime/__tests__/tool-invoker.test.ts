@@ -537,6 +537,76 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     ]);
   });
 
+  it('suppresses manifest next steps for structured xcodebuild failures', async () => {
+    const directHandler = vi.fn().mockResolvedValue({
+      isError: true,
+      content: [],
+      _meta: {
+        pendingXcodebuild: {
+          kind: 'pending-xcodebuild',
+          started: {
+            startedAt: Date.now(),
+            pipeline: {
+              finalize: vi.fn().mockReturnValue({
+                events: [
+                  {
+                    type: 'summary',
+                    timestamp: '2026-03-20T12:00:00.000Z',
+                    operation: 'BUILD',
+                    status: 'FAILED',
+                  },
+                ],
+                mcpContent: [{ type: 'text', text: '❌ Build failed.' }],
+                state: {
+                  errors: [{ type: 'error' }],
+                  testFailures: [],
+                },
+              }),
+            },
+          },
+          emitSummary: true,
+          extras: {},
+          fallbackContent: [],
+          tailEvents: [],
+          errorFallbackPolicy: 'if-no-structured-diagnostics',
+        },
+      },
+    } satisfies ToolResponse);
+
+    const catalog = createToolCatalog([
+      makeTool({
+        id: 'build_run_macos',
+        cliName: 'build-and-run',
+        mcpName: 'build_run_macos',
+        workflow: 'macos',
+        stateful: false,
+        nextStepTemplates: [{ label: 'Get built macOS app path', toolId: 'get_mac_app_path' }],
+        handler: directHandler,
+      }),
+      makeTool({
+        id: 'get_mac_app_path',
+        cliName: 'get-app-path',
+        mcpName: 'get_mac_app_path',
+        workflow: 'macos',
+        stateful: false,
+        handler: vi.fn().mockResolvedValue(textResponse('path')),
+      }),
+    ]);
+
+    const invoker = new DefaultToolInvoker(catalog);
+    const response = await invoker.invoke('build-and-run', {}, { runtime: 'cli' });
+
+    expect(response.nextSteps).toBeUndefined();
+    expect(
+      ((response._meta?.events ?? []) as Array<{ type: string }>).some(
+        (event) => event.type === 'next-steps',
+      ),
+    ).toBe(false);
+    expect(
+      response.content.map((item) => (item.type === 'text' ? item.text : '')).join('\n'),
+    ).not.toContain('Next steps:');
+  });
+
   it('always uses manifest templates when they exist', async () => {
     const directHandler = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: 'ok' }],

@@ -5,6 +5,21 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler } from '../build_run_macos.ts';
 import { buildRunMacOSLogic } from '../build_run_macos.ts';
 
+function expectPendingBuildRunResponse(
+  result: Awaited<ReturnType<typeof buildRunMacOSLogic>>,
+  isError: boolean,
+): void {
+  expect(result.isError).toBe(isError);
+  expect(result.content).toEqual([]);
+  expect(result._meta).toEqual(
+    expect.objectContaining({
+      pendingXcodebuild: expect.objectContaining({
+        kind: 'pending-xcodebuild',
+      }),
+    }),
+  );
+}
+
 describe('build_run_macos', () => {
   beforeEach(() => {
     sessionStore.clear();
@@ -62,7 +77,6 @@ describe('build_run_macos', () => {
 
   describe('Command Generation and Response Logic', () => {
     it('should successfully build and run macOS app from project', async () => {
-      // Track executor calls manually
       let callCount = 0;
       const executorCalls: any[] = [];
       const mockExecutor = (
@@ -77,7 +91,6 @@ describe('build_run_macos', () => {
         void detached;
 
         if (callCount === 1) {
-          // First call for build
           return Promise.resolve({
             success: true,
             output: 'BUILD SUCCEEDED',
@@ -85,7 +98,6 @@ describe('build_run_macos', () => {
             process: mockProcess,
           });
         } else if (callCount === 2) {
-          // Second call for build settings
           return Promise.resolve({
             success: true,
             output: 'BUILT_PRODUCTS_DIR = /path/to/build\nFULL_PRODUCT_NAME = MyApp.app',
@@ -105,64 +117,43 @@ describe('build_run_macos', () => {
 
       const result = await buildRunMacOSLogic(args, mockExecutor);
 
-      // Verify build command was called
-      expect(executorCalls[0]).toEqual({
-        command: [
-          'xcodebuild',
-          '-project',
-          '/path/to/project.xcodeproj',
-          '-scheme',
-          'MyApp',
-          '-configuration',
-          'Debug',
-          '-skipMacroValidation',
-          '-destination',
-          'platform=macOS',
-          'build',
-        ],
-        description: 'macOS Build',
-        logOutput: false,
-        opts: { cwd: '/path/to' },
-      });
+      expect(executorCalls[0].command).toEqual([
+        'xcodebuild',
+        '-project',
+        '/path/to/project.xcodeproj',
+        '-scheme',
+        'MyApp',
+        '-configuration',
+        'Debug',
+        '-skipMacroValidation',
+        '-destination',
+        'platform=macOS',
+        'build',
+      ]);
+      expect(executorCalls[0].description).toBe('macOS Build');
 
-      // Verify build settings command was called
-      expect(executorCalls[1]).toEqual({
-        command: [
-          'xcodebuild',
-          '-showBuildSettings',
-          '-project',
-          '/path/to/project.xcodeproj',
-          '-scheme',
-          'MyApp',
-          '-configuration',
-          'Debug',
-        ],
-        description: 'Get Build Settings for Launch',
-        logOutput: false,
-        opts: undefined,
-      });
-
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS Build build succeeded for scheme MyApp.',
-          },
-          {
-            type: 'text',
-            text: "Next Steps:\n1. Get app path: get_mac_app_path({ scheme: 'MyApp' })\n2. Get bundle ID: get_mac_bundle_id({ appPath: 'PATH_FROM_STEP_1' })\n3. Launch: launch_mac_app({ appPath: 'PATH_FROM_STEP_1' })",
-          },
-          {
-            type: 'text',
-            text: '✅ macOS build and run succeeded for scheme MyApp. App launched: /path/to/build/MyApp.app',
-          },
-        ],
-        isError: false,
-      });
+      expectPendingBuildRunResponse(result, false);
+      expect(result.nextSteps).toBeUndefined();
+      expect(result.nextStepParams).toBeUndefined();
+      expect(result._meta?.pendingXcodebuild).toEqual(
+        expect.objectContaining({
+          tailEvents: [
+            expect.objectContaining({
+              type: 'notice',
+              code: 'build-run-result',
+              data: expect.objectContaining({
+                scheme: 'MyApp',
+                target: 'macOS',
+                appPath: '/path/to/build/MyApp.app',
+                launchState: 'requested',
+              }),
+            }),
+          ],
+        }),
+      );
     });
 
     it('should successfully build and run macOS app from workspace', async () => {
-      // Track executor calls manually
       let callCount = 0;
       const executorCalls: any[] = [];
       const mockExecutor = (
@@ -177,7 +168,6 @@ describe('build_run_macos', () => {
         void detached;
 
         if (callCount === 1) {
-          // First call for build
           return Promise.resolve({
             success: true,
             output: 'BUILD SUCCEEDED',
@@ -185,7 +175,6 @@ describe('build_run_macos', () => {
             process: mockProcess,
           });
         } else if (callCount === 2) {
-          // Second call for build settings
           return Promise.resolve({
             success: true,
             output: 'BUILT_PRODUCTS_DIR = /path/to/build\nFULL_PRODUCT_NAME = MyApp.app',
@@ -205,60 +194,21 @@ describe('build_run_macos', () => {
 
       const result = await buildRunMacOSLogic(args, mockExecutor);
 
-      // Verify build command was called
-      expect(executorCalls[0]).toEqual({
-        command: [
-          'xcodebuild',
-          '-workspace',
-          '/path/to/workspace.xcworkspace',
-          '-scheme',
-          'MyApp',
-          '-configuration',
-          'Debug',
-          '-skipMacroValidation',
-          '-destination',
-          'platform=macOS',
-          'build',
-        ],
-        description: 'macOS Build',
-        logOutput: false,
-        opts: { cwd: '/path/to' },
-      });
+      expect(executorCalls[0].command).toEqual([
+        'xcodebuild',
+        '-workspace',
+        '/path/to/workspace.xcworkspace',
+        '-scheme',
+        'MyApp',
+        '-configuration',
+        'Debug',
+        '-skipMacroValidation',
+        '-destination',
+        'platform=macOS',
+        'build',
+      ]);
 
-      // Verify build settings command was called
-      expect(executorCalls[1]).toEqual({
-        command: [
-          'xcodebuild',
-          '-showBuildSettings',
-          '-workspace',
-          '/path/to/workspace.xcworkspace',
-          '-scheme',
-          'MyApp',
-          '-configuration',
-          'Debug',
-        ],
-        description: 'Get Build Settings for Launch',
-        logOutput: false,
-        opts: undefined,
-      });
-
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS Build build succeeded for scheme MyApp.',
-          },
-          {
-            type: 'text',
-            text: "Next Steps:\n1. Get app path: get_mac_app_path({ scheme: 'MyApp' })\n2. Get bundle ID: get_mac_bundle_id({ appPath: 'PATH_FROM_STEP_1' })\n3. Launch: launch_mac_app({ appPath: 'PATH_FROM_STEP_1' })",
-          },
-          {
-            type: 'text',
-            text: '✅ macOS build and run succeeded for scheme MyApp. App launched: /path/to/build/MyApp.app',
-          },
-        ],
-        isError: false,
-      });
+      expectPendingBuildRunResponse(result, false);
     });
 
     it('should handle build failure', async () => {
@@ -277,17 +227,18 @@ describe('build_run_macos', () => {
 
       const result = await buildRunMacOSLogic(args, mockExecutor);
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '❌ [stderr] error: Build failed' },
-          { type: 'text', text: '❌ macOS Build build failed for scheme MyApp.' },
-        ],
-        isError: true,
-      });
+      expectPendingBuildRunResponse(result, true);
+      expect(result.nextSteps).toBeUndefined();
+      expect(result.nextStepParams).toBeUndefined();
+      expect(result._meta?.pendingXcodebuild).toEqual(
+        expect.objectContaining({
+          errorFallbackPolicy: 'if-no-structured-diagnostics',
+          tailEvents: [],
+        }),
+      );
     });
 
     it('should handle build settings failure', async () => {
-      // Track executor calls manually
       let callCount = 0;
       const mockExecutor = (
         command: string[],
@@ -299,7 +250,6 @@ describe('build_run_macos', () => {
         callCount++;
         void detached;
         if (callCount === 1) {
-          // First call for build succeeds
           return Promise.resolve({
             success: true,
             output: 'BUILD SUCCEEDED',
@@ -307,7 +257,6 @@ describe('build_run_macos', () => {
             process: mockProcess,
           });
         } else if (callCount === 2) {
-          // Second call for build settings fails
           return Promise.resolve({
             success: false,
             output: '',
@@ -327,27 +276,17 @@ describe('build_run_macos', () => {
 
       const result = await buildRunMacOSLogic(args, mockExecutor);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS Build build succeeded for scheme MyApp.',
-          },
-          {
-            type: 'text',
-            text: "Next Steps:\n1. Get app path: get_mac_app_path({ scheme: 'MyApp' })\n2. Get bundle ID: get_mac_bundle_id({ appPath: 'PATH_FROM_STEP_1' })\n3. Launch: launch_mac_app({ appPath: 'PATH_FROM_STEP_1' })",
-          },
-          {
-            type: 'text',
-            text: '✅ Build succeeded, but failed to get app path to launch: error: Failed to get settings',
-          },
-        ],
-        isError: false,
-      });
+      expectPendingBuildRunResponse(result, true);
+      expect(result.nextSteps).toBeUndefined();
+      expect(result.nextStepParams).toBeUndefined();
+      expect(result._meta?.pendingXcodebuild).toEqual(
+        expect.objectContaining({
+          tailEvents: [],
+        }),
+      );
     });
 
     it('should handle app launch failure', async () => {
-      // Track executor calls manually
       let callCount = 0;
       const mockExecutor = (
         command: string[],
@@ -359,7 +298,6 @@ describe('build_run_macos', () => {
         callCount++;
         void detached;
         if (callCount === 1) {
-          // First call for build succeeds
           return Promise.resolve({
             success: true,
             output: 'BUILD SUCCEEDED',
@@ -367,7 +305,6 @@ describe('build_run_macos', () => {
             process: mockProcess,
           });
         } else if (callCount === 2) {
-          // Second call for build settings succeeds
           return Promise.resolve({
             success: true,
             output: 'BUILT_PRODUCTS_DIR = /path/to/build\nFULL_PRODUCT_NAME = MyApp.app',
@@ -375,7 +312,6 @@ describe('build_run_macos', () => {
             process: mockProcess,
           });
         } else if (callCount === 3) {
-          // Third call for open command fails
           return Promise.resolve({
             success: false,
             output: '',
@@ -395,23 +331,14 @@ describe('build_run_macos', () => {
 
       const result = await buildRunMacOSLogic(args, mockExecutor);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS Build build succeeded for scheme MyApp.',
-          },
-          {
-            type: 'text',
-            text: "Next Steps:\n1. Get app path: get_mac_app_path({ scheme: 'MyApp' })\n2. Get bundle ID: get_mac_bundle_id({ appPath: 'PATH_FROM_STEP_1' })\n3. Launch: launch_mac_app({ appPath: 'PATH_FROM_STEP_1' })",
-          },
-          {
-            type: 'text',
-            text: '✅ Build succeeded, but failed to launch app /path/to/build/MyApp.app. Error: Failed to launch',
-          },
-        ],
-        isError: false,
-      });
+      expectPendingBuildRunResponse(result, true);
+      expect(result.nextSteps).toBeUndefined();
+      expect(result.nextStepParams).toBeUndefined();
+      expect(result._meta?.pendingXcodebuild).toEqual(
+        expect.objectContaining({
+          tailEvents: [],
+        }),
+      );
     });
 
     it('should handle spawn error', async () => {
@@ -439,16 +366,17 @@ describe('build_run_macos', () => {
 
       const result = await buildRunMacOSLogic(args, mockExecutor);
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: 'Error during macOS Build build: spawn xcodebuild ENOENT' },
-        ],
-        isError: true,
-      });
+      expectPendingBuildRunResponse(result, true);
+      expect(result.nextSteps).toBeUndefined();
+      expect(result.nextStepParams).toBeUndefined();
+      expect(result._meta?.pendingXcodebuild).toEqual(
+        expect.objectContaining({
+          tailEvents: [],
+        }),
+      );
     });
 
     it('should use default configuration when not provided', async () => {
-      // Track executor calls manually
       let callCount = 0;
       const executorCalls: any[] = [];
       const mockExecutor = (
@@ -463,7 +391,6 @@ describe('build_run_macos', () => {
         void detached;
 
         if (callCount === 1) {
-          // First call for build
           return Promise.resolve({
             success: true,
             output: 'BUILD SUCCEEDED',
@@ -471,7 +398,6 @@ describe('build_run_macos', () => {
             process: mockProcess,
           });
         } else if (callCount === 2) {
-          // Second call for build settings
           return Promise.resolve({
             success: true,
             output: 'BUILT_PRODUCTS_DIR = /path/to/build\nFULL_PRODUCT_NAME = MyApp.app',
@@ -491,24 +417,20 @@ describe('build_run_macos', () => {
 
       await buildRunMacOSLogic(args, mockExecutor);
 
-      expect(executorCalls[0]).toEqual({
-        command: [
-          'xcodebuild',
-          '-project',
-          '/path/to/project.xcodeproj',
-          '-scheme',
-          'MyApp',
-          '-configuration',
-          'Debug',
-          '-skipMacroValidation',
-          '-destination',
-          'platform=macOS',
-          'build',
-        ],
-        description: 'macOS Build',
-        logOutput: false,
-        opts: { cwd: '/path/to' },
-      });
+      expect(executorCalls[0].command).toEqual([
+        'xcodebuild',
+        '-project',
+        '/path/to/project.xcodeproj',
+        '-scheme',
+        'MyApp',
+        '-configuration',
+        'Debug',
+        '-skipMacroValidation',
+        '-destination',
+        'platform=macOS',
+        'build',
+      ]);
+      expect(executorCalls[0].description).toBe('macOS Build');
     });
   });
 });

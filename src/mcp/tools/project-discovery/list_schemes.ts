@@ -9,13 +9,17 @@ import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { createTextResponse } from '../../../utils/responses/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
+import { formatToolPreflight } from '../../../utils/build-preflight.ts';
+import {
+  formatQueryError,
+  formatQueryFailureSummary,
+} from '../../../utils/xcodebuild-error-utils.ts';
 
 // Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
@@ -35,8 +39,6 @@ const listSchemesSchema = z.preprocess(
 );
 
 export type ListSchemesParams = z.infer<typeof listSchemesSchema>;
-
-const createTextBlock = (text: string) => ({ type: 'text', text }) as const;
 
 export function parseSchemesFromXcodebuildListOutput(output: string): string[] {
   const schemesMatch = output.match(/Schemes:([\s\S]*?)(?=\n\n|$)/);
@@ -81,59 +83,64 @@ export async function listSchemesLogic(
 ): Promise<ToolResponse> {
   log('info', 'Listing schemes');
 
+  const hasProjectPath = typeof params.projectPath === 'string';
+  const projectOrWorkspace = hasProjectPath ? 'project' : 'workspace';
+  const pathValue = hasProjectPath ? params.projectPath : params.workspacePath;
+
+  const preflight = formatToolPreflight({
+    operation: 'List Schemes',
+    ...(hasProjectPath ? { projectPath: pathValue } : { workspacePath: pathValue }),
+  });
+
   try {
-    const hasProjectPath = typeof params.projectPath === 'string';
-    const projectOrWorkspace = hasProjectPath ? 'project' : 'workspace';
-    const path = hasProjectPath ? params.projectPath : params.workspacePath;
     const schemes = await listSchemes(params, executor);
 
     let nextStepParams: Record<string, Record<string, string | number | boolean>> | undefined;
-    let hintText = '';
 
     if (schemes.length > 0) {
       const firstScheme = schemes[0];
 
       nextStepParams = {
-        build_macos: { [`${projectOrWorkspace}Path`]: path!, scheme: firstScheme },
+        build_macos: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
         build_run_sim: {
-          [`${projectOrWorkspace}Path`]: path!,
+          [`${projectOrWorkspace}Path`]: pathValue!,
           scheme: firstScheme,
           simulatorName: 'iPhone 17',
         },
         build_sim: {
-          [`${projectOrWorkspace}Path`]: path!,
+          [`${projectOrWorkspace}Path`]: pathValue!,
           scheme: firstScheme,
           simulatorName: 'iPhone 17',
         },
-        show_build_settings: { [`${projectOrWorkspace}Path`]: path!, scheme: firstScheme },
+        show_build_settings: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
       };
-
-      hintText =
-        `Hint: Consider saving a default scheme with session-set-defaults ` +
-        `{ scheme: "${firstScheme}" } to avoid repeating it.`;
     }
 
-    const content = [createTextBlock('✅ Available schemes:'), createTextBlock(schemes.join('\n'))];
-    if (hintText.length > 0) {
-      content.push(createTextBlock(hintText));
-    }
+    const schemeLines = schemes.map((s) => `  - ${s}`).join('\n');
+    const resultText = schemes.length > 0 ? `Schemes:\n${schemeLines}` : 'Schemes:\n  (none)';
 
     return {
-      content,
+      content: [{ type: 'text' as const, text: `${preflight}\n${resultText}` }],
       ...(nextStepParams ? { nextStepParams } : {}),
       isError: false,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    if (
-      errorMessage.startsWith('Failed to list schemes:') ||
-      errorMessage === 'No schemes found in the output'
-    ) {
-      return createTextResponse(errorMessage, true);
-    }
-
     log('error', `Error listing schemes: ${errorMessage}`);
-    return createTextResponse(`Error listing schemes: ${errorMessage}`, true);
+
+    const rawError = errorMessage.startsWith('Failed to list schemes: ')
+      ? errorMessage.slice('Failed to list schemes: '.length)
+      : errorMessage;
+
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `${preflight}\n${formatQueryError(rawError)}\n\n${formatQueryFailureSummary()}`,
+        },
+      ],
+      isError: true,
+    };
   }
 }
 

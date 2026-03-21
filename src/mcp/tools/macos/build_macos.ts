@@ -17,16 +17,9 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-
-// Types for dependency injection
-export interface BuildUtilsDependencies {
-  executeXcodeBuildCommand: typeof executeXcodeBuildCommand;
-}
-
-// Default implementations
-const defaultBuildUtilsDependencies: BuildUtilsDependencies = {
-  executeXcodeBuildCommand,
-};
+import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
+import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
+import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 
 // Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
@@ -73,7 +66,6 @@ export type BuildMacOSParams = z.infer<typeof buildMacOSSchema>;
 export async function buildMacOSLogic(
   params: BuildMacOSParams,
   executor: CommandExecutor,
-  buildUtilsDeps: BuildUtilsDependencies = defaultBuildUtilsDependencies,
 ): Promise<ToolResponse> {
   log('info', `Starting macOS build for scheme ${params.scheme} (internal)`);
 
@@ -83,16 +75,58 @@ export async function buildMacOSLogic(
     preferXcodebuild: params.preferXcodebuild ?? false,
   };
 
-  return buildUtilsDeps.executeXcodeBuildCommand(
+  const platformOptions = {
+    platform: XcodePlatform.macOS,
+    arch: params.arch,
+    logPrefix: 'macOS Build',
+  };
+
+  const preflightText = formatToolPreflight({
+    operation: 'Build',
+    scheme: params.scheme,
+    workspacePath: params.workspacePath,
+    projectPath: params.projectPath,
+    configuration: processedParams.configuration,
+    platform: 'macOS',
+    arch: params.arch,
+  });
+
+  const pipelineParams = {
+    scheme: params.scheme,
+    configuration: processedParams.configuration,
+    platform: 'macOS',
+    preflight: preflightText,
+  };
+
+  const started = startBuildPipeline({
+    operation: 'BUILD',
+    toolName: 'build_macos',
+    params: pipelineParams,
+    message: preflightText,
+  });
+
+  const buildResult = await executeXcodeBuildCommand(
     processedParams,
-    {
-      platform: XcodePlatform.macOS,
-      arch: params.arch,
-      logPrefix: 'macOS Build',
-    },
+    platformOptions,
     processedParams.preferXcodebuild ?? false,
     'build',
     executor,
+    undefined,
+    started.pipeline,
+  );
+
+  return createPendingXcodebuildResponse(
+    started,
+    buildResult.isError
+      ? buildResult
+      : {
+          ...buildResult,
+          nextStepParams: {
+            get_mac_app_path: {
+              scheme: params.scheme,
+            },
+          },
+        },
   );
 }
 

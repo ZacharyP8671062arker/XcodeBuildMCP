@@ -63,6 +63,7 @@ export const manifestNextStepTemplateSchema = z
     toolId: z.string().optional(),
     params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
     priority: z.number().optional(),
+    when: z.enum(['always', 'success', 'failure']).default('always'),
   })
   .strict();
 

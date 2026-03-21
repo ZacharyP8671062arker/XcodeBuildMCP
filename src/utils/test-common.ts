@@ -2,17 +2,13 @@
  * Common Test Utilities - Shared logic for test tools
  *
  * This module provides shared functionality for all test-related tools across different platforms.
- * It includes common test execution logic, xcresult parsing, and utility functions used by
- * platform-specific test tools.
+ * It includes common test execution logic and utility functions used by platform-specific test tools.
  *
  * Responsibilities:
- * - Parsing xcresult bundles into human-readable format
- * - Shared test execution logic with platform-specific handling
+ * - Shared test execution logic with platform-specific handling via the xcodebuild pipeline
  * - Common error handling and cleanup for test operations
- * - Temporary directory management for xcresult files
  */
 
-import { join } from 'path';
 import { log } from './logger.ts';
 import type { XcodePlatform } from './xcode.ts';
 import { executeXcodeBuildCommand } from './build/index.ts';
@@ -20,39 +16,16 @@ import { createTextResponse } from './validation.ts';
 import { normalizeTestRunnerEnv } from './environment.ts';
 import type { ToolResponse } from '../types/common.ts';
 import type { CommandExecutor, CommandExecOptions } from './command.ts';
-import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from './command.ts';
-import type { FileSystemExecutor } from './FileSystemExecutor.ts';
-import { filterStderrContent, type XcresultSummary } from './test-result-content.ts';
-
-/**
- * Type definition for test summary structure from xcresulttool
- */
-interface TestSummary {
-  title?: string;
-  result?: string;
-  totalTestCount?: number;
-  passedTests?: number;
-  failedTests?: number;
-  skippedTests?: number;
-  expectedFailures?: number;
-  environmentDescription?: string;
-  devicesAndConfigurations?: Array<{
-    device?: {
-      deviceName?: string;
-      platform?: string;
-      osVersion?: string;
-    };
-  }>;
-  testFailures?: Array<{
-    testName?: string;
-    targetName?: string;
-    failureText?: string;
-  }>;
-  topInsights?: Array<{
-    impact?: string;
-    text?: string;
-  }>;
-}
+import { getDefaultCommandExecutor } from './command.ts';
+import {
+  formatTestDiscovery,
+  collectResolvedTestSelectors,
+  type TestPreflightResult,
+} from './test-preflight.ts';
+import { formatToolPreflight } from './build-preflight.ts';
+import { createSimulatorTwoPhaseExecutionPlan } from './simulator-test-execution.ts';
+import { startBuildPipeline } from './xcodebuild-pipeline.ts';
+import { createPendingXcodebuildResponse } from './xcodebuild-output.ts';
 
 export function resolveTestProgressEnabled(progress: boolean | undefined): boolean {
   if (typeof progress === 'boolean') {
@@ -60,103 +33,6 @@ export function resolveTestProgressEnabled(progress: boolean | undefined): boole
   }
 
   return process.env.XCODEBUILDMCP_RUNTIME === 'mcp';
-}
-
-/**
- * Parse xcresult bundle using xcrun xcresulttool
- */
-export async function parseXcresultBundle(
-  resultBundlePath: string,
-  executor: CommandExecutor = getDefaultCommandExecutor(),
-): Promise<XcresultSummary> {
-  try {
-    const result = await executor(
-      ['xcrun', 'xcresulttool', 'get', 'test-results', 'summary', '--path', resultBundlePath],
-      'Parse xcresult bundle',
-      true,
-    );
-
-    if (!result.success) {
-      throw new Error(result.error ?? 'Failed to parse xcresult bundle');
-    }
-
-    // Parse JSON response and format as human-readable
-    const summary = JSON.parse(result.output || '{}') as TestSummary;
-    return {
-      formatted: formatTestSummary(summary),
-      totalTestCount: typeof summary.totalTestCount === 'number' ? summary.totalTestCount : 0,
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error parsing xcresult bundle: ${errorMessage}`);
-    throw error;
-  }
-}
-
-/**
- * Format test summary JSON into human-readable text
- */
-function formatTestSummary(summary: TestSummary): string {
-  const lines: string[] = [];
-
-  lines.push(`Test Summary: ${summary.title ?? 'Unknown'}`);
-  lines.push(`Overall Result: ${summary.result ?? 'Unknown'}`);
-  lines.push('');
-
-  lines.push('Test Counts:');
-  lines.push(`  Total: ${summary.totalTestCount ?? 0}`);
-  lines.push(`  Passed: ${summary.passedTests ?? 0}`);
-  lines.push(`  Failed: ${summary.failedTests ?? 0}`);
-  lines.push(`  Skipped: ${summary.skippedTests ?? 0}`);
-  lines.push(`  Expected Failures: ${summary.expectedFailures ?? 0}`);
-  lines.push('');
-
-  if (summary.environmentDescription) {
-    lines.push(`Environment: ${summary.environmentDescription}`);
-    lines.push('');
-  }
-
-  if (
-    summary.devicesAndConfigurations &&
-    Array.isArray(summary.devicesAndConfigurations) &&
-    summary.devicesAndConfigurations.length > 0
-  ) {
-    const device = summary.devicesAndConfigurations[0].device;
-    if (device) {
-      lines.push(
-        `Device: ${device.deviceName ?? 'Unknown'} (${device.platform ?? 'Unknown'} ${device.osVersion ?? 'Unknown'})`,
-      );
-      lines.push('');
-    }
-  }
-
-  if (
-    summary.testFailures &&
-    Array.isArray(summary.testFailures) &&
-    summary.testFailures.length > 0
-  ) {
-    lines.push('Test Failures:');
-    summary.testFailures.forEach((failure, index: number) => {
-      lines.push(
-        `  ${index + 1}. ${failure.testName ?? 'Unknown Test'} (${failure.targetName ?? 'Unknown Target'})`,
-      );
-      if (failure.failureText) {
-        lines.push(`     ${failure.failureText}`);
-      }
-    });
-    lines.push('');
-  }
-
-  if (summary.topInsights && Array.isArray(summary.topInsights) && summary.topInsights.length > 0) {
-    lines.push('Insights:');
-    summary.topInsights.forEach((insight, index: number) => {
-      lines.push(
-        `  ${index + 1}. [${insight.impact ?? 'Unknown'}] ${insight.text ?? 'No description'}`,
-      );
-    });
-  }
-
-  return lines.join('\n');
 }
 
 /**
@@ -172,6 +48,7 @@ export async function handleTestLogic(
     simulatorId?: string;
     deviceId?: string;
     useLatestOS?: boolean;
+    packageCachePath?: string;
     derivedDataPath?: string;
     extraArgs?: string[];
     preferXcodebuild?: boolean;
@@ -180,7 +57,10 @@ export async function handleTestLogic(
     progress?: boolean;
   },
   executor: CommandExecutor = getDefaultCommandExecutor(),
-  fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
+  options?: {
+    preflight?: TestPreflightResult;
+    toolName?: string;
+  },
 ): Promise<ToolResponse> {
   log(
     'info',
@@ -188,97 +68,130 @@ export async function handleTestLogic(
   );
 
   try {
-    // Create temporary directory for xcresult bundle
-    const tempDir = await fileSystemExecutor.mkdtemp(
-      join(fileSystemExecutor.tmpdir(), 'xcodebuild-test-'),
-    );
-    const resultBundlePath = join(tempDir, 'TestResults.xcresult');
-
-    const progress = resolveTestProgressEnabled(params.progress);
-
-    // Add resultBundlePath to extraArgs
-    const extraArgs = [...(params.extraArgs ?? []), `-resultBundlePath`, resultBundlePath];
-
-    // Prepare execution options with TEST_RUNNER_ environment variables
     const execOpts: CommandExecOptions | undefined = params.testRunnerEnv
       ? { env: normalizeTestRunnerEnv(params.testRunnerEnv) }
       : undefined;
 
-    // Run the test command
-    const testResult = await executeXcodeBuildCommand(
-      {
-        ...params,
-        extraArgs,
+    const isSimulatorPlatform = String(params.platform).includes('Simulator');
+    const shouldUseTwoPhaseSimulatorExecution = isSimulatorPlatform && Boolean(options?.preflight);
+
+    const resolvedToolName = options?.toolName ?? 'test_sim';
+
+    const configText = formatToolPreflight({
+      operation: 'Test',
+      scheme: params.scheme,
+      workspacePath: params.workspacePath,
+      projectPath: params.projectPath,
+      configuration: params.configuration,
+      platform: String(params.platform),
+      simulatorName: params.simulatorName,
+      simulatorId: params.simulatorId,
+      deviceId: params.deviceId,
+    });
+
+    const discoveryText = options?.preflight ? formatTestDiscovery(options.preflight) : undefined;
+
+    const preflightText = discoveryText ? `${configText}\n${discoveryText}` : configText;
+
+    const started = startBuildPipeline({
+      operation: 'TEST',
+      toolName: resolvedToolName,
+      params: {
+        scheme: params.scheme,
+        configuration: params.configuration,
+        platform: String(params.platform),
+        preflight: preflightText,
       },
-      {
-        platform: params.platform,
-        simulatorName: params.simulatorName,
-        simulatorId: params.simulatorId,
-        deviceId: params.deviceId,
-        useLatestOS: params.useLatestOS,
-        logPrefix: 'Test Run',
-        showTestProgress: progress,
-      },
+      message: preflightText,
+    });
+
+    const { pipeline } = started;
+
+    if (options?.preflight && options.preflight.totalTests > 0) {
+      const discoveredTests = collectResolvedTestSelectors(options.preflight);
+      const maxTests = 20;
+      pipeline.emitEvent({
+        type: 'test-discovery',
+        timestamp: new Date().toISOString(),
+        operation: 'TEST',
+        total: discoveredTests.length,
+        tests: discoveredTests.slice(0, maxTests),
+        truncated: discoveredTests.length > maxTests,
+      });
+    }
+
+    const platformOptions = {
+      platform: params.platform,
+      simulatorName: params.simulatorName,
+      simulatorId: params.simulatorId,
+      deviceId: params.deviceId,
+      useLatestOS: params.useLatestOS,
+      packageCachePath: params.packageCachePath,
+      logPrefix: 'Test Run',
+    };
+
+    const preflightExtras = options?.preflight ? { testPreflight: options.preflight } : {};
+
+    if (shouldUseTwoPhaseSimulatorExecution) {
+      const executionPlan = createSimulatorTwoPhaseExecutionPlan({
+        extraArgs: params.extraArgs,
+        preflight: options?.preflight,
+        resultBundlePath: undefined,
+      });
+
+      const buildForTestingResult = await executeXcodeBuildCommand(
+        { ...params, extraArgs: executionPlan.buildArgs },
+        platformOptions,
+        params.preferXcodebuild,
+        'build-for-testing',
+        executor,
+        execOpts,
+        pipeline,
+      );
+
+      if (buildForTestingResult.isError) {
+        return createPendingXcodebuildResponse(started, buildForTestingResult, {
+          errorFallbackPolicy: 'if-no-structured-diagnostics',
+          extras: preflightExtras,
+        });
+      }
+
+      pipeline.emitEvent({
+        type: 'status',
+        timestamp: new Date().toISOString(),
+        operation: 'TEST',
+        stage: 'PREPARING_TESTS',
+        message: 'Preparing tests',
+      });
+
+      const testWithoutBuildingResult = await executeXcodeBuildCommand(
+        { ...params, extraArgs: executionPlan.testArgs },
+        platformOptions,
+        params.preferXcodebuild,
+        'test-without-building',
+        executor,
+        execOpts,
+        pipeline,
+      );
+
+      return createPendingXcodebuildResponse(started, testWithoutBuildingResult, {
+        extras: preflightExtras,
+      });
+    }
+
+    const singlePhaseResult = await executeXcodeBuildCommand(
+      params,
+      platformOptions,
       params.preferXcodebuild,
       'test',
       executor,
       execOpts,
+      pipeline,
     );
 
-    // Parse xcresult bundle if it exists, regardless of whether tests passed or failed
-    // Test failures are expected and should not prevent xcresult parsing
-    try {
-      log('info', `Attempting to parse xcresult bundle at: ${resultBundlePath}`);
-
-      // Check if the file exists
-      try {
-        await fileSystemExecutor.stat(resultBundlePath);
-        log('info', `xcresult bundle exists at: ${resultBundlePath}`);
-      } catch {
-        log('warn', `xcresult bundle does not exist at: ${resultBundlePath}`);
-        throw new Error(`xcresult bundle not found at ${resultBundlePath}`);
-      }
-
-      const xcresult = await parseXcresultBundle(resultBundlePath, executor);
-      log('info', 'Successfully parsed xcresult bundle');
-
-      // Clean up temporary directory
-      await fileSystemExecutor.rm(tempDir, { recursive: true, force: true });
-
-      // If no tests ran (for example build/setup failed), xcresult summary is not useful.
-      // Return raw output so the original diagnostics stay visible.
-      if (xcresult.totalTestCount === 0) {
-        log('info', 'xcresult reports 0 tests — returning raw build output');
-        return testResult;
-      }
-
-      // xcresult summary should be first. Drop stderr-only noise while preserving non-stderr lines.
-      const filteredContent = filterStderrContent(testResult.content);
-      const combinedResponse: ToolResponse = {
-        content: [
-          {
-            type: 'text',
-            text: '\nTest Results Summary:\n' + xcresult.formatted,
-          },
-          ...filteredContent,
-        ],
-        isError: testResult.isError,
-      };
-
-      return combinedResponse;
-    } catch (parseError) {
-      // If parsing fails, return original test result
-      log('warn', `Failed to parse xcresult bundle: ${parseError}`);
-
-      // Clean up temporary directory even if parsing fails
-      try {
-        await fileSystemExecutor.rm(tempDir, { recursive: true, force: true });
-      } catch (cleanupError) {
-        log('warn', `Failed to clean up temporary directory: ${cleanupError}`);
-      }
-
-      return testResult;
-    }
+    return createPendingXcodebuildResponse(started, singlePhaseResult, {
+      extras: preflightExtras,
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during test run: ${errorMessage}`);

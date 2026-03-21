@@ -259,21 +259,22 @@ describe('get_device_app_path plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App path retrieved successfully: /path/to/build/Debug-iphoneos/MyApp.app',
-          },
-        ],
-        nextStepParams: {
-          get_app_bundle_id: { appPath: '/path/to/build/Debug-iphoneos/MyApp.app' },
-          install_app_device: {
-            deviceId: 'DEVICE_UDID',
-            appPath: '/path/to/build/Debug-iphoneos/MyApp.app',
-          },
-          launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Scheme: MyScheme');
+      expect(result.content[0].text).toContain('Project: /path/to/project.xcodeproj');
+      expect(result.content[0].text).toContain('Configuration: Debug');
+      expect(result.content[0].text).toContain('Platform: iOS');
+      expect(result.content[0].text).toContain(
+        '\u{2514} App Path: /path/to/build/Debug-iphoneos/MyApp.app',
+      );
+      expect(result.nextStepParams).toEqual({
+        get_app_bundle_id: { appPath: '/path/to/build/Debug-iphoneos/MyApp.app' },
+        install_app_device: {
+          deviceId: 'DEVICE_UDID',
+          appPath: '/path/to/build/Debug-iphoneos/MyApp.app',
         },
+        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
       });
     });
 
@@ -291,15 +292,14 @@ describe('get_device_app_path plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to get app path: xcodebuild: error: The project does not exist.',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Scheme: MyScheme');
+      expect(result.content[0].text).toContain('Project: /path/to/nonexistent.xcodeproj');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain('\u{2717} The project does not exist.');
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should return exact parse failure response', async () => {
@@ -316,15 +316,14 @@ describe('get_device_app_path plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to extract app path from build settings. Make sure the app has been built first.',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain(
+        '\u{2717} Could not extract app path from build settings.',
+      );
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should include optional configuration parameter in command', async () => {
@@ -401,15 +400,12 @@ describe('get_device_app_path plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error retrieving app path: Network error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain('\u{2717} Network error');
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should return exact string error handling response', async () => {
@@ -425,15 +421,12 @@ describe('get_device_app_path plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error retrieving app path: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
+      expect(result.content[0].text).toContain('Errors (1):');
+      expect(result.content[0].text).toContain('\u{2717} String error');
+      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      expect(result.nextStepParams).toBeUndefined();
     });
   });
 });

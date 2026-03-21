@@ -10,6 +10,30 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 // Import the named exports and logic function
 import { schema, handler, build_simLogic } from '../build_sim.ts';
 
+function expectPendingBuildResponse(
+  result: Awaited<ReturnType<typeof build_simLogic>>,
+  nextStepToolId?: string,
+): void {
+  expect(result.content).toEqual([]);
+  expect(result._meta).toEqual(
+    expect.objectContaining({
+      pendingXcodebuild: expect.objectContaining({
+        kind: 'pending-xcodebuild',
+      }),
+    }),
+  );
+
+  if (nextStepToolId) {
+    expect(result.nextStepParams).toEqual(
+      expect.objectContaining({
+        [nextStepToolId]: expect.any(Object),
+      }),
+    );
+  } else {
+    expect(result.nextStepParams).toBeUndefined();
+  }
+}
+
 describe('build_sim tool', () => {
   beforeEach(() => {
     sessionStore.clear();
@@ -79,17 +103,7 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      // Empty string passes validation but may cause build issues
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: '✅ iOS Simulator Build build succeeded for scheme MyScheme.',
-        },
-        {
-          type: 'text',
-          text: expect.stringContaining('Next Steps:'),
-        },
-      ]);
+      expectPendingBuildResponse(result, 'get_sim_app_path');
     });
 
     it('should handle missing scheme parameter', async () => {
@@ -115,17 +129,7 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      // Empty string passes validation but may cause build issues
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: '✅ iOS Simulator Build build succeeded for scheme .',
-        },
-        {
-          type: 'text',
-          text: expect.stringContaining('Next Steps:'),
-        },
-      ]);
+      expectPendingBuildResponse(result, 'get_sim_app_path');
     });
 
     it('should handle missing both simulatorId and simulatorName', async () => {
@@ -173,11 +177,8 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      // Empty simulatorName passes validation but causes early failure in destination construction
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe(
-        'For iOS Simulator platform, either simulatorId or simulatorName must be provided',
-      );
+      expectPendingBuildResponse(result);
     });
   });
 
@@ -414,16 +415,8 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: '✅ iOS Simulator Build build succeeded for scheme MyScheme.',
-        },
-        {
-          type: 'text',
-          text: expect.stringContaining('Next Steps:'),
-        },
-      ]);
+      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result, 'get_sim_app_path');
     });
 
     it('should handle successful build with all optional parameters', async () => {
@@ -443,16 +436,8 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: '✅ iOS Simulator Build build succeeded for scheme MyScheme.',
-        },
-        {
-          type: 'text',
-          text: expect.stringContaining('Next Steps:'),
-        },
-      ]);
+      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result, 'get_sim_app_path');
     });
 
     it('should handle build failure', async () => {
@@ -471,19 +456,8 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '❌ [stderr] Build failed: Compilation error',
-          },
-          {
-            type: 'text',
-            text: '❌ iOS Simulator Build build failed for scheme MyScheme.',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expectPendingBuildResponse(result);
     });
 
     it('should handle build warnings', async () => {
@@ -501,22 +475,8 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.content).toEqual(
-        expect.arrayContaining([
-          {
-            type: 'text',
-            text: expect.stringContaining('⚠️'),
-          },
-          {
-            type: 'text',
-            text: '✅ iOS Simulator Build build succeeded for scheme MyScheme.',
-          },
-          {
-            type: 'text',
-            text: expect.stringContaining('Next Steps:'),
-          },
-        ]),
-      );
+      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result, 'get_sim_app_path');
     });
 
     it('should handle command executor errors', async () => {
@@ -535,7 +495,7 @@ describe('build_sim tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('❌ [stderr] spawn xcodebuild ENOENT');
+      expectPendingBuildResponse(result);
     });
 
     it('should handle mixed warning and error output', async () => {
@@ -555,24 +515,7 @@ describe('build_sim tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: '⚠️ Warning: warning: deprecated method',
-        },
-        {
-          type: 'text',
-          text: '❌ Error: error: undefined symbol',
-        },
-        {
-          type: 'text',
-          text: '❌ [stderr] Build failed',
-        },
-        {
-          type: 'text',
-          text: '❌ iOS Simulator Build build failed for scheme MyScheme.',
-        },
-      ]);
+      expectPendingBuildResponse(result);
     });
 
     it('should use default configuration when not provided', async () => {
@@ -583,30 +526,19 @@ describe('build_sim tool', () => {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
           simulatorName: 'iPhone 17',
-          // configuration intentionally omitted - should default to Debug
         },
         mockExecutor,
       );
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: '✅ iOS Simulator Build build succeeded for scheme MyScheme.',
-        },
-        {
-          type: 'text',
-          text: expect.stringContaining('Next Steps:'),
-        },
-      ]);
+      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result, 'get_sim_app_path');
     });
   });
 
   describe('Error Handling', () => {
     it('should handle catch block exceptions', async () => {
-      // Create a mock that throws an error when called
       const mockExecutor = createMockExecutor({ success: true, output: 'BUILD SUCCEEDED' });
 
-      // Mock the handler to throw an error by passing invalid parameters to internal functions
       const result = await build_simLogic(
         {
           workspacePath: '/path/to/workspace',
@@ -616,17 +548,8 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      // Should handle the build successfully
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: '✅ iOS Simulator Build build succeeded for scheme MyScheme.',
-        },
-        {
-          type: 'text',
-          text: expect.stringContaining('Next Steps:'),
-        },
-      ]);
+      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result, 'get_sim_app_path');
     });
   });
 });

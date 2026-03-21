@@ -105,7 +105,7 @@ export function renderNextStepsSection(steps: NextStep[], runtime: RuntimeKind):
   const sorted = [...steps].sort((a, b) => (a.priority ?? 0) - (b.priority ?? 0));
   const lines = sorted.map((step, index) => `${index + 1}. ${renderNextStep(step, runtime)}`);
 
-  return `\n\nNext steps:\n${lines.join('\n')}`;
+  return `Next steps:\n${lines.join('\n')}`;
 }
 
 /**
@@ -134,7 +134,7 @@ export function processToolResponse(
   // Append to the last text content item
   const processedContent = response.content.map((item, index) => {
     if (item.type === 'text' && index === response.content.length - 1) {
-      return { ...item, text: item.text + nextStepsSection };
+      return { ...item, text: `${item.text}\n\n${nextStepsSection}` };
     }
     return item;
   });
@@ -142,7 +142,7 @@ export function processToolResponse(
   // If no text content existed, add one with just the next steps
   const hasTextContent = response.content.some((item) => item.type === 'text');
   if (!hasTextContent && nextStepsSection) {
-    processedContent.push({ type: 'text', text: nextStepsSection.trim() });
+    processedContent.push({ type: 'text', text: nextStepsSection });
   }
 
   return { ...rest, content: processedContent };

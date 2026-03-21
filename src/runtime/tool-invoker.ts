@@ -11,6 +11,12 @@ import {
   type SentryToolRuntime,
   type SentryToolTransport,
 } from '../utils/sentry.ts';
+import {
+  appendStructuredEvents,
+  createNextStepsEvent,
+  finalizePendingXcodebuildResponse,
+  isPendingXcodebuildResponse,
+} from '../utils/xcodebuild-output.ts';
 
 type BuiltTemplateNextStep = {
   step: NextStep;
@@ -32,6 +38,7 @@ function buildTemplateNextSteps(
         step: {
           label: template.label,
           priority: template.priority,
+          when: template.when,
         },
       });
       continue;
@@ -48,6 +55,7 @@ function buildTemplateNextSteps(
         label: template.label,
         params: template.params ?? {},
         priority: template.priority,
+        when: template.when,
       },
       templateToolId: template.toolId,
     });
@@ -106,11 +114,7 @@ function mergeTemplateAndResponseNextSteps(
   });
 }
 
-function normalizeNextSteps(
-  response: ToolResponse,
-  catalog: ToolCatalog,
-  runtime: InvokeOptions['runtime'],
-): ToolResponse {
+function normalizeNextSteps(response: ToolResponse, catalog: ToolCatalog): ToolResponse {
   if (!response.nextSteps || response.nextSteps.length === 0) {
     return response;
   }
@@ -127,19 +131,27 @@ function normalizeNextSteps(
         return step;
       }
 
-      return runtime === 'cli'
-        ? {
-            ...step,
-            tool: target.mcpName,
-            workflow: target.workflow,
-            cliTool: target.cliName,
-          }
-        : {
-            ...step,
-            tool: target.mcpName,
-          };
+      return {
+        ...step,
+        tool: target.mcpName,
+        workflow: target.workflow,
+        cliTool: target.cliName,
+      };
     }),
   };
+}
+
+function appendNextStepsToStructuredEvents(response: ToolResponse): ToolResponse {
+  if (!response.nextSteps || response.nextSteps.length === 0) {
+    return response;
+  }
+
+  const nextStepsEvent = createNextStepsEvent(response.nextSteps);
+  if (!nextStepsEvent) {
+    return response;
+  }
+
+  return appendStructuredEvents(response, [nextStepsEvent]);
 }
 
 export function postProcessToolResponse(params: {
@@ -149,19 +161,45 @@ export function postProcessToolResponse(params: {
   runtime: InvokeOptions['runtime'];
   applyTemplateNextSteps?: boolean;
 }): ToolResponse {
-  const { tool, response, catalog, runtime, applyTemplateNextSteps = true } = params;
+  const { tool, response, catalog, applyTemplateNextSteps = true } = params;
 
-  const templateSteps = buildTemplateNextSteps(tool, catalog);
+  const isError = response.isError === true;
+  const suppressNextStepsForStructuredFailure =
+    isError && (isPendingXcodebuildResponse(response) || Array.isArray(response._meta?.events));
+  const responseForNextSteps = suppressNextStepsForStructuredFailure
+    ? {
+        ...response,
+        nextSteps: undefined,
+        nextStepParams: undefined,
+      }
+    : response;
+
+  const allTemplateSteps = buildTemplateNextSteps(tool, catalog);
+  const templateSteps = allTemplateSteps.filter((t) => {
+    const when = t.step.when ?? 'always';
+    if (when === 'always') return true;
+    if (when === 'success') return !isError;
+    if (when === 'failure') return isError;
+    return true;
+  });
 
   const withTemplates =
-    applyTemplateNextSteps && templateSteps.length > 0
+    !suppressNextStepsForStructuredFailure && applyTemplateNextSteps && templateSteps.length > 0
       ? {
-          ...response,
-          nextSteps: mergeTemplateAndResponseNextSteps(templateSteps, response.nextStepParams),
+          ...responseForNextSteps,
+          nextSteps: mergeTemplateAndResponseNextSteps(
+            templateSteps,
+            responseForNextSteps.nextStepParams,
+          ),
         }
-      : response;
+      : responseForNextSteps;
 
-  const result = normalizeNextSteps(withTemplates, catalog, runtime);
+  const normalized = normalizeNextSteps(withTemplates, catalog);
+  const result = isPendingXcodebuildResponse(normalized)
+    ? finalizePendingXcodebuildResponse(normalized, {
+        nextSteps: normalized.nextSteps,
+      })
+    : appendNextStepsToStructuredEvents(normalized);
   delete result.nextStepParams;
   return result;
 }
@@ -231,17 +269,6 @@ export class DefaultToolInvoker implements ToolInvoker {
     opts: InvokeOptions,
   ): Promise<ToolResponse> {
     return this.executeTool(tool, args, opts);
-  }
-
-  private buildPostProcessParams(
-    tool: ToolDefinition,
-    runtime: InvokeOptions['runtime'],
-  ): {
-    tool: ToolDefinition;
-    catalog: ToolCatalog;
-    runtime: InvokeOptions['runtime'];
-  } {
-    return { tool, catalog: this.catalog, runtime };
   }
 
   private async invokeViaDaemon(
@@ -348,7 +375,7 @@ export class DefaultToolInvoker implements ToolInvoker {
       });
     };
 
-    const postProcessParams = this.buildPostProcessParams(tool, opts.runtime);
+    const postProcessParams = { tool, catalog: this.catalog, runtime: opts.runtime };
     const xcodeIdeRemoteToolName = tool.xcodeIdeRemoteToolName;
     const isDynamicXcodeIdeTool =
       tool.workflow === 'xcode-ide' && typeof xcodeIdeRemoteToolName === 'string';

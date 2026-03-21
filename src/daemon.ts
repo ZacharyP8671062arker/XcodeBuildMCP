@@ -208,9 +208,9 @@ async function main(): Promise<void> {
       return { success: result.success, output: result.output };
     });
     const xcodeAvailable = Boolean(
-      xcodeVersion.version ||
-        xcodeVersion.buildVersion ||
-        xcodeVersion.developerDir ||
+      xcodeVersion.version ??
+        xcodeVersion.buildVersion ??
+        xcodeVersion.developerDir ??
         xcodeVersion.xcodebuildPath,
     );
     const axeVersion = await getAxeVersionMetadata(async (command) => {

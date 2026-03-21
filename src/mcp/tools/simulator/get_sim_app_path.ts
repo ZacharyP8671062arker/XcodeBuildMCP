@@ -8,7 +8,6 @@
 
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
-import { createTextResponse } from '../../../utils/responses/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
@@ -19,6 +18,11 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
+import { formatToolPreflight } from '../../../utils/build-preflight.ts';
+import {
+  formatQueryError,
+  formatQueryFailureSummary,
+} from '../../../utils/xcodebuild-error-utils.ts';
 
 const SIMULATOR_PLATFORMS = [
   XcodePlatform.iOSSimulator,
@@ -86,87 +90,81 @@ export async function get_sim_app_pathLogic(
   params: GetSimulatorAppPathParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
-  // Set defaults - Zod validation already ensures required params are present
-  const projectPath = params.projectPath;
-  const workspacePath = params.workspacePath;
-  const scheme = params.scheme;
-  const platform = params.platform;
-  const simulatorId = params.simulatorId;
-  const simulatorName = params.simulatorName;
   const configuration = params.configuration ?? 'Debug';
   const useLatestOS = params.useLatestOS ?? true;
 
-  // Log warning if useLatestOS is provided with simulatorId
-  if (simulatorId && params.useLatestOS !== undefined) {
+  if (params.simulatorId && params.useLatestOS !== undefined) {
     log(
       'warn',
       `useLatestOS parameter is ignored when using simulatorId (UUID implies exact device/OS)`,
     );
   }
 
-  log('info', `Getting app path for scheme ${scheme} on platform ${platform}`);
+  log('info', `Getting app path for scheme ${params.scheme} on platform ${params.platform}`);
+
+  const preflight = formatToolPreflight({
+    operation: 'Get App Path',
+    scheme: params.scheme,
+    workspacePath: params.workspacePath,
+    projectPath: params.projectPath,
+    configuration,
+    platform: params.platform,
+    simulatorName: params.simulatorName,
+    simulatorId: params.simulatorId,
+  });
 
   try {
-    // Create the command array for xcodebuild with -showBuildSettings option
     const command = ['xcodebuild', '-showBuildSettings'];
 
-    // Add the workspace or project (XOR validation ensures exactly one is provided)
-    if (workspacePath) {
-      command.push('-workspace', workspacePath);
-    } else if (projectPath) {
-      command.push('-project', projectPath);
+    if (params.workspacePath) {
+      command.push('-workspace', params.workspacePath);
+    } else if (params.projectPath) {
+      command.push('-project', params.projectPath);
     }
 
-    // Add the scheme and configuration
-    command.push('-scheme', scheme);
+    command.push('-scheme', params.scheme);
     command.push('-configuration', configuration);
 
-    // Handle destination for simulator platforms
-    let destinationString = '';
-
-    if (simulatorId) {
-      destinationString = constructDestinationString(platform, undefined, simulatorId);
-    } else if (simulatorName) {
-      destinationString = constructDestinationString(
-        platform,
-        simulatorName,
-        undefined,
-        useLatestOS,
-      );
-    } else {
-      return createTextResponse(
-        `For ${platform} platform, either simulatorId or simulatorName must be provided`,
-        true,
-      );
-    }
+    const destinationString = params.simulatorId
+      ? constructDestinationString(params.platform, undefined, params.simulatorId)
+      : constructDestinationString(params.platform, params.simulatorName, undefined, useLatestOS);
 
     command.push('-destination', destinationString);
 
-    // Execute the command directly
-    const result = await executor(command, 'Get App Path', false, undefined);
+    const result = await executor(command, 'Get App Path', false);
 
     if (!result.success) {
-      return createTextResponse(`Failed to get app path: ${result.error}`, true);
+      const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
+      const errorBlock = formatQueryError(rawOutput);
+      const text = [preflight, errorBlock, '', formatQueryFailureSummary()].join('\n');
+      return { content: [{ type: 'text', text }], isError: true };
     }
 
     if (!result.output) {
-      return createTextResponse('Failed to extract build settings output from the result.', true);
+      const errorBlock = formatQueryError(
+        'Failed to extract build settings output from the result.',
+      );
+      const text = [preflight, errorBlock, '', formatQueryFailureSummary()].join('\n');
+      return { content: [{ type: 'text', text }], isError: true };
     }
 
-    const buildSettingsOutput = result.output;
-    const builtProductsDirMatch = buildSettingsOutput.match(/^\s*BUILT_PRODUCTS_DIR\s*=\s*(.+)$/m);
-    const fullProductNameMatch = buildSettingsOutput.match(/^\s*FULL_PRODUCT_NAME\s*=\s*(.+)$/m);
+    const builtProductsDirMatch = result.output.match(/^\s*BUILT_PRODUCTS_DIR\s*=\s*(.+)$/m);
+    const fullProductNameMatch = result.output.match(/^\s*FULL_PRODUCT_NAME\s*=\s*(.+)$/m);
 
     if (!builtProductsDirMatch || !fullProductNameMatch) {
-      return createTextResponse(
+      const errorBlock = formatQueryError(
         'Failed to extract app path from build settings. Make sure the app has been built first.',
-        true,
       );
+      const text = [preflight, errorBlock, '', formatQueryFailureSummary()].join('\n');
+      return { content: [{ type: 'text', text }], isError: true };
     }
 
     const builtProductsDir = builtProductsDirMatch[1].trim();
     const fullProductName = fullProductNameMatch[1].trim();
     const appPath = `${builtProductsDir}/${fullProductName}`;
+
+    const resultLine = `  \u{2514} App Path: ${appPath}`;
+    const text = preflight + '\n' + resultLine;
 
     const nextStepParams: Record<string, Record<string, string | number | boolean>> = {
       get_app_bundle_id: { appPath },
@@ -176,19 +174,16 @@ export async function get_sim_app_pathLogic(
     };
 
     return {
-      content: [
-        {
-          type: 'text',
-          text: `✅ App path retrieved successfully: ${appPath}`,
-        },
-      ],
+      content: [{ type: 'text', text }],
       nextStepParams,
       isError: false,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error retrieving app path: ${errorMessage}`);
-    return createTextResponse(`Error retrieving app path: ${errorMessage}`, true);
+    const errorBlock = formatQueryError(errorMessage);
+    const text = [preflight, errorBlock, '', formatQueryFailureSummary()].join('\n');
+    return { content: [{ type: 'text', text }], isError: true };
   }
 }
 

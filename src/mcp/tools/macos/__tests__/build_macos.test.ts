@@ -12,6 +12,30 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler } from '../build_macos.ts';
 import { buildMacOSLogic } from '../build_macos.ts';
 
+function expectPendingBuildResponse(
+  result: Awaited<ReturnType<typeof buildMacOSLogic>>,
+  nextStepToolId?: string,
+): void {
+  expect(result.content).toEqual([]);
+  expect(result._meta).toEqual(
+    expect.objectContaining({
+      pendingXcodebuild: expect.objectContaining({
+        kind: 'pending-xcodebuild',
+      }),
+    }),
+  );
+
+  if (nextStepToolId) {
+    expect(result.nextStepParams).toEqual(
+      expect.objectContaining({
+        [nextStepToolId]: expect.any(Object),
+      }),
+    );
+  } else {
+    expect(result.nextStepParams).toBeUndefined();
+  }
+}
+
 describe('build_macos plugin', () => {
   beforeEach(() => {
     sessionStore.clear();
@@ -85,18 +109,8 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS Build build succeeded for scheme MyScheme.',
-          },
-          {
-            type: 'text',
-            text: "Next Steps:\n1. Get app path: get_mac_app_path({ scheme: 'MyScheme' })\n2. Get bundle ID: get_mac_bundle_id({ appPath: 'PATH_FROM_STEP_1' })\n3. Launch: launch_mac_app({ appPath: 'PATH_FROM_STEP_1' })",
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result, 'get_mac_app_path');
     });
 
     it('should return exact build failure response', async () => {
@@ -113,19 +127,8 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '❌ [stderr] error: Compilation error in main.swift',
-          },
-          {
-            type: 'text',
-            text: '❌ macOS Build build failed for scheme MyScheme.',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expectPendingBuildResponse(result);
     });
 
     it('should return exact successful build response with optional parameters', async () => {
@@ -147,23 +150,11 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS Build build succeeded for scheme MyScheme.',
-          },
-          {
-            type: 'text',
-            text: "Next Steps:\n1. Get app path: get_mac_app_path({ scheme: 'MyScheme' })\n2. Get bundle ID: get_mac_bundle_id({ appPath: 'PATH_FROM_STEP_1' })\n3. Launch: launch_mac_app({ appPath: 'PATH_FROM_STEP_1' })",
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result, 'get_mac_app_path');
     });
 
     it('should return exact exception handling response', async () => {
-      // Create executor that throws error during command execution
-      // This will be caught by executeXcodeBuildCommand's try-catch block
       const mockExecutor = async () => {
         throw new Error('Network error');
       };
@@ -176,20 +167,11 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error during macOS Build build: Network error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expectPendingBuildResponse(result);
     });
 
     it('should return exact spawn error handling response', async () => {
-      // Create executor that throws spawn error during command execution
-      // This will be caught by executeXcodeBuildCommand's try-catch block
       const mockExecutor = async () => {
         throw new Error('Spawn error');
       };
@@ -202,15 +184,8 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error during macOS Build build: Spawn error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expectPendingBuildResponse(result);
     });
   });
 
@@ -457,7 +432,7 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeUndefined();
+      expect(result.isError).toBeFalsy();
     });
 
     it('should succeed with valid workspacePath', async () => {
@@ -474,7 +449,7 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeUndefined();
+      expect(result.isError).toBeFalsy();
     });
   });
 });

@@ -1,6 +1,6 @@
 /**
  * Tests for build_run_sim plugin (unified)
- * Following CLAUDE.md testing standards with dependency injection and literal validation
+ * Following the canonical pending pipeline pattern from build_run_macos.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -8,10 +8,27 @@ import * as z from 'zod';
 import {
   createMockExecutor,
   createMockCommandResponse,
+  mockProcess,
 } from '../../../../test-utils/mock-executors.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
+import { finalizePendingXcodebuildResponse } from '../../../../utils/xcodebuild-output.ts';
 import { schema, handler, build_run_simLogic } from '../build_run_sim.ts';
+
+function expectPendingBuildRunResponse(
+  result: Awaited<ReturnType<typeof build_run_simLogic>>,
+  isError: boolean,
+): void {
+  expect(result.isError).toBe(isError);
+  expect(result.content).toEqual([]);
+  expect(result._meta).toEqual(
+    expect.objectContaining({
+      pendingXcodebuild: expect.objectContaining({
+        kind: 'pending-xcodebuild',
+      }),
+    }),
+  );
+}
 
 describe('build_run_sim tool', () => {
   beforeEach(() => {
@@ -46,16 +63,62 @@ describe('build_run_sim tool', () => {
     });
   });
 
-  describe('Handler Behavior (Complete Literal Returns)', () => {
-    // Note: Parameter validation is now handled by createTypedTool wrapper with Zod schema
-    // The logic function receives validated parameters, so these tests focus on business logic
+  describe('Handler Behavior (Pending Pipeline Contract)', () => {
+    it('should fail fast for an invalid explicit simulator ID with structured sad-path output', async () => {
+      const callHistory: string[][] = [];
+      const mockExecutor: CommandExecutor = async (command) => {
+        callHistory.push(command);
 
-    it('should handle simulator not found', async () => {
+        if (command[0] === 'xcrun' && command[1] === 'simctl') {
+          return createMockCommandResponse({
+            success: true,
+            output: JSON.stringify({
+              devices: {
+                'com.apple.CoreSimulator.SimRuntime.iOS-18-0': [
+                  { udid: 'SOME-OTHER-UUID', name: 'iPhone 17', isAvailable: true },
+                ],
+              },
+            }),
+          });
+        }
+
+        return createMockCommandResponse({
+          success: false,
+          error: 'xcodebuild should not run',
+        });
+      };
+
+      const result = await build_run_simLogic(
+        {
+          workspacePath: '/path/to/workspace',
+          scheme: 'MyScheme',
+          simulatorId: 'INVALID-SIM-ID-123',
+        },
+        mockExecutor,
+      );
+
+      expectPendingBuildRunResponse(result, true);
+      expect(
+        callHistory.some((command) => command[0] === 'xcodebuild' && command.includes('build')),
+      ).toBe(false);
+
+      const finalized = finalizePendingXcodebuildResponse(result);
+      const textContent = finalized.content
+        .filter((item) => item.type === 'text')
+        .map((item) => item.text)
+        .join('\n');
+
+      expect(textContent).toContain('Build & Run');
+      expect(textContent).toContain('✗ No available simulator matched: INVALID-SIM-ID-123');
+      expect(textContent).toContain('Build failed.');
+      expect(textContent).not.toContain('Next steps:');
+    });
+
+    it('should handle build settings failure as pending error', async () => {
       let callCount = 0;
       const mockExecutor: CommandExecutor = async (command) => {
         callCount++;
         if (callCount === 1) {
-          // First call: runtime lookup succeeds
           return createMockCommandResponse({
             success: true,
             output: JSON.stringify({
@@ -67,13 +130,11 @@ describe('build_run_sim tool', () => {
             }),
           });
         } else if (callCount === 2) {
-          // Second call: build succeeds
           return createMockCommandResponse({
             success: true,
             output: 'BUILD SUCCEEDED',
           });
         } else if (callCount === 3) {
-          // Third call: showBuildSettings fails to get app path
           return createMockCommandResponse({
             success: false,
             error: 'Could not get build settings',
@@ -94,18 +155,12 @@ describe('build_run_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Build succeeded, but failed to get app path: Could not get build settings',
-          },
-        ],
-        isError: true,
-      });
+      expectPendingBuildRunResponse(result, true);
+      expect(result.nextSteps).toBeUndefined();
+      expect(result.nextStepParams).toBeUndefined();
     });
 
-    it('should handle build failure', async () => {
+    it('should handle build failure as pending error', async () => {
       const mockExecutor = createMockExecutor({
         success: false,
         error: 'Build failed with error',
@@ -120,31 +175,30 @@ describe('build_run_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
-      expect(result.content).toBeDefined();
-      expect(Array.isArray(result.content)).toBe(true);
+      expectPendingBuildRunResponse(result, true);
+      expect(result.nextSteps).toBeUndefined();
+      expect(result.nextStepParams).toBeUndefined();
+      expect(result._meta?.pendingXcodebuild).toEqual(
+        expect.objectContaining({
+          errorFallbackPolicy: 'if-no-structured-diagnostics',
+          tailEvents: [],
+        }),
+      );
     });
 
     it('should handle successful build and run', async () => {
-      // Create a mock executor that simulates full successful flow
-      let callCount = 0;
       const mockExecutor: CommandExecutor = async (command) => {
-        callCount++;
-
         if (command.includes('xcodebuild') && command.includes('build')) {
-          // First call: build succeeds
           return createMockCommandResponse({
             success: true,
             output: 'BUILD SUCCEEDED',
           });
         } else if (command.includes('xcodebuild') && command.includes('-showBuildSettings')) {
-          // Second call: build settings to get app path
           return createMockCommandResponse({
             success: true,
             output: 'BUILT_PRODUCTS_DIR = /path/to/build\nFULL_PRODUCT_NAME = MyApp.app\n',
           });
         } else if (command.includes('simctl') && command.includes('list')) {
-          // Find simulator calls
           return createMockCommandResponse({
             success: true,
             output: JSON.stringify({
@@ -161,17 +215,15 @@ describe('build_run_sim tool', () => {
             }),
           });
         } else if (
-          command.includes('plutil') ||
-          command.includes('PlistBuddy') ||
-          command.includes('defaults')
+          command.some(
+            (c) => c.includes('plutil') || c.includes('PlistBuddy') || c.includes('defaults'),
+          )
         ) {
-          // Bundle ID extraction
           return createMockCommandResponse({
             success: true,
             output: 'io.sentry.MyApp',
           });
         } else {
-          // All other commands (boot, open, install, launch) succeed
           return createMockCommandResponse({
             success: true,
             output: 'Success',
@@ -188,16 +240,99 @@ describe('build_run_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.content).toBeDefined();
-      expect(Array.isArray(result.content)).toBe(true);
-      expect(result.isError).toBe(false);
+      expectPendingBuildRunResponse(result, false);
+      expect(result.nextSteps).toBeUndefined();
+      expect(result._meta?.pendingXcodebuild).toEqual(
+        expect.objectContaining({
+          tailEvents: [
+            expect.objectContaining({
+              type: 'notice',
+              code: 'build-run-result',
+              data: expect.objectContaining({
+                scheme: 'MyScheme',
+                appPath: '/path/to/build/MyApp.app',
+                bundleId: 'io.sentry.MyApp',
+                launchState: 'requested',
+              }),
+            }),
+          ],
+        }),
+      );
     });
 
-    it('should handle exception with Error object', async () => {
-      const mockExecutor = createMockExecutor({
-        success: false,
-        error: 'Command failed',
-      });
+    it('should handle install failure as pending error', async () => {
+      let callCount = 0;
+      const mockExecutor: CommandExecutor = async (command) => {
+        callCount++;
+
+        if (command.includes('xcodebuild') && command.includes('build')) {
+          return createMockCommandResponse({
+            success: true,
+            output: 'BUILD SUCCEEDED',
+          });
+        } else if (command.includes('xcodebuild') && command.includes('-showBuildSettings')) {
+          return createMockCommandResponse({
+            success: true,
+            output: 'BUILT_PRODUCTS_DIR = /path/to/build\nFULL_PRODUCT_NAME = MyApp.app\n',
+          });
+        } else if (command.includes('simctl') && command.includes('list')) {
+          return createMockCommandResponse({
+            success: true,
+            output: JSON.stringify({
+              devices: {
+                'iOS 16.0': [
+                  {
+                    udid: 'test-uuid-123',
+                    name: 'iPhone 17',
+                    state: 'Booted',
+                    isAvailable: true,
+                  },
+                ],
+              },
+            }),
+          });
+        } else if (command.includes('simctl') && command.includes('install')) {
+          return createMockCommandResponse({
+            success: false,
+            error: 'Failed to install',
+          });
+        } else {
+          return createMockCommandResponse({
+            success: true,
+            output: 'Success',
+          });
+        }
+      };
+
+      const result = await build_run_simLogic(
+        {
+          workspacePath: '/path/to/workspace',
+          scheme: 'MyScheme',
+          simulatorName: 'iPhone 17',
+        },
+        mockExecutor,
+      );
+
+      expectPendingBuildRunResponse(result, true);
+      expect(result.nextSteps).toBeUndefined();
+      expect(result.nextStepParams).toBeUndefined();
+    });
+
+    it('should handle spawn error as text fallback', async () => {
+      const mockExecutor = (
+        command: string[],
+        description?: string,
+        logOutput?: boolean,
+        opts?: { cwd?: string },
+        detached?: boolean,
+      ) => {
+        void command;
+        void description;
+        void logOutput;
+        void opts;
+        void detached;
+        return Promise.reject(new Error('spawn xcodebuild ENOENT'));
+      };
 
       const result = await build_run_simLogic(
         {
@@ -209,28 +344,12 @@ describe('build_run_sim tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content).toBeDefined();
-      expect(Array.isArray(result.content)).toBe(true);
-    });
-
-    it('should handle exception with string error', async () => {
-      const mockExecutor = createMockExecutor({
-        success: false,
-        error: 'String error',
-      });
-
-      const result = await build_run_simLogic(
-        {
-          workspacePath: '/path/to/workspace',
-          scheme: 'MyScheme',
-          simulatorName: 'iPhone 17',
-        },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBe(true);
-      expect(result.content).toBeDefined();
-      expect(Array.isArray(result.content)).toBe(true);
+      expect(result.content.length).toBeGreaterThan(0);
+      const text = result.content
+        .filter((c) => c.type === 'text')
+        .map((c) => c.text)
+        .join('\n');
+      expect(text).toContain('Error during simulator build and run');
     });
   });
 
@@ -496,7 +615,6 @@ describe('build_run_sim tool', () => {
     });
 
     it('should succeed with only projectPath', async () => {
-      // This test fails early due to build failure, which is expected behavior
       const mockExecutor = createMockExecutor({
         success: false,
         error: 'Build failed',
@@ -510,13 +628,10 @@ describe('build_run_sim tool', () => {
         },
         mockExecutor,
       );
-      // The test succeeds if the logic function accepts the parameters and attempts to build
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Build failed');
+      expectPendingBuildRunResponse(result, true);
     });
 
     it('should succeed with only workspacePath', async () => {
-      // This test fails early due to build failure, which is expected behavior
       const mockExecutor = createMockExecutor({
         success: false,
         error: 'Build failed',
@@ -530,9 +645,140 @@ describe('build_run_sim tool', () => {
         },
         mockExecutor,
       );
-      // The test succeeds if the logic function accepts the parameters and attempts to build
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Build failed');
+      expectPendingBuildRunResponse(result, true);
+    });
+  });
+
+  describe('Finalized Output Contract', () => {
+    it('should produce correct success output when finalized', async () => {
+      const mockExecutor: CommandExecutor = async (command) => {
+        if (command.includes('xcodebuild') && command.includes('build')) {
+          return createMockCommandResponse({
+            success: true,
+            output: 'BUILD SUCCEEDED',
+          });
+        } else if (command.includes('xcodebuild') && command.includes('-showBuildSettings')) {
+          return createMockCommandResponse({
+            success: true,
+            output: 'BUILT_PRODUCTS_DIR = /path/to/build\nFULL_PRODUCT_NAME = MyApp.app\n',
+          });
+        } else if (command.includes('simctl') && command.includes('list')) {
+          return createMockCommandResponse({
+            success: true,
+            output: JSON.stringify({
+              devices: {
+                'iOS 16.0': [
+                  {
+                    udid: 'test-uuid-123',
+                    name: 'iPhone 17',
+                    state: 'Booted',
+                    isAvailable: true,
+                  },
+                ],
+              },
+            }),
+          });
+        } else if (
+          command.some(
+            (c) => c.includes('plutil') || c.includes('PlistBuddy') || c.includes('defaults'),
+          )
+        ) {
+          return createMockCommandResponse({
+            success: true,
+            output: 'io.sentry.MyApp',
+          });
+        } else {
+          return createMockCommandResponse({
+            success: true,
+            output: 'Success',
+          });
+        }
+      };
+
+      const result = await build_run_simLogic(
+        {
+          workspacePath: '/path/to/workspace',
+          scheme: 'MyScheme',
+          simulatorName: 'iPhone 17',
+        },
+        mockExecutor,
+      );
+
+      const finalized = finalizePendingXcodebuildResponse(result);
+
+      expect(finalized.isError).toBe(false);
+      expect(finalized.content.length).toBeGreaterThan(0);
+
+      const textContent = finalized.content
+        .filter((item) => item.type === 'text')
+        .map((item) => item.text)
+        .join('\n');
+
+      // Front matter
+      expect(textContent).toContain('Build & Run');
+      expect(textContent).toContain('Scheme: MyScheme');
+
+      // Summary
+      expect(textContent).toContain('Build succeeded.');
+
+      // Footer with execution-derived values
+      expect(textContent).toContain('Build & Run complete');
+      expect(textContent).toContain('App Path: /path/to/build/MyApp.app');
+      expect(textContent).toContain('Bundle ID: io.sentry.MyApp');
+
+      // No next steps in finalized output (those come from tool invoker)
+      expect(textContent).not.toContain('Next steps:');
+    });
+
+    it('should produce correct failure output when finalized', async () => {
+      const callHistory: string[][] = [];
+      const mockExecutor: CommandExecutor = async (command) => {
+        callHistory.push(command);
+
+        if (command[0] === 'xcrun' && command[1] === 'simctl') {
+          return createMockCommandResponse({
+            success: true,
+            output: JSON.stringify({
+              devices: {
+                'com.apple.CoreSimulator.SimRuntime.iOS-18-0': [
+                  { udid: 'SOME-OTHER-UUID', name: 'iPhone 17', isAvailable: true },
+                ],
+              },
+            }),
+          });
+        }
+
+        return createMockCommandResponse({
+          success: false,
+          error: 'should not run',
+        });
+      };
+
+      const result = await build_run_simLogic(
+        {
+          workspacePath: '/path/to/workspace',
+          scheme: 'MyScheme',
+          simulatorId: 'BAD-UUID',
+        },
+        mockExecutor,
+      );
+
+      const finalized = finalizePendingXcodebuildResponse(result);
+
+      expect(finalized.isError).toBe(true);
+      const textContent = finalized.content
+        .filter((item) => item.type === 'text')
+        .map((item) => item.text)
+        .join('\n');
+
+      // Front matter present
+      expect(textContent).toContain('Build & Run');
+
+      // Error and summary present
+      expect(textContent).toContain('Build failed.');
+
+      // No next steps on failure
+      expect(textContent).not.toContain('Next steps:');
     });
   });
 });

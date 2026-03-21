@@ -8,7 +8,6 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
-import { createTextResponse } from '../../../utils/responses/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
@@ -17,6 +16,11 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { mapDevicePlatform, resolveAppPathFromBuildSettings } from './build-settings.ts';
+import { formatToolPreflight } from '../../../utils/build-preflight.ts';
+import {
+  formatQueryError,
+  formatQueryFailureSummary,
+} from '../../../utils/xcodebuild-error-utils.ts';
 
 // Unified schema: XOR between projectPath and workspacePath, sharing common options
 const baseOptions = {
@@ -60,6 +64,15 @@ export async function get_device_app_pathLogic(
   const platform = mapDevicePlatform(params.platform);
   const configuration = params.configuration ?? 'Debug';
 
+  const preflight = formatToolPreflight({
+    operation: 'Get App Path',
+    scheme: params.scheme,
+    workspacePath: params.workspacePath,
+    projectPath: params.projectPath,
+    configuration,
+    platform,
+  });
+
   log('info', `Getting app path for scheme ${params.scheme} on platform ${platform}`);
 
   try {
@@ -78,7 +91,7 @@ export async function get_device_app_pathLogic(
       content: [
         {
           type: 'text',
-          text: `✅ App path retrieved successfully: ${appPath}`,
+          text: `${preflight}\n  \u{2514} App Path: ${appPath}`,
         },
       ],
       nextStepParams: {
@@ -91,18 +104,15 @@ export async function get_device_app_pathLogic(
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error retrieving app path: ${errorMessage}`);
 
-    if (errorMessage.startsWith('Could not extract app path from build settings.')) {
-      return createTextResponse(
-        'Failed to extract app path from build settings. Make sure the app has been built first.',
-        true,
-      );
-    }
-
-    if (errorMessage.includes('xcodebuild:')) {
-      return createTextResponse(`Failed to get app path: ${errorMessage}`, true);
-    }
-
-    return createTextResponse(`Error retrieving app path: ${errorMessage}`, true);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `${preflight}\n${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
+        },
+      ],
+      isError: true,
+    };
   }
 }
 

@@ -12,14 +12,14 @@ import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const launchMacAppSchema = z.object({
   appPath: z.string(),
   args: z.array(z.string()).optional(),
 });
 
-// Use z.infer for type safety
 type LaunchMacAppParams = z.infer<typeof launchMacAppSchema>;
 
 export async function launch_mac_appLogic(
@@ -27,48 +27,32 @@ export async function launch_mac_appLogic(
   executor: CommandExecutor,
   fileSystem?: FileSystemExecutor,
 ): Promise<ToolResponse> {
-  // Validate that the app file exists
+  const headerEvent = header('Launch macOS App', [{ label: 'App', value: params.appPath }]);
+
   const fileExistsValidation = validateFileExists(params.appPath, fileSystem);
   if (!fileExistsValidation.isValid) {
-    return fileExistsValidation.errorResponse!;
+    return toolResponse([headerEvent, statusLine('error', fileExistsValidation.errorMessage!)]);
   }
 
   log('info', `Starting launch macOS app request for ${params.appPath}`);
 
   try {
-    // Construct the command as string array for CommandExecutor
     const command = ['open', params.appPath];
 
-    // Add any additional arguments if provided
-    if (params.args && Array.isArray(params.args) && params.args.length > 0) {
+    if (params.args?.length) {
       command.push('--args', ...params.args);
     }
 
-    // Execute the command using CommandExecutor
     await executor(command, 'Launch macOS App');
 
-    // Return success response
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `✅ macOS app launched successfully: ${params.appPath}`,
-        },
-      ],
-    };
+    return toolResponse([headerEvent, statusLine('success', 'App launched successfully.')]);
   } catch (error) {
-    // Handle errors
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during launch macOS app operation: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `❌ Launch macOS app operation failed: ${errorMessage}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Launch macOS app operation failed: ${errorMessage}`),
+    ]);
   }
 }
 

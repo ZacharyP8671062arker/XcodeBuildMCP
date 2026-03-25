@@ -1,0 +1,8 @@
+
+📝 Scaffold macOS Project
+
+  Name: SnapshotTestMacApp
+  Path: <TMPDIR>/macos
+  Platform: macOS
+
+✅ Project scaffolded successfully at <TMPDIR>/macos.

@@ -15,11 +15,8 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { formatToolPreflight } from '../../../utils/build-preflight.ts';
-import {
-  formatQueryError,
-  formatQueryFailureSummary,
-} from '../../../utils/xcodebuild-error-utils.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 // Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
@@ -61,15 +58,14 @@ export async function showBuildSettingsLogic(
   log('info', `Showing build settings for scheme ${params.scheme}`);
 
   const hasProjectPath = typeof params.projectPath === 'string';
-  const path = hasProjectPath ? params.projectPath : params.workspacePath;
+  const pathValue = hasProjectPath ? params.projectPath : params.workspacePath;
 
-  const preflight = formatToolPreflight({
-    operation: 'Show Build Settings',
-    scheme: params.scheme,
+  const headerParams = [
+    { label: 'Scheme', value: params.scheme },
     ...(hasProjectPath
-      ? { projectPath: params.projectPath }
-      : { workspacePath: params.workspacePath }),
-  });
+      ? [{ label: 'Project', value: params.projectPath! }]
+      : [{ label: 'Workspace', value: params.workspacePath! }]),
+  ];
 
   try {
     const command = ['xcodebuild', '-showBuildSettings'];
@@ -85,15 +81,10 @@ export async function showBuildSettingsLogic(
     const result = await executor(command, 'Show Build Settings', false);
 
     if (!result.success) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `${preflight}\n${formatQueryError(result.error || 'Unknown error')}\n\n${formatQueryFailureSummary()}`,
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        header('Show Build Settings', headerParams),
+        statusLine('error', result.error || 'Unknown error'),
+      ]);
     }
 
     const settingsOutput = stripXcodebuildPreamble(
@@ -102,32 +93,32 @@ export async function showBuildSettingsLogic(
 
     let nextStepParams: Record<string, Record<string, string | number | boolean>> | undefined;
 
-    if (path) {
+    if (pathValue) {
       const pathKey = hasProjectPath ? 'projectPath' : 'workspacePath';
       nextStepParams = {
-        build_macos: { [pathKey]: path, scheme: params.scheme },
-        build_sim: { [pathKey]: path, scheme: params.scheme, simulatorName: 'iPhone 17' },
-        list_schemes: { [pathKey]: path },
+        build_macos: { [pathKey]: pathValue, scheme: params.scheme },
+        build_sim: { [pathKey]: pathValue, scheme: params.scheme, simulatorName: 'iPhone 17' },
+        list_schemes: { [pathKey]: pathValue },
       };
     }
 
-    return {
-      content: [{ type: 'text', text: `${preflight}\n${settingsOutput}` }],
-      ...(nextStepParams ? { nextStepParams } : {}),
-      isError: false,
-    };
+    const settingsLines = settingsOutput.split('\n').filter((l) => l.trim());
+
+    return toolResponse(
+      [
+        header('Show Build Settings', headerParams),
+        statusLine('success', 'Build settings retrieved.'),
+        section('Settings', settingsLines),
+      ],
+      nextStepParams ? { nextStepParams } : undefined,
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error showing build settings: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `${preflight}\n${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Show Build Settings', headerParams),
+      statusLine('error', errorMessage),
+    ]);
   }
 }
 

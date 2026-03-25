@@ -1,0 +1,164 @@
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { createSnapshotHarness, ensureSimulatorBooted } from '../harness.ts';
+import { expectMatchesFixture } from '../fixture-io.ts';
+import type { SnapshotHarness } from '../harness.ts';
+
+const WORKSPACE = 'example_projects/iOS_Calculator/CalculatorApp.xcworkspace';
+
+describe('simulator workflow', () => {
+  let harness: SnapshotHarness;
+  let simulatorUdid: string;
+
+  beforeAll(async () => {
+    vi.setConfig({ testTimeout: 120_000 });
+    harness = await createSnapshotHarness();
+    simulatorUdid = await ensureSimulatorBooted('iPhone 17');
+  }, 120_000);
+
+  afterAll(() => {
+    harness.cleanup();
+  });
+
+  describe('build', () => {
+    it('success', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'build', {
+        workspacePath: WORKSPACE,
+        scheme: 'CalculatorApp',
+        simulatorName: 'iPhone 17',
+      });
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'build--success');
+    }, 120_000);
+
+    it('error - wrong scheme', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'build', {
+        workspacePath: WORKSPACE,
+        scheme: 'NONEXISTENT',
+        simulatorName: 'iPhone 17',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'build--error-wrong-scheme');
+    }, 120_000);
+  });
+
+  describe('build-and-run', () => {
+    it('success', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'build-and-run', {
+        workspacePath: WORKSPACE,
+        scheme: 'CalculatorApp',
+        simulatorName: 'iPhone 17',
+      });
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'build-and-run--success');
+    }, 120_000);
+  });
+
+  describe('test', () => {
+    it('success', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'test', {
+        workspacePath: WORKSPACE,
+        scheme: 'CalculatorApp',
+        simulatorName: 'iPhone 17',
+      });
+      expect(isError).toBe(true);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'test--success');
+    }, 120_000);
+  });
+
+  describe('get-app-path', () => {
+    it('success', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'get-app-path', {
+        workspacePath: WORKSPACE,
+        scheme: 'CalculatorApp',
+        platform: 'iOS Simulator',
+        simulatorName: 'iPhone 17',
+      });
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'get-app-path--success');
+    }, 120_000);
+  });
+
+  describe('list', () => {
+    it('success', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'list', {});
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'list--success');
+    }, 120_000);
+  });
+
+  describe('install', () => {
+    it.skip('success - requires dynamic built app path', async () => {});
+
+    it('error - invalid app', async () => {
+      const fs = await import('node:fs');
+      const os = await import('node:os');
+      const path = await import('node:path');
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sim-install-'));
+      const fakeApp = path.join(tmpDir, 'NotAnApp.app');
+      fs.mkdirSync(fakeApp);
+      try {
+        const { text } = await harness.invoke('simulator', 'install', {
+          simulatorId: simulatorUdid,
+          appPath: fakeApp,
+        });
+        expect(text.length).toBeGreaterThan(0);
+        expectMatchesFixture(text, __filename, 'install--error-invalid-app');
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    }, 120_000);
+  });
+
+  describe('launch-app', () => {
+    it('success', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'launch-app', {
+        simulatorId: simulatorUdid,
+        bundleId: 'io.sentry.calculatorapp',
+      });
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'launch-app--success');
+    }, 120_000);
+  });
+
+  describe('launch-app-with-logs', () => {
+    it('success', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'launch-app-with-logs', {
+        simulatorId: simulatorUdid,
+        bundleId: 'io.sentry.calculatorapp',
+      });
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'launch-app-with-logs--success');
+    }, 120_000);
+  });
+
+  describe('screenshot', () => {
+    it('success', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'screenshot', {
+        simulatorId: simulatorUdid,
+        returnFormat: 'path',
+      });
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'screenshot--success');
+    }, 120_000);
+  });
+
+  describe('record-video', () => {
+    it.skip('requires start/stop lifecycle', async () => {});
+  });
+
+  describe('stop', () => {
+    it('error - no app', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'stop', {
+        simulatorId: simulatorUdid,
+        bundleId: 'com.nonexistent.app',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'stop--error-no-app');
+    }, 120_000);
+  });
+});

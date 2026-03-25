@@ -1,6 +1,7 @@
 import type { ToolCatalog, ToolDefinition, ToolInvoker, InvokeOptions } from './types.ts';
 import type { NextStep, NextStepParams, NextStepParamsMap, ToolResponse } from '../types/common.ts';
-import { createErrorResponse } from '../utils/responses/index.ts';
+import { toolResponse } from '../utils/tool-response.ts';
+import { statusLine } from '../utils/tool-event-builders.ts';
 import { DaemonClient } from '../cli/daemon-client.ts';
 import { ensureDaemonRunning, DEFAULT_DAEMON_STARTUP_TIMEOUT_MS } from '../cli/daemon-control.ts';
 import { log } from '../utils/logger.ts';
@@ -12,11 +13,11 @@ import {
   type SentryToolTransport,
 } from '../utils/sentry.ts';
 import {
-  appendStructuredEvents,
-  createNextStepsEvent,
   finalizePendingXcodebuildResponse,
   isPendingXcodebuildResponse,
 } from '../utils/xcodebuild-output.ts';
+import { renderNextStepsSection } from '../utils/responses/next-steps-renderer.ts';
+import type { RuntimeKind } from './types.ts';
 
 type BuiltTemplateNextStep = {
   step: NextStep;
@@ -141,17 +142,32 @@ function normalizeNextSteps(response: ToolResponse, catalog: ToolCatalog): ToolR
   };
 }
 
-function appendNextStepsToStructuredEvents(response: ToolResponse): ToolResponse {
+function renderNextStepsIntoContent(response: ToolResponse, runtime: RuntimeKind): ToolResponse {
   if (!response.nextSteps || response.nextSteps.length === 0) {
     return response;
   }
 
-  const nextStepsEvent = createNextStepsEvent(response.nextSteps);
-  if (!nextStepsEvent) {
+  const section = renderNextStepsSection(response.nextSteps, runtime);
+  if (!section) {
     return response;
   }
 
-  return appendStructuredEvents(response, [nextStepsEvent]);
+  const content = [...response.content];
+  let lastTextIndex = -1;
+  for (let i = content.length - 1; i >= 0; i--) {
+    if (content[i].type === 'text') {
+      lastTextIndex = i;
+      break;
+    }
+  }
+  if (lastTextIndex >= 0) {
+    const lastItem = content[lastTextIndex];
+    content[lastTextIndex] = { ...lastItem, text: `${lastItem.text}\n\n${section}` };
+  } else {
+    content.push({ type: 'text', text: section });
+  }
+
+  return { ...response, content };
 }
 
 export function postProcessToolResponse(params: {
@@ -161,7 +177,7 @@ export function postProcessToolResponse(params: {
   runtime: InvokeOptions['runtime'];
   applyTemplateNextSteps?: boolean;
 }): ToolResponse {
-  const { tool, response, catalog, applyTemplateNextSteps = true } = params;
+  const { tool, response, catalog, runtime, applyTemplateNextSteps = true } = params;
 
   const isError = response.isError === true;
   const suppressNextStepsForStructuredFailure =
@@ -176,8 +192,7 @@ export function postProcessToolResponse(params: {
 
   const allTemplateSteps = buildTemplateNextSteps(tool, catalog);
   const templateSteps = allTemplateSteps.filter((t) => {
-    const when = t.step.when ?? 'always';
-    if (when === 'always') return true;
+    const when = t.step.when ?? 'success';
     if (when === 'success') return !isError;
     if (when === 'failure') return isError;
     return true;
@@ -195,40 +210,33 @@ export function postProcessToolResponse(params: {
       : responseForNextSteps;
 
   const normalized = normalizeNextSteps(withTemplates, catalog);
-  const result = isPendingXcodebuildResponse(normalized)
+
+  const finalized = isPendingXcodebuildResponse(normalized)
     ? finalizePendingXcodebuildResponse(normalized, {
         nextSteps: normalized.nextSteps,
       })
-    : appendNextStepsToStructuredEvents(normalized);
-  delete result.nextStepParams;
+    : renderNextStepsIntoContent(normalized, runtime);
+
+  const { nextSteps: _ns, nextStepParams: _nsp, ...result } = finalized;
   return result;
 }
 
 function buildDaemonEnvOverrides(opts: InvokeOptions): Record<string, string> | undefined {
-  const envOverrides: Record<string, string> = {};
-
-  if (opts.logLevel) {
-    envOverrides.XCODEBUILDMCP_DAEMON_LOG_LEVEL = opts.logLevel;
+  if (!opts.logLevel) {
+    return undefined;
   }
-
-  return Object.keys(envOverrides).length > 0 ? envOverrides : undefined;
+  return { XCODEBUILDMCP_DAEMON_LOG_LEVEL: opts.logLevel };
 }
 
 function getErrorKind(error: unknown): string {
-  if (error instanceof Error) {
-    return error.name || 'Error';
-  }
-  return typeof error;
+  return error instanceof Error ? error.name || 'Error' : typeof error;
 }
 
 function mapRuntimeToSentryToolRuntime(runtime: InvokeOptions['runtime']): SentryToolRuntime {
-  switch (runtime) {
-    case 'daemon':
-    case 'mcp':
-      return runtime;
-    default:
-      return 'cli';
+  if (runtime === 'daemon' || runtime === 'mcp') {
+    return runtime;
   }
+  return 'cli';
 }
 
 export class DefaultToolInvoker implements ToolInvoker {
@@ -242,17 +250,21 @@ export class DefaultToolInvoker implements ToolInvoker {
     const resolved = this.catalog.resolve(toolName);
 
     if (resolved.ambiguous) {
-      return createErrorResponse(
-        'Ambiguous tool name',
-        `Multiple tools match '${toolName}'. Use one of:\n- ${resolved.ambiguous.join('\n- ')}`,
-      );
+      return toolResponse([
+        statusLine(
+          'error',
+          `Ambiguous tool name: Multiple tools match '${toolName}'. Use one of:\n- ${resolved.ambiguous.join('\n- ')}`,
+        ),
+      ]);
     }
 
     if (resolved.notFound || !resolved.tool) {
-      return createErrorResponse(
-        'Tool not found',
-        `Unknown tool '${toolName}'. Run 'xcodebuildmcp tools' to see available tools.`,
-      );
+      return toolResponse([
+        statusLine(
+          'error',
+          `Tool not found: Unknown tool '${toolName}'. Run 'xcodebuildmcp tools' to see available tools.`,
+        ),
+      ]);
     }
 
     return this.executeTool(resolved.tool, args, opts);
@@ -291,10 +303,12 @@ export class DefaultToolInvoker implements ToolInvoker {
       const error = new Error('SocketPathMissing');
       context.captureInfraErrorMetric(error);
       context.captureInvocationMetric('infra_error');
-      return createErrorResponse(
-        'Socket path required',
-        'No socket path configured for daemon communication.',
-      );
+      return toolResponse([
+        statusLine(
+          'error',
+          'Socket path required: No socket path configured for daemon communication.',
+        ),
+      ]);
     }
 
     const client = new DaemonClient({ socketPath });
@@ -316,12 +330,12 @@ export class DefaultToolInvoker implements ToolInvoker {
         );
         context.captureInfraErrorMetric(error);
         context.captureInvocationMetric('infra_error');
-        return createErrorResponse(
-          'Daemon auto-start failed',
-          (error instanceof Error ? error.message : String(error)) +
-            '\n\nYou can try starting the daemon manually:\n' +
-            '  xcodebuildmcp daemon start',
-        );
+        return toolResponse([
+          statusLine(
+            'error',
+            `Daemon auto-start failed: ${error instanceof Error ? error.message : String(error)}\n\nYou can try starting the daemon manually:\n  xcodebuildmcp daemon start`,
+          ),
+        ]);
       }
     }
 
@@ -341,10 +355,12 @@ export class DefaultToolInvoker implements ToolInvoker {
       );
       context.captureInfraErrorMetric(error);
       context.captureInvocationMetric('infra_error');
-      return createErrorResponse(
-        context.errorTitle,
-        error instanceof Error ? error.message : String(error),
-      );
+      return toolResponse([
+        statusLine(
+          'error',
+          `${context.errorTitle}: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      ]);
     }
   }
 
@@ -423,7 +439,7 @@ export class DefaultToolInvoker implements ToolInvoker {
       captureInfraErrorMetric(error);
       captureInvocationMetric('infra_error');
       const message = error instanceof Error ? error.message : String(error);
-      return createErrorResponse('Tool execution failed', message);
+      return toolResponse([statusLine('error', `Tool execution failed: ${message}`)]);
     }
   }
 }

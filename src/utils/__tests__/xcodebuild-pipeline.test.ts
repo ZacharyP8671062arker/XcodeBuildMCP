@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { createXcodebuildPipeline } from '../xcodebuild-pipeline.ts';
-import { STAGE_RANK } from '../../types/xcodebuild-events.ts';
+import { STAGE_RANK } from '../../types/pipeline-events.ts';
 
 describe('xcodebuild-pipeline', () => {
   const originalEnv = { ...process.env };
@@ -22,12 +22,10 @@ describe('xcodebuild-pipeline', () => {
     });
 
     pipeline.emitEvent({
-      type: 'start',
+      type: 'header',
       timestamp: '2025-01-01T00:00:00.000Z',
-      operation: 'TEST',
-      toolName: 'test_sim',
-      params: { scheme: 'MyApp' },
-      message: 'Starting test run for MyApp',
+      operation: 'Test',
+      params: [{ label: 'Scheme', value: 'MyApp' }],
     });
 
     pipeline.onStdout('Resolve Package Graph\n');
@@ -48,14 +46,14 @@ describe('xcodebuild-pipeline', () => {
     const texts = result.mcpContent
       .filter((c) => c.type === 'text')
       .map((c) => (c as { text: string }).text);
-    expect(texts).toContain('\nStarting test run for MyApp');
+    expect(texts.some((t) => t.includes('Test'))).toBe(true);
     expect(texts.some((t) => t.includes('Resolving packages'))).toBe(true);
 
     // Events array should contain all events
     expect(result.events.length).toBeGreaterThan(0);
     const eventTypes = result.events.map((e) => e.type);
-    expect(eventTypes).toContain('start');
-    expect(eventTypes).toContain('status');
+    expect(eventTypes).toContain('header');
+    expect(eventTypes).toContain('build-stage');
     expect(eventTypes).toContain('test-progress');
     expect(eventTypes).toContain('summary');
   });

@@ -1,0 +1,35 @@
+📱 List Simulators
+
+iOS 26.2:
+  iPhone 17 Pro       <UUID>  Booted
+  iPhone 17 Pro Max   <UUID>
+  iPhone Air          <UUID>
+  iPhone 17           <UUID>  Booted
+  iPhone 16e          <UUID>
+  iPad Pro 13-inch (M5)   <UUID>
+  iPad Pro 11-inch (M5)   <UUID>
+  iPad mini (A17 Pro)     <UUID>
+  iPad (A16)              <UUID>
+  iPad Air 13-inch (M3)   <UUID>
+  iPad Air 11-inch (M3)   <UUID>
+
+watchOS 26.2:
+  Apple Watch Series 11 (46mm)   <UUID>
+  Apple Watch Series 11 (42mm)   <UUID>
+  Apple Watch Ultra 3 (49mm)     <UUID>
+  Apple Watch SE 3 (44mm)        <UUID>
+  Apple Watch SE 3 (40mm)        <UUID>
+
+tvOS 26.2:
+  Apple TV 4K (3rd generation)             <UUID>
+  Apple TV 4K (3rd generation) (at 1080p)  <UUID>
+  Apple TV                                 <UUID>
+
+xrOS 26.2:
+  Apple Vision Pro   <UUID>
+
+Next steps:
+1. Boot simulator: xcodebuildmcp simulator-management boot --simulator-id "UUID_FROM_ABOVE"
+2. Open Simulator UI: xcodebuildmcp simulator-management open
+3. Build for simulator: xcodebuildmcp simulator build --scheme "YOUR_SCHEME" --simulator-id "UUID_FROM_ABOVE"
+4. Get app path: xcodebuildmcp simulator get-app-path --scheme "YOUR_SCHEME" --platform "iOS Simulator" --simulator-id "UUID_FROM_ABOVE"

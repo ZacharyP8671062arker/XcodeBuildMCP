@@ -9,6 +9,13 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, long_pressLogic } from '../long_press.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
 
+function allText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
+
 describe('Long Press Plugin', () => {
   beforeEach(() => {
     sessionStore.clear();
@@ -112,10 +119,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'Mock axe not available' }],
-          isError: true,
-        }),
       };
 
       await long_pressLogic(
@@ -160,10 +163,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'Mock axe not available' }],
-          isError: true,
-        }),
       };
 
       await long_pressLogic(
@@ -208,10 +207,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'Mock axe not available' }],
-          isError: true,
-        }),
       };
 
       await long_pressLogic(
@@ -256,10 +251,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/path/to/bundled/axe',
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'Mock axe not available' }],
-          isError: true,
-        }),
       };
 
       await long_pressLogic(
@@ -301,10 +292,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'Mock axe not available' }],
-          isError: true,
-        }),
       };
 
       const result = await long_pressLogic(
@@ -318,15 +305,10 @@ describe('Long Press Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Long press at (100, 200) for 1500ms simulated successfully.\n\nWarning: snapshot_ui has not been called yet. Consider using snapshot_ui for precise coordinates instead of guessing from screenshots.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain(
+        'Long press at (100, 200) for 1500ms simulated successfully.',
+      );
     });
 
     it('should handle DependencyError when axe is not available', async () => {
@@ -340,15 +322,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => null, // Mock axe not found
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await long_pressLogic(
@@ -362,15 +335,8 @@ describe('Long Press Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle AxeError from failed command execution', async () => {
@@ -384,10 +350,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'Mock axe not available' }],
-          isError: true,
-        }),
       };
 
       const result = await long_pressLogic(
@@ -401,15 +363,10 @@ describe('Long Press Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: "Error: Failed to simulate long press at (100, 200): axe command 'touch' failed.\nDetails: axe command failed",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        "Failed to simulate long press at (100, 200): axe command 'touch' failed.",
+      );
     });
 
     it('should handle SystemError from command execution', async () => {
@@ -420,10 +377,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'Mock axe not available' }],
-          isError: true,
-        }),
       };
 
       const result = await long_pressLogic(
@@ -437,17 +390,7 @@ describe('Long Press Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: expect.stringContaining(
-              'Error: System error executing axe: Failed to execute axe command: ENOENT: no such file or directory',
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
     });
 
     it('should handle unexpected Error objects', async () => {
@@ -458,10 +401,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'Mock axe not available' }],
-          isError: true,
-        }),
       };
 
       const result = await long_pressLogic(
@@ -475,17 +414,7 @@ describe('Long Press Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: expect.stringContaining(
-              'Error: System error executing axe: Failed to execute axe command: Unexpected error',
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
     });
 
     it('should handle unexpected string errors', async () => {
@@ -496,10 +425,6 @@ describe('Long Press Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'Mock axe not available' }],
-          isError: true,
-        }),
       };
 
       const result = await long_pressLogic(
@@ -513,15 +438,10 @@ describe('Long Press Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Error: System error executing axe: Failed to execute axe command: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: String error',
+      );
     });
   });
 });

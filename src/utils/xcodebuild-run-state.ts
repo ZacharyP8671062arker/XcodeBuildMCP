@@ -1,33 +1,33 @@
 import type {
   XcodebuildOperation,
   XcodebuildStage,
-  XcodebuildEvent,
-  StatusEvent,
-  WarningEvent,
-  ErrorEvent,
+  PipelineEvent,
+  BuildStageEvent,
+  CompilerWarningEvent,
+  CompilerErrorEvent,
   TestFailureEvent,
-} from '../types/xcodebuild-events.ts';
-import { STAGE_RANK } from '../types/xcodebuild-events.ts';
+} from '../types/pipeline-events.ts';
+import { STAGE_RANK } from '../types/pipeline-events.ts';
 
 export interface XcodebuildRunState {
   operation: XcodebuildOperation;
   currentStage: XcodebuildStage | null;
-  milestones: StatusEvent[];
-  warnings: WarningEvent[];
-  errors: ErrorEvent[];
+  milestones: BuildStageEvent[];
+  warnings: CompilerWarningEvent[];
+  errors: CompilerErrorEvent[];
   testFailures: TestFailureEvent[];
   completedTests: number;
   failedTests: number;
   skippedTests: number;
   finalStatus: 'SUCCEEDED' | 'FAILED' | null;
   wallClockDurationMs: number | null;
-  events: XcodebuildEvent[];
+  events: PipelineEvent[];
 }
 
 export interface RunStateOptions {
   operation: XcodebuildOperation;
   minimumStage?: XcodebuildStage;
-  onEvent?: (event: XcodebuildEvent) => void;
+  onEvent?: (event: PipelineEvent) => void;
 }
 
 function normalizeDiagnosticKey(location: string | undefined, message: string): string {
@@ -36,11 +36,11 @@ function normalizeDiagnosticKey(location: string | undefined, message: string): 
 
 export interface FinalizeOptions {
   emitSummary?: boolean;
-  tailEvents?: XcodebuildEvent[];
+  tailEvents?: PipelineEvent[];
 }
 
 export interface XcodebuildRunStateHandle {
-  push(event: XcodebuildEvent): void;
+  push(event: PipelineEvent): void;
   finalize(succeeded: boolean, durationMs?: number, options?: FinalizeOptions): XcodebuildRunState;
   snapshot(): Readonly<XcodebuildRunState>;
   highestStageRank(): number;
@@ -67,15 +67,28 @@ export function createXcodebuildRunState(options: RunStateOptions): XcodebuildRu
   let highestRank = options.minimumStage !== undefined ? STAGE_RANK[options.minimumStage] : -1;
   const seenDiagnostics = new Set<string>();
 
-  function accept(event: XcodebuildEvent): void {
+  function accept(event: PipelineEvent): void {
     state.events.push(event);
     onEvent?.(event);
   }
 
+  function acceptDedupedDiagnostic<T extends { location?: string; message: string }>(
+    event: PipelineEvent & T,
+    collection: T[],
+  ): void {
+    const key = normalizeDiagnosticKey(event.location, event.message);
+    if (seenDiagnostics.has(key)) {
+      return;
+    }
+    seenDiagnostics.add(key);
+    collection.push(event);
+    accept(event);
+  }
+
   return {
-    push(event: XcodebuildEvent): void {
+    push(event: PipelineEvent): void {
       switch (event.type) {
-        case 'status': {
+        case 'build-stage': {
           const rank = STAGE_RANK[event.stage];
           if (rank <= highestRank) {
             return;
@@ -87,36 +100,18 @@ export function createXcodebuildRunState(options: RunStateOptions): XcodebuildRu
           break;
         }
 
-        case 'warning': {
-          const key = normalizeDiagnosticKey(event.location, event.message);
-          if (seenDiagnostics.has(key)) {
-            return;
-          }
-          seenDiagnostics.add(key);
-          state.warnings.push(event);
-          accept(event);
+        case 'compiler-warning': {
+          acceptDedupedDiagnostic(event, state.warnings);
           break;
         }
 
-        case 'error': {
-          const key = normalizeDiagnosticKey(event.location, event.message);
-          if (seenDiagnostics.has(key)) {
-            return;
-          }
-          seenDiagnostics.add(key);
-          state.errors.push(event);
-          accept(event);
+        case 'compiler-error': {
+          acceptDedupedDiagnostic(event, state.errors);
           break;
         }
 
         case 'test-failure': {
-          const key = normalizeDiagnosticKey(event.location, event.message);
-          if (seenDiagnostics.has(key)) {
-            return;
-          }
-          seenDiagnostics.add(key);
-          state.testFailures.push(event);
-          accept(event);
+          acceptDedupedDiagnostic(event, state.testFailures);
           break;
         }
 
@@ -125,10 +120,9 @@ export function createXcodebuildRunState(options: RunStateOptions): XcodebuildRu
           state.failedTests = event.failed;
           state.skippedTests = event.skipped;
 
-          // Ensure RUN_TESTS milestone when we see test progress
           if (highestRank < STAGE_RANK.RUN_TESTS) {
-            const runTestsEvent: StatusEvent = {
-              type: 'status',
+            const runTestsEvent: BuildStageEvent = {
+              type: 'build-stage',
               timestamp: event.timestamp,
               operation: 'TEST',
               stage: 'RUN_TESTS',
@@ -144,8 +138,12 @@ export function createXcodebuildRunState(options: RunStateOptions): XcodebuildRu
           break;
         }
 
-        case 'start':
-        case 'notice':
+        case 'header':
+        case 'status-line':
+        case 'section':
+        case 'detail-tree':
+        case 'table':
+        case 'file-ref':
         case 'test-discovery':
         case 'summary':
         case 'next-steps': {
@@ -164,7 +162,7 @@ export function createXcodebuildRunState(options: RunStateOptions): XcodebuildRu
       state.wallClockDurationMs = durationMs ?? null;
 
       if (options?.emitSummary !== false) {
-        const summaryEvent: XcodebuildEvent = {
+        const summaryEvent: PipelineEvent = {
           type: 'summary',
           timestamp: new Date().toISOString(),
           operation,

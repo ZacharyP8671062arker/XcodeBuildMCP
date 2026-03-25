@@ -4,6 +4,8 @@ import { sessionDefaultKeys } from '../../../utils/session-defaults-schema.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const keys = sessionDefaultKeys;
 
@@ -27,35 +29,33 @@ type Params = z.infer<typeof schemaObj>;
 export async function sessionClearDefaultsLogic(params: Params): Promise<ToolResponse> {
   if (params.all) {
     if (params.profile !== undefined || params.keys !== undefined) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: 'all=true cannot be combined with profile or keys.',
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        header('Clear Defaults'),
+        statusLine('error', 'all=true cannot be combined with profile or keys.'),
+      ]);
     }
 
     sessionStore.clearAll();
-    return { content: [{ type: 'text', text: 'All session defaults cleared' }], isError: false };
+    return toolResponse([
+      header('Clear Defaults'),
+      statusLine('success', 'All session defaults cleared.'),
+    ]);
   }
 
   const profile = params.profile?.trim();
   if (profile !== undefined) {
     if (profile.length === 0) {
-      return {
-        content: [{ type: 'text', text: 'Profile name cannot be empty.' }],
-        isError: true,
-      };
+      return toolResponse([
+        header('Clear Defaults'),
+        statusLine('error', 'Profile name cannot be empty.'),
+      ]);
     }
 
     if (!sessionStore.listProfiles().includes(profile)) {
-      return {
-        content: [{ type: 'text', text: `Profile "${profile}" does not exist.` }],
-        isError: true,
-      };
+      return toolResponse([
+        header('Clear Defaults'),
+        statusLine('error', `Profile "${profile}" does not exist.`),
+      ]);
     }
 
     if (params.keys) {
@@ -64,10 +64,10 @@ export async function sessionClearDefaultsLogic(params: Params): Promise<ToolRes
       sessionStore.clearForProfile(profile);
     }
 
-    return {
-      content: [{ type: 'text', text: `Session defaults cleared for profile "${profile}"` }],
-      isError: false,
-    };
+    return toolResponse([
+      header('Clear Defaults', [{ label: 'Profile', value: profile }]),
+      statusLine('success', `Session defaults cleared for profile "${profile}".`),
+    ]);
   }
 
   if (params.keys) {
@@ -76,7 +76,10 @@ export async function sessionClearDefaultsLogic(params: Params): Promise<ToolRes
     sessionStore.clear();
   }
 
-  return { content: [{ type: 'text', text: 'Session defaults cleared' }], isError: false };
+  return toolResponse([
+    header('Clear Defaults'),
+    statusLine('success', 'Session defaults cleared.'),
+  ]);
 }
 
 export const schema = schemaObj.shape;

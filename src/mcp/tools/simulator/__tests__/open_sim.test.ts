@@ -1,9 +1,3 @@
-/**
- * Tests for open_sim plugin
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
-
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import {
@@ -12,6 +6,14 @@ import {
   type CommandExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, open_simLogic } from '../open_sim.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
+
+function allText(result: ToolResponse): string {
+  return result.content
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
 
 describe('open_sim tool', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -22,7 +24,6 @@ describe('open_sim tool', () => {
     it('should have correct schema validation', () => {
       const schemaObj = z.object(schema);
 
-      // Schema is empty, so any object should pass
       expect(schemaObj.safeParse({}).success).toBe(true);
 
       expect(
@@ -31,7 +32,6 @@ describe('open_sim tool', () => {
         }).success,
       ).toBe(true);
 
-      // Empty schema should accept anything
       expect(
         schemaObj.safeParse({
           enabled: true,
@@ -41,7 +41,7 @@ describe('open_sim tool', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
-    it('should return exact successful open simulator response', async () => {
+    it('should return successful open simulator response', async () => {
       const mockExecutor = createMockExecutor({
         success: true,
         output: '',
@@ -49,25 +49,21 @@ describe('open_sim tool', () => {
 
       const result = await open_simLogic({}, mockExecutor);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Simulator app opened successfully.',
-          },
+      const text = allText(result);
+      expect(text).toContain('Open Simulator');
+      expect(text).toContain('Simulator app opened');
+      expect(result.isError).toBeFalsy();
+      expect(result.nextStepParams).toEqual({
+        boot_sim: { simulatorId: 'UUID_FROM_LIST_SIMS' },
+        start_sim_log_cap: [
+          { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
+          { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID', captureConsole: true },
         ],
-        nextStepParams: {
-          boot_sim: { simulatorId: 'UUID_FROM_LIST_SIMS' },
-          start_sim_log_cap: [
-            { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
-            { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID', captureConsole: true },
-          ],
-          launch_app_logs_sim: { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
-        },
+        launch_app_logs_sim: { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
       });
     });
 
-    it('should return exact command failure response', async () => {
+    it('should return command failure response', async () => {
       const mockExecutor = createMockExecutor({
         success: false,
         error: 'Command failed',
@@ -75,48 +71,33 @@ describe('open_sim tool', () => {
 
       const result = await open_simLogic({}, mockExecutor);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Open simulator operation failed: Command failed',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Open simulator operation failed: Command failed');
+      expect(result.isError).toBe(true);
     });
 
-    it('should return exact exception handling response', async () => {
+    it('should return exception handling response', async () => {
       const mockExecutor: CommandExecutor = async () => {
         throw new Error('Test error');
       };
 
       const result = await open_simLogic({}, mockExecutor);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Open simulator operation failed: Test error',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Open simulator operation failed: Test error');
+      expect(result.isError).toBe(true);
     });
 
-    it('should return exact string error handling response', async () => {
+    it('should return string error handling response', async () => {
       const mockExecutor: CommandExecutor = async () => {
         throw 'String error';
       };
 
       const result = await open_simLogic({}, mockExecutor);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Open simulator operation failed: String error',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Open simulator operation failed: String error');
+      expect(result.isError).toBe(true);
     });
 
     it('should verify command generation with mock executor', async () => {

@@ -1,7 +1,8 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
-import { createErrorResponse } from '../../../utils/responses/index.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { determineSimulatorUuid } from '../../../utils/simulator-utils.ts';
 import {
@@ -62,6 +63,7 @@ export async function debug_attach_simLogic(
   ctx: DebuggerToolContext,
 ): Promise<ToolResponse> {
   const { executor, debugger: debuggerManager } = ctx;
+  const headerEvent = header('Attach Debugger');
 
   const simResult = await determineSimulatorUuid(
     { simulatorId: params.simulatorId, simulatorName: params.simulatorName },
@@ -69,12 +71,15 @@ export async function debug_attach_simLogic(
   );
 
   if (simResult.error) {
-    return simResult.error;
+    return toolResponse([headerEvent, statusLine('error', simResult.error)]);
   }
 
   const simulatorId = simResult.uuid;
   if (!simulatorId) {
-    return createErrorResponse('Simulator resolution failed', 'Unable to determine simulator UUID');
+    return toolResponse([
+      headerEvent,
+      statusLine('error', 'Simulator resolution failed: Unable to determine simulator UUID'),
+    ]);
   }
 
   let pid = params.pid;
@@ -87,12 +92,18 @@ export async function debug_attach_simLogic(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return createErrorResponse('Failed to resolve simulator PID', message);
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to resolve simulator PID: ${message}`),
+      ]);
     }
   }
 
   if (!pid) {
-    return createErrorResponse('Missing PID', 'Unable to resolve process ID to attach');
+    return toolResponse([
+      headerEvent,
+      statusLine('error', 'Missing PID: Unable to resolve process ID to attach'),
+    ]);
   }
 
   try {
@@ -120,11 +131,14 @@ export async function debug_attach_simLogic(
             detachError instanceof Error ? detachError.message : String(detachError);
           log('warn', `Failed to detach debugger session after resume failure: ${detachMessage}`);
         }
-        return createErrorResponse('Failed to resume debugger after attach', message);
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Failed to resume debugger after attach: ${message}`),
+        ]);
       }
     }
 
-    const warningText = simResult.warning ? `⚠️ ${simResult.warning}\n\n` : '';
+    const backendLabel = session.backend === 'dap' ? 'DAP debugger' : 'LLDB';
     const currentText = isCurrent
       ? 'This session is now the current debug session.'
       : 'This session is not set as the current session.';
@@ -132,30 +146,34 @@ export async function debug_attach_simLogic(
       ? 'Execution resumed after attach.'
       : 'Execution is paused. Use debug_continue to resume before UI automation.';
 
-    const backendLabel = session.backend === 'dap' ? 'DAP debugger' : 'LLDB';
+    const events = [
+      headerEvent,
+      ...(simResult.warning ? [section('Warning', [simResult.warning])] : []),
+      statusLine(
+        'success',
+        `Attached ${backendLabel} to simulator process ${pid} (${simulatorId})`,
+      ),
+      detailTree([
+        { label: 'Debug session ID', value: session.id },
+        { label: 'Status', value: currentText },
+        { label: 'Execution', value: resumeText },
+      ]),
+    ];
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text:
-            `${warningText}✅ Attached ${backendLabel} to simulator process ${pid} (${simulatorId}).\n\n` +
-            `Debug session ID: ${session.id}\n` +
-            `${currentText}\n` +
-            `${resumeText}`,
-        },
-      ],
+    return toolResponse(events, {
       nextStepParams: {
         debug_breakpoint_add: { debugSessionId: session.id, file: '...', line: 123 },
         debug_continue: { debugSessionId: session.id },
         debug_stack: { debugSessionId: session.id },
       },
-      isError: false,
-    };
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log('error', `Failed to attach LLDB: ${message}`);
-    return createErrorResponse('Failed to attach debugger', message);
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to attach debugger: ${message}`),
+    ]);
   }
 }
 

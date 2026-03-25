@@ -2,13 +2,14 @@ import * as z from 'zod';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { getDefaultCommandExecutor, type CommandExecutor } from '../../../utils/execution/index.ts';
-import { createTextResponse } from '../../../utils/responses/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import {
   applyWorkflowSelectionFromManifest,
   getRegisteredWorkflows,
   getMcpPredicateContext,
 } from '../../../utils/tool-registry.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
   workflowNames: z.array(z.string()).describe('Workflow directory name(s).'),
@@ -39,7 +40,11 @@ export async function manage_workflowsLogic(
 
   const registryState = await applyWorkflowSelectionFromManifest(nextWorkflows, ctx);
 
-  return createTextResponse(`Workflows enabled: ${registryState.enabledWorkflows.join(', ')}`);
+  return toolResponse([
+    header('Manage Workflows'),
+    section('Enabled Workflows', registryState.enabledWorkflows),
+    statusLine('success', `Workflows enabled: ${registryState.enabledWorkflows.join(', ')}`),
+  ]);
 }
 
 export const schema = baseSchemaObject.shape;

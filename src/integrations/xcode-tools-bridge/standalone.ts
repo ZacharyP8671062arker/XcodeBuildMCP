@@ -1,8 +1,6 @@
-import {
-  createErrorResponse,
-  createTextResponse,
-  type ToolResponse,
-} from '../../utils/responses/index.ts';
+import type { ToolResponse } from '../../types/common.ts';
+import { toolResponse } from '../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../utils/tool-event-builders.ts';
 import {
   buildXcodeToolsBridgeStatus,
   classifyBridgeError,
@@ -34,7 +32,10 @@ export class StandaloneXcodeToolsBridge {
 
   async statusTool(): Promise<ToolResponse> {
     const status = await this.getStatus();
-    return createTextResponse(JSON.stringify(status, null, 2));
+    return toolResponse([
+      header('Bridge Status'),
+      section('Status', [JSON.stringify(status, null, 2)]),
+    ]);
   }
 
   async syncTool(): Promise<ToolResponse> {
@@ -48,10 +49,17 @@ export class StandaloneXcodeToolsBridge {
         total: remoteTools.length,
       };
       const status = await this.getStatus();
-      return createTextResponse(JSON.stringify({ sync, status }, null, 2));
+      return toolResponse([
+        header('Bridge Sync'),
+        section('Sync Result', [JSON.stringify({ sync, status }, null, 2)]),
+        statusLine('success', 'Bridge sync completed'),
+      ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return createErrorResponse('Bridge sync failed', message);
+      return toolResponse([
+        header('Bridge Sync'),
+        statusLine('error', `Bridge sync failed: ${message}`),
+      ]);
     } finally {
       await this.service.disconnect();
     }
@@ -61,29 +69,39 @@ export class StandaloneXcodeToolsBridge {
     try {
       await this.service.disconnect();
       const status = await this.getStatus();
-      return createTextResponse(JSON.stringify(status, null, 2));
+      return toolResponse([
+        header('Bridge Disconnect'),
+        section('Status', [JSON.stringify(status, null, 2)]),
+        statusLine('success', 'Bridge disconnected'),
+      ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return createErrorResponse('Bridge disconnect failed', message);
+      return toolResponse([
+        header('Bridge Disconnect'),
+        statusLine('error', `Bridge disconnect failed: ${message}`),
+      ]);
     }
   }
 
   async listToolsTool(params: { refresh?: boolean }): Promise<ToolResponse> {
     try {
       const tools = await this.service.listTools({ refresh: params.refresh !== false });
-      return createTextResponse(
-        JSON.stringify(
-          {
-            toolCount: tools.length,
-            tools: tools.map(serializeBridgeTool),
-          },
-          null,
-          2,
-        ),
-      );
+      const payload = {
+        toolCount: tools.length,
+        tools: tools.map(serializeBridgeTool),
+      };
+      return toolResponse([
+        header('Xcode IDE List Tools'),
+        section('Tools', [JSON.stringify(payload, null, 2)]),
+        statusLine('success', `Found ${tools.length} tool(s)`),
+      ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return createErrorResponse(classifyBridgeError(error, 'list'), message);
+      const code = classifyBridgeError(error, 'list');
+      return toolResponse([
+        header('Xcode IDE List Tools'),
+        statusLine('error', `[${code}] ${message}`),
+      ]);
     } finally {
       await this.service.disconnect();
     }
@@ -101,7 +119,11 @@ export class StandaloneXcodeToolsBridge {
       return response as ToolResponse;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return createErrorResponse(classifyBridgeError(error, 'call'), message);
+      const code = classifyBridgeError(error, 'call');
+      return toolResponse([
+        header('Xcode IDE Call Tool'),
+        statusLine('error', `[${code}] ${message}`),
+      ]);
     } finally {
       await this.service.disconnect();
     }

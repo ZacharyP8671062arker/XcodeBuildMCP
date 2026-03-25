@@ -7,8 +7,9 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const simStatusbarSchema = z.object({
   simulatorId: z.uuid().describe('UUID of the simulator to use (obtained from list_simulators)'),
   dataNetwork: z
@@ -29,7 +30,6 @@ const simStatusbarSchema = z.object({
     .describe('clear|hide|wifi|3g|4g|lte|lte-a|lte+|5g|5g+|5g-uwb|5g-uc'),
 });
 
-// Use z.infer for type safety
 type SimStatusbarParams = z.infer<typeof simStatusbarSchema>;
 
 export async function sim_statusbarLogic(
@@ -41,13 +41,16 @@ export async function sim_statusbarLogic(
     `Setting simulator ${params.simulatorId} status bar data network to ${params.dataNetwork}`,
   );
 
+  const headerEvent = header('Statusbar', [
+    { label: 'Simulator', value: params.simulatorId },
+    { label: 'Data Network', value: params.dataNetwork },
+  ]);
+
   try {
     let command: string[];
-    let successMessage: string;
 
     if (params.dataNetwork === 'clear') {
       command = ['xcrun', 'simctl', 'status_bar', params.simulatorId, 'clear'];
-      successMessage = `Successfully cleared status bar overrides for simulator ${params.simulatorId}`;
     } else {
       command = [
         'xcrun',
@@ -58,32 +61,32 @@ export async function sim_statusbarLogic(
         '--dataNetwork',
         params.dataNetwork,
       ];
-      successMessage = `Successfully set simulator ${params.simulatorId} status bar data network to ${params.dataNetwork}`;
     }
 
-    const result = await executor(command, 'Set Status Bar', false, undefined);
+    const result = await executor(command, 'Set Status Bar', false);
 
     if (!result.success) {
-      const failureMessage = `Failed to set status bar: ${result.error}`;
-      log('error', `${failureMessage} (simulator: ${params.simulatorId})`);
-      return {
-        content: [{ type: 'text', text: failureMessage }],
-        isError: true,
-      };
+      log('error', `Failed to set status bar: ${result.error} (simulator: ${params.simulatorId})`);
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to set status bar: ${result.error}`),
+      ]);
     }
 
-    log('info', `${successMessage} (simulator: ${params.simulatorId})`);
-    return {
-      content: [{ type: 'text', text: successMessage }],
-    };
+    const successMsg =
+      params.dataNetwork === 'clear'
+        ? 'Status bar overrides cleared'
+        : `Status bar data network set to ${params.dataNetwork}`;
+
+    log('info', `${successMsg} (simulator: ${params.simulatorId})`);
+    return toolResponse([headerEvent, statusLine('success', successMsg)]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const failureMessage = `Failed to set status bar: ${errorMessage}`;
     log('error', `Error setting status bar for simulator ${params.simulatorId}: ${errorMessage}`);
-    return {
-      content: [{ type: 'text', text: failureMessage }],
-      isError: true,
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to set status bar: ${errorMessage}`),
+    ]);
   }
 }
 

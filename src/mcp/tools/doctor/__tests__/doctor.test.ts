@@ -137,19 +137,21 @@ describe('doctor tool', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
+    function allText(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((c) => c.type === 'text')
+        .map((c) => c.text)
+        .join('\n');
+    }
+
     it('should handle successful doctor execution', async () => {
       const deps = createDeps();
       const result = await runDoctor({}, deps);
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: result.content[0].text,
-        },
-      ]);
-      expect(typeof result.content[0].text).toBe('string');
-      expect(result.content[0].text).toContain('### Manifest Tool Inventory');
-      expect(result.content[0].text).not.toContain('Total Plugins');
+      expect(result.content.length).toBeGreaterThan(0);
+      const text = allText(result);
+      expect(text).toContain('Manifest Tool Inventory');
+      expect(text).not.toContain('Total Plugins');
     });
 
     it('should handle manifest loading failure', async () => {
@@ -163,13 +165,9 @@ describe('doctor tool', () => {
 
       const result = await runDoctor({}, deps);
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: result.content[0].text,
-        },
-      ]);
-      expect(typeof result.content[0].text).toBe('string');
+      expect(result.content.length).toBeGreaterThan(0);
+      const text = allText(result);
+      expect(text).toContain('Manifest loading failed');
     });
 
     it('should handle xcode command failure', async () => {
@@ -182,13 +180,9 @@ describe('doctor tool', () => {
       });
       const result = await runDoctor({}, deps);
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: result.content[0].text,
-        },
-      ]);
-      expect(typeof result.content[0].text).toBe('string');
+      expect(result.content.length).toBeGreaterThan(0);
+      const text = allText(result);
+      expect(text).toContain('Xcode not found');
     });
 
     it('should handle xcodemake check failure', async () => {
@@ -209,13 +203,9 @@ describe('doctor tool', () => {
       });
       const result = await runDoctor({}, deps);
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: result.content[0].text,
-        },
-      ]);
-      expect(typeof result.content[0].text).toBe('string');
+      expect(result.content.length).toBeGreaterThan(0);
+      const text = allText(result);
+      expect(text).toContain('xcodemake: Not found');
     });
 
     it('should redact path and sensitive values in output', async () => {
@@ -255,8 +245,7 @@ describe('doctor tool', () => {
       });
 
       const result = await runDoctor({}, deps);
-      const text = result.content[0].text;
-      if (typeof text !== 'string') throw new Error('Unexpected doctor output type');
+      const text = allText(result);
 
       expect(text).toContain('<redacted>');
       expect(text).not.toContain('testuser');
@@ -302,10 +291,9 @@ describe('doctor tool', () => {
       });
 
       const result = await runDoctor({ nonRedacted: true }, deps);
-      const text = result.content[0].text;
-      if (typeof text !== 'string') throw new Error('Unexpected doctor output type');
+      const text = allText(result);
 
-      expect(text).toContain('Output Mode: ⚠️ Non-redacted (opt-in)');
+      expect(text).toContain('Output Mode: Non-redacted (opt-in)');
       expect(text).toContain('testuser');
       expect(text).toContain('MySecretProject');
     });
@@ -368,13 +356,10 @@ describe('doctor tool', () => {
 
       const result = await runDoctor({}, deps);
 
-      expect(result.content).toEqual([
-        {
-          type: 'text',
-          text: result.content[0].text,
-        },
-      ]);
-      expect(typeof result.content[0].text).toBe('string');
+      expect(result.content.length).toBeGreaterThan(0);
+      const text = allText(result);
+      expect(text).toContain('Available: No');
+      expect(text).toContain('UI Automation Supported: No');
     });
   });
 });

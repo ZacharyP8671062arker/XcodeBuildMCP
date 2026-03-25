@@ -1,0 +1,18 @@
+
+🚀 Build & Run
+
+  Scheme: MCPTest
+  Configuration: Debug
+  Platform: macOS
+
+ℹ️ Resolving app path
+✅ Resolving app path
+ℹ️ Launching app
+✅ Launching app
+
+✅ Build succeeded. (⏱️ <DURATION>)
+✅ Build & Run complete
+  └ App Path: <HOME>/Library/Developer/Xcode/DerivedData/MCPTest-<HASH>/Build/Products/Debug/MCPTest.app
+
+Next steps:
+1. Interact with the launched app in the foreground

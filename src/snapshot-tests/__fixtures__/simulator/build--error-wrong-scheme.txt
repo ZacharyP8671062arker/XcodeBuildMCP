@@ -1,0 +1,18 @@
+
+🔨 Build
+
+  Scheme: NONEXISTENT
+  Configuration: Debug
+  Platform: iOS Simulator
+
+⚙️ iOS Simulator Build build
+
+  Scheme: NONEXISTENT
+  Platform: iOS Simulator
+  Configuration: Debug
+
+❌ iOS Simulator Build build failed for scheme NONEXISTENT.
+
+Errors (1):
+
+❌ Build failed. (⏱️ <DURATION>)

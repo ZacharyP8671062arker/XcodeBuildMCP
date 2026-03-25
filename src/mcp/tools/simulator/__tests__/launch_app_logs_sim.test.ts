@@ -82,18 +82,16 @@ describe('launch_app_logs_sim tool', () => {
         logCaptureStub,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'App launched successfully in simulator test-uuid-123 with log capture enabled.\n\nLog capture session ID: test-session-123\n\nInteract with your app in the simulator, then stop capture to retrieve logs.',
-          },
-        ],
-        nextStepParams: {
-          stop_sim_log_cap: { logSessionId: 'test-session-123' },
-        },
-        isError: false,
+      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      expect(text).toContain('Launch App');
+      expect(text).toContain('App launched successfully');
+      expect(text).toContain('test-uuid-123');
+      expect(text).toContain('log capture enabled');
+      expect(text).toContain('test-session-123');
+      expect(result.nextStepParams).toEqual({
+        stop_sim_log_cap: { logSessionId: 'test-session-123' },
       });
+      expect(result.isError).not.toBe(true);
 
       expect(capturedParams).toEqual({
         simulatorUuid: 'test-uuid-123',
@@ -215,15 +213,10 @@ describe('launch_app_logs_sim tool', () => {
         logCaptureStub,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to launch app with log capture: Failed to start log capture',
-          },
-        ],
-        isError: true,
-      });
+      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      expect(text).toContain('Failed to launch app with log capture');
+      expect(text).toContain('Failed to start log capture');
+      expect(result.isError).toBe(true);
     });
   });
 });

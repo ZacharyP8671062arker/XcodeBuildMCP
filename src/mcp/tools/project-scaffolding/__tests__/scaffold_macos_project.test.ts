@@ -221,6 +221,13 @@ describe('scaffold_macos_project plugin', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return success response for valid scaffold macOS project request', async () => {
       const result = await scaffold_macos_projectLogic(
         {
@@ -233,31 +240,20 @@ describe('scaffold_macos_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: true,
-                projectPath: '/tmp/test-projects',
-                platform: 'macOS',
-                message: 'Successfully scaffolded macOS project "TestMacApp" in /tmp/test-projects',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        nextStepParams: {
-          build_macos: {
-            workspacePath: '/tmp/test-projects/TestMacApp.xcworkspace',
-            scheme: 'TestMacApp',
-          },
-          build_run_macos: {
-            workspacePath: '/tmp/test-projects/TestMacApp.xcworkspace',
-            scheme: 'TestMacApp',
-          },
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Scaffold macOS Project');
+      expect(text).toContain('TestMacApp');
+      expect(text).toContain('/tmp/test-projects');
+      expect(text).toContain('Project scaffolded successfully');
+      expect(result.nextStepParams).toEqual({
+        build_macos: {
+          workspacePath: '/tmp/test-projects/TestMacApp.xcworkspace',
+          scheme: 'TestMacApp',
+        },
+        build_run_macos: {
+          workspacePath: '/tmp/test-projects/TestMacApp.xcworkspace',
+          scheme: 'TestMacApp',
         },
       });
 
@@ -278,31 +274,17 @@ describe('scaffold_macos_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: true,
-                projectPath: '/tmp/test-projects',
-                platform: 'macOS',
-                message: 'Successfully scaffolded macOS project "TestMacApp" in /tmp/test-projects',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        nextStepParams: {
-          build_macos: {
-            workspacePath: '/tmp/test-projects/MyProject.xcworkspace',
-            scheme: 'MyProject',
-          },
-          build_run_macos: {
-            workspacePath: '/tmp/test-projects/MyProject.xcworkspace',
-            scheme: 'MyProject',
-          },
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Project scaffolded successfully');
+      expect(result.nextStepParams).toEqual({
+        build_macos: {
+          workspacePath: '/tmp/test-projects/MyProject.xcworkspace',
+          scheme: 'MyProject',
+        },
+        build_run_macos: {
+          workspacePath: '/tmp/test-projects/MyProject.xcworkspace',
+          scheme: 'MyProject',
         },
       });
     });
@@ -318,23 +300,9 @@ describe('scaffold_macos_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: false,
-                error:
-                  'Project name must start with a letter and contain only letters, numbers, and underscores',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Project name must start with a letter');
     });
 
     it('should return error response for existing project files', async () => {
@@ -351,22 +319,9 @@ describe('scaffold_macos_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: false,
-                error: 'Xcode project files already exist in /tmp/test-projects',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Xcode project files already exist in /tmp/test-projects');
     });
 
     it('should return error response for template manager failure', async () => {
@@ -382,22 +337,9 @@ describe('scaffold_macos_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: false,
-                error: 'Failed to get template for macOS: Template not found',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to get template for macOS: Template not found');
     });
   });
 

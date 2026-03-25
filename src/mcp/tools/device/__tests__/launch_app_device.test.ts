@@ -198,6 +198,13 @@ describe('launch_app_device plugin (device-shared)', () => {
   });
 
   describe('Success Path Tests', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return successful launch response without process ID', async () => {
       const mockExecutor = createMockExecutor({
         success: true,
@@ -213,14 +220,12 @@ describe('launch_app_device plugin (device-shared)', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App launched successfully\n\nApp launched successfully',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Launch App');
+      expect(text).toContain('test-device-123');
+      expect(text).toContain('io.sentry.app');
+      expect(text).toContain('App launched successfully');
     });
 
     it('should return successful launch response with detailed output', async () => {
@@ -238,14 +243,10 @@ describe('launch_app_device plugin (device-shared)', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App launched successfully\n\nLaunch succeeded with detailed output',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Launch App');
+      expect(text).toContain('App launched successfully');
     });
 
     it('should handle successful launch with process ID information', async () => {
@@ -275,16 +276,13 @@ describe('launch_app_device plugin (device-shared)', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App launched successfully\n\nApp launched successfully\n\nProcess ID: 12345\n\nInteract with your app on the device.',
-          },
-        ],
-        nextStepParams: {
-          stop_app_device: { deviceId: 'test-device-123', processId: 12345 },
-        },
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Launch App');
+      expect(text).toContain('Process ID: 12345');
+      expect(text).toContain('App launched successfully');
+      expect(result.nextStepParams).toEqual({
+        stop_app_device: { deviceId: 'test-device-123', processId: 12345 },
       });
     });
 
@@ -303,18 +301,21 @@ describe('launch_app_device plugin (device-shared)', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App launched successfully\n\nApp "io.sentry.app" launched on device "test-device-123"',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Launch App');
+      expect(text).toContain('App launched successfully');
     });
   });
 
   describe('Error Handling', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return launch failure response', async () => {
       const mockExecutor = createMockExecutor({
         success: false,
@@ -330,15 +331,9 @@ describe('launch_app_device plugin (device-shared)', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to launch app: Launch failed: App not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to launch app: Launch failed: App not found');
     });
 
     it('should return command failure response with specific error', async () => {
@@ -356,15 +351,9 @@ describe('launch_app_device plugin (device-shared)', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to launch app: Device not found: test-device-invalid',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to launch app: Device not found: test-device-invalid');
     });
 
     it('should handle executor exception with Error object', async () => {
@@ -379,15 +368,9 @@ describe('launch_app_device plugin (device-shared)', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to launch app on device: Network error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to launch app on device: Network error');
     });
 
     it('should handle executor exception with string error', async () => {
@@ -402,15 +385,9 @@ describe('launch_app_device plugin (device-shared)', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to launch app on device: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to launch app on device: String error');
     });
   });
 });

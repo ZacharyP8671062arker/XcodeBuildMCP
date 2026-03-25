@@ -4,13 +4,13 @@ import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, table } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const listSimsSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
-// Use z.infer for type safety
 type ListSimsParams = z.infer<typeof listSimsSchema>;
 
 interface SimulatorDevice {
@@ -175,10 +175,11 @@ export async function list_simsLogic(
 ): Promise<ToolResponse> {
   log('info', 'Starting xcrun simctl list devices request');
 
+  const headerEvent = header('List Simulators');
+
   try {
     const simulators = await listSimulators(executor);
 
-    let responseText = 'Available iOS Simulators:\n\n';
     const grouped = new Map<string, ListedSimulator[]>();
     for (const simulator of simulators) {
       const runtimeGroup = grouped.get(simulator.runtime) ?? [];
@@ -186,61 +187,44 @@ export async function list_simsLogic(
       grouped.set(simulator.runtime, runtimeGroup);
     }
 
+    const tables = [];
     for (const [runtime, devices] of grouped.entries()) {
       if (devices.length === 0) continue;
 
-      responseText += `${runtime}:\n`;
-      for (const device of devices) {
-        responseText += `- ${device.name} (${device.udid})${device.state === 'Booted' ? ' [Booted]' : ''}\n`;
-      }
-      responseText += '\n';
+      const rows = devices.map((d) => ({
+        Name: d.name,
+        UUID: d.udid,
+        State: d.state,
+      }));
+      tables.push(table(['Name', 'UUID', 'State'], rows, runtime));
     }
 
-    responseText +=
-      "Hint: Save a default simulator with session-set-defaults { simulatorId: 'UUID_FROM_ABOVE' } (or simulatorName).\n";
-    responseText +=
-      'Before running build/run/test/UI automation tools, set the desired simulator identifier in session defaults.';
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: responseText,
-        },
-      ],
-      nextStepParams: {
-        boot_sim: { simulatorId: 'UUID_FROM_ABOVE' },
-        open_sim: {},
-        build_sim: { scheme: 'YOUR_SCHEME', simulatorId: 'UUID_FROM_ABOVE' },
-        get_sim_app_path: {
-          scheme: 'YOUR_SCHEME',
-          platform: 'iOS Simulator',
-          simulatorId: 'UUID_FROM_ABOVE',
+    return toolResponse(
+      [headerEvent, ...tables, statusLine('success', 'Listed available simulators')],
+      {
+        nextStepParams: {
+          boot_sim: { simulatorId: 'UUID_FROM_ABOVE' },
+          open_sim: {},
+          build_sim: { scheme: 'YOUR_SCHEME', simulatorId: 'UUID_FROM_ABOVE' },
+          get_sim_app_path: {
+            scheme: 'YOUR_SCHEME',
+            platform: 'iOS Simulator',
+            simulatorId: 'UUID_FROM_ABOVE',
+          },
         },
       },
-    };
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.startsWith('Failed to list simulators:')) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: errorMessage,
-          },
-        ],
-      };
+      return toolResponse([headerEvent, statusLine('error', errorMessage)]);
     }
 
     log('error', `Error listing simulators: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Failed to list simulators: ${errorMessage}`,
-        },
-      ],
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to list simulators: ${errorMessage}`),
+    ]);
   }
 }
 

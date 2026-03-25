@@ -8,30 +8,25 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
-import {
-  createTextResponse,
-  createErrorResponse,
-  DependencyError,
-  AxeError,
-  SystemError,
-} from '../../../utils/responses/index.ts';
+import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
 import {
-  createAxeNotAvailableResponse,
   getAxePath,
   getBundledAxeEnvironment,
-} from '../../../utils/axe/index.ts';
+  AXE_NOT_AVAILABLE_MESSAGE,
+} from '../../../utils/axe-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { getSnapshotUiWarning } from './shared/snapshot-ui-state.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const longPressSchema = z.object({
   simulatorId: z.uuid({ message: 'Invalid Simulator UUID format' }),
   x: z.number().int({ message: 'X coordinate for the long press' }),
@@ -42,7 +37,6 @@ const longPressSchema = z.object({
     .describe('milliseconds'),
 });
 
-// Use z.infer for type safety
 type LongPressParams = z.infer<typeof longPressSchema>;
 
 const publicSchemaObject = z.strictObject(
@@ -52,7 +46,6 @@ const publicSchemaObject = z.strictObject(
 export interface AxeHelpers {
   getAxePath: () => string | null;
   getBundledAxeEnvironment: () => Record<string, string>;
-  createAxeNotAvailableResponse: () => ToolResponse;
 }
 
 const LOG_PREFIX = '[AXe]';
@@ -63,22 +56,23 @@ export async function long_pressLogic(
   axeHelpers: AxeHelpers = {
     getAxePath,
     getBundledAxeEnvironment,
-    createAxeNotAvailableResponse,
   },
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
 ): Promise<ToolResponse> {
   const toolName = 'long_press';
   const { simulatorId, x, y, duration } = params;
 
+  const headerEvent = header('Long Press', [{ label: 'Simulator', value: simulatorId }]);
+
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedResponse) return guard.blockedResponse;
+  if (guard.blockedMessage)
+    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
 
-  // AXe uses touch command with --down, --up, and --delay for long press
-  const delayInSeconds = Number(duration) / 1000; // Convert ms to seconds
+  const delayInSeconds = Number(duration) / 1000;
   const commandArgs = [
     'touch',
     '-x',
@@ -101,32 +95,40 @@ export async function long_pressLogic(
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
     const coordinateWarning = getSnapshotUiWarning(simulatorId);
-    const message = `Long press at (${x}, ${y}) for ${duration}ms simulated successfully.`;
-    const warnings = [guard.warningText, coordinateWarning].filter(Boolean).join('\n\n');
+    const warnings = [guard.warningText, coordinateWarning].filter(Boolean);
+    const events = [
+      headerEvent,
+      statusLine('success', `Long press at (${x}, ${y}) for ${duration}ms simulated successfully.`),
+      ...warnings.map((w) => statusLine('warning' as const, w)),
+    ];
 
-    if (warnings) {
-      return createTextResponse(`${message}\n\n${warnings}`);
-    }
-
-    return createTextResponse(message);
+    return toolResponse(events);
   } catch (error) {
     log('error', `${LOG_PREFIX}/${toolName}: Failed - ${error}`);
     if (error instanceof DependencyError) {
-      return axeHelpers.createAxeNotAvailableResponse();
+      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
     } else if (error instanceof AxeError) {
-      return createErrorResponse(
-        `Failed to simulate long press at (${x}, ${y}): ${error.message}`,
-        error.axeOutput,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to simulate long press at (${x}, ${y}): ${error.message}`),
+        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+      ]);
     } else if (error instanceof SystemError) {
-      return createErrorResponse(
-        `System error executing axe: ${error.message}`,
-        error.originalError?.stack,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `System error executing axe: ${error.message}`),
+        ...(error.originalError?.stack
+          ? [section('Stack Trace', [error.originalError.stack])]
+          : []),
+      ]);
     }
-    return createErrorResponse(
-      `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    ]);
   }
 }
 
@@ -141,7 +143,6 @@ export const handler = createSessionAwareTool<LongPressParams>({
     long_pressLogic(params, executor, {
       getAxePath,
       getBundledAxeEnvironment,
-      createAxeNotAvailableResponse,
     }),
   getExecutor: getDefaultCommandExecutor,
   requirements: [{ allOf: ['simulatorId'], message: 'simulatorId is required' }],
@@ -153,7 +154,7 @@ async function executeAxeCommand(
   simulatorId: string,
   commandName: string,
   executor: CommandExecutor = getDefaultCommandExecutor(),
-  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment, createAxeNotAvailableResponse },
+  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment },
 ): Promise<void> {
   // Get the appropriate axe binary path
   const axeBinary = axeHelpers.getAxePath();

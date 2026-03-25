@@ -1,19 +1,9 @@
-/**
- * Type-safe tool factory for XcodeBuildMCP
- *
- * This module provides a factory function to create MCP tool handlers that safely
- * convert from the generic Record<string, unknown> signature required by the MCP SDK
- * to strongly-typed parameters using runtime validation with Zod.
- *
- * This eliminates the need for unsafe type assertions while maintaining full
- * compatibility with the MCP SDK's tool handler signature requirements.
- */
-
 import * as z from 'zod';
 import type { ToolResponse } from '../types/common.ts';
 import type { CommandExecutor } from './execution/index.ts';
-import { createErrorResponse } from './responses/index.ts';
-import { consolidateContentForClaudeCode } from './validation.ts';
+import { toolResponse } from './tool-response.ts';
+import { statusLine } from './tool-event-builders.ts';
+
 import { sessionStore, type SessionDefaults } from './session-store.ts';
 import { isSessionDefaultsOptOutEnabled } from './environment.ts';
 import { mergeSessionDefaultArgs } from './session-default-args.ts';
@@ -28,28 +18,18 @@ function createValidatedHandler<TParams, TContext>(
       const validatedParams = schema.parse(args);
 
       const response = await logicFunction(validatedParams, getContext());
-      return consolidateContentForClaudeCode(response);
+      return response;
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;
-        return createErrorResponse('Parameter validation failed', details);
+        return toolResponse([statusLine('error', `Parameter validation failed: ${details}`)]);
       }
 
-      // Re-throw unexpected errors (they'll be caught by the MCP framework)
       throw error;
     }
   };
 }
 
-/**
- * Creates a type-safe tool handler that validates parameters at runtime
- * before passing them to the typed logic function.
- *
- * @param schema - Zod schema for parameter validation
- * @param logicFunction - The typed logic function to execute
- * @param getExecutor - Function to get the command executor (must be provided)
- * @returns A handler function compatible with MCP SDK requirements
- */
 export function createTypedTool<TParams>(
   schema: z.ZodType<TParams, unknown>,
   logicFunction: (params: TParams, executor: CommandExecutor) => Promise<ToolResponse>,
@@ -105,7 +85,7 @@ export function createSessionAwareTool<TParams>(opts: {
   logicFunction: (params: TParams, executor: CommandExecutor) => Promise<ToolResponse>;
   getExecutor: () => CommandExecutor;
   requirements?: SessionRequirement[];
-  exclusivePairs?: (keyof SessionDefaults)[][]; // when args provide one side, drop conflicting session-default side(s)
+  exclusivePairs?: (keyof SessionDefaults)[][];
 }): (rawArgs: Record<string, unknown>) => Promise<ToolResponse> {
   return createSessionAwareHandler({
     internalSchema: opts.internalSchema,
@@ -143,7 +123,6 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
 
   return async (rawArgs: Record<string, unknown>): Promise<ToolResponse> => {
     try {
-      // Sanitize args: treat null/undefined as "not provided" so they don't override session defaults
       const sanitizedArgs: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(rawArgs)) {
         if (v === null || v === undefined) continue;
@@ -151,17 +130,15 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
         sanitizedArgs[k] = v;
       }
 
-      // Factory-level mutual exclusivity check: if user provides multiple explicit values
-      // within an exclusive group, reject early even if tool schema doesn't enforce XOR.
       for (const pair of exclusivePairs) {
         const provided = pair.filter((k) => Object.prototype.hasOwnProperty.call(sanitizedArgs, k));
         if (provided.length >= 2) {
-          return createErrorResponse(
-            'Parameter validation failed',
-            `Invalid parameters:\nMutually exclusive parameters provided: ${provided.join(
-              ', ',
-            )}. Provide only one.`,
-          );
+          return toolResponse([
+            statusLine(
+              'error',
+              `Parameter validation failed: Invalid parameters:\nMutually exclusive parameters provided: ${provided.join(', ')}. Provide only one.`,
+            ),
+          ]);
         }
       }
 
@@ -172,7 +149,6 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
         exclusivePairs,
       });
 
-      // Check requirements first (before expensive simulator resolution)
       for (const req of requirements) {
         if ('allOf' in req) {
           const missing = missingFromMerged(req.allOf, merged);
@@ -185,7 +161,7 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
               setHint,
               optOutEnabled: isSessionDefaultsOptOutEnabled(),
             });
-            return createErrorResponse(title, body);
+            return toolResponse([statusLine('error', `${title}: ${body}`)]);
           }
         } else if ('oneOf' in req) {
           const satisfied = req.oneOf.some((k) => merged[k] != null);
@@ -199,18 +175,18 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
               setHint: `Set with: ${setHints}`,
               optOutEnabled: isSessionDefaultsOptOutEnabled(),
             });
-            return createErrorResponse(title, body);
+            return toolResponse([statusLine('error', `${title}: ${body}`)]);
           }
         }
       }
 
       const validated = internalSchema.parse(merged);
       const response = await logicFunction(validated, getContext());
-      return consolidateContentForClaudeCode(response);
+      return response;
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;
-        return createErrorResponse('Parameter validation failed', details);
+        return toolResponse([statusLine('error', `Parameter validation failed: ${details}`)]);
       }
       throw error;
     }

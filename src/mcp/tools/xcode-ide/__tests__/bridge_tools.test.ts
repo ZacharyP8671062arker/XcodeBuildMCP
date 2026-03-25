@@ -36,6 +36,13 @@ import {
 } from '../../../../integrations/xcode-tools-bridge/core.ts';
 
 describe('xcode-ide bridge tools (standalone fallback)', () => {
+  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+    return result.content
+      .filter((i) => i.type === 'text')
+      .map((i) => i.text)
+      .join('\n');
+  }
+
   beforeEach(async () => {
     await shutdownXcodeToolsBridge();
 
@@ -81,15 +88,17 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
 
   it('status handler returns bridge status without MCP server instance', async () => {
     const result = await statusHandler();
-    const payload = JSON.parse(result.content[0].text as string);
-    expect(payload.bridgeAvailable).toBe(true);
+    const text = textOf(result);
+    expect(text).toContain('Bridge Status');
+    expect(text).toContain('"bridgeAvailable": true');
     expect(buildXcodeToolsBridgeStatus).toHaveBeenCalledOnce();
   });
 
   it('sync handler uses direct bridge client when MCP server is not initialized', async () => {
     const result = await syncHandler();
-    const payload = JSON.parse(result.content[0].text as string);
-    expect(payload.sync.total).toBe(2);
+    const text = textOf(result);
+    expect(text).toContain('Bridge Sync');
+    expect(text).toContain('"total": 2');
     expect(clientMocks.connectOnce).toHaveBeenCalledOnce();
     expect(clientMocks.listTools).toHaveBeenCalledOnce();
     expect(clientMocks.disconnect).toHaveBeenCalledOnce();
@@ -97,16 +106,17 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
 
   it('disconnect handler succeeds without MCP server instance', async () => {
     const result = await disconnectHandler();
-    const payload = JSON.parse(result.content[0].text as string);
-    expect(payload.connected).toBe(false);
+    const text = textOf(result);
+    expect(text).toContain('Bridge Disconnect');
+    expect(text).toContain('"connected": false');
     expect(clientMocks.disconnect).toHaveBeenCalledOnce();
   });
 
   it('list handler returns bridge tools without MCP server instance', async () => {
     const result = await listHandler({ refresh: true });
-    const payload = JSON.parse(result.content[0].text as string);
-    expect(payload.toolCount).toBe(2);
-    expect(payload.tools).toHaveLength(2);
+    const text = textOf(result);
+    expect(text).toContain('Xcode IDE List Tools');
+    expect(text).toContain('"toolCount": 2');
     expect(clientMocks.listTools).toHaveBeenCalledOnce();
     expect(clientMocks.disconnect).toHaveBeenCalledOnce();
   });

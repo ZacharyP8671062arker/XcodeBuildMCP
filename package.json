@@ -45,6 +45,8 @@
     "license:check": "npx -y license-checker --production --onlyAllow 'MIT;ISC;BSD-2-Clause;BSD-3-Clause;Apache-2.0;Unlicense;FSL-1.1-MIT'",
     "knip": "knip",
     "test": "vitest run",
+    "test:snapshot": "npm run build && vitest run src/snapshot-tests",
+    "test:snapshot:update": "npm run build && UPDATE_SNAPSHOTS=1 vitest run src/snapshot-tests",
     "test:smoke": "npm run build && vitest run --config vitest.smoke.config.ts",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",

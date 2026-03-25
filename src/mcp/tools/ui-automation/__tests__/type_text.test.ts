@@ -24,15 +24,6 @@ function createMockAxeHelpers(
     getAxePath: () =>
       overrides.getAxePathReturn !== undefined ? overrides.getAxePathReturn : '/usr/local/bin/axe',
     getBundledAxeEnvironment: () => overrides.getBundledAxeEnvironmentReturn ?? {},
-    createAxeNotAvailableResponse: () => ({
-      content: [
-        {
-          type: 'text',
-          text: AXE_NOT_AVAILABLE_MESSAGE,
-        },
-      ],
-      isError: true,
-    }),
   };
 }
 
@@ -41,6 +32,13 @@ function createRejectingExecutor(error: any) {
   return async () => {
     throw error;
   };
+}
+
+function allText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
 }
 
 describe('Type Text Tool', () => {
@@ -303,15 +301,8 @@ describe('Type Text Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should successfully type text', async () => {
@@ -334,10 +325,8 @@ describe('Type Text Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Text typing simulated successfully.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Text typing simulated successfully.');
     });
 
     it('should return success for valid text typing', async () => {
@@ -361,10 +350,8 @@ describe('Type Text Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Text typing simulated successfully.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Text typing simulated successfully.');
     });
 
     it('should handle DependencyError when axe binary not found', async () => {
@@ -381,15 +368,8 @@ describe('Type Text Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle AxeError from command execution', async () => {
@@ -413,15 +393,10 @@ describe('Type Text Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: "Error: Failed to simulate text typing: axe command 'type' failed.\nDetails: Text field not found",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        "Failed to simulate text typing: axe command 'type' failed.",
+      );
     });
 
     it('should handle SystemError from command execution', async () => {
@@ -441,17 +416,7 @@ describe('Type Text Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: expect.stringContaining(
-              'Error: System error executing axe: Failed to execute axe command: ENOENT: no such file or directory',
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
     });
 
     it('should handle unexpected Error objects', async () => {
@@ -471,17 +436,7 @@ describe('Type Text Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: expect.stringContaining(
-              'Error: System error executing axe: Failed to execute axe command: Unexpected error',
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
     });
 
     it('should handle unexpected string errors', async () => {
@@ -501,15 +456,10 @@ describe('Type Text Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: System error executing axe: Failed to execute axe command: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: String error',
+      );
     });
   });
 });

@@ -5,6 +5,14 @@ import {
   createMockCommandResponse,
   createMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
+
+function allText(result: ToolResponse): string {
+  return result.content
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
 
 describe('set_sim_appearance plugin', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -41,14 +49,10 @@ describe('set_sim_appearance plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Successfully set simulator test-uuid-123 appearance to dark mode',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Set Appearance');
+      expect(text).toContain('Appearance set to dark mode');
+      expect(result.isError).toBeFalsy();
     });
 
     it('should handle appearance change failure', async () => {
@@ -65,21 +69,16 @@ describe('set_sim_appearance plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to set simulator appearance: Invalid device: invalid-uuid',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to set simulator appearance: Invalid device: invalid-uuid');
+      expect(result.isError).toBe(true);
     });
 
     it('should surface session default requirement when simulatorId is missing', async () => {
       const result = await handler({ mode: 'dark' });
 
       const message = result.content?.[0]?.text ?? '';
-      expect(message).toContain('Error: Missing required session defaults');
+      expect(message).toContain('Missing required session defaults');
       expect(message).toContain('simulatorId is required');
       expect(result.isError).toBe(true);
     });
@@ -95,14 +94,9 @@ describe('set_sim_appearance plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to set simulator appearance: Network error',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to set simulator appearance: Network error');
+      expect(result.isError).toBe(true);
     });
 
     it('should call correct command', async () => {
@@ -131,7 +125,6 @@ describe('set_sim_appearance plugin', () => {
           ['xcrun', 'simctl', 'ui', 'test-uuid-123', 'appearance', 'dark'],
           'Set Simulator Appearance',
           false,
-          undefined,
         ],
       ]);
     });

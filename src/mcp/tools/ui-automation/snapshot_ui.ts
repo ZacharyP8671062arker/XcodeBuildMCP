@@ -1,7 +1,6 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
-import { createErrorResponse } from '../../../utils/responses/index.ts';
 import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -9,28 +8,27 @@ import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
 import {
-  createAxeNotAvailableResponse,
   getAxePath,
   getBundledAxeEnvironment,
+  AXE_NOT_AVAILABLE_MESSAGE,
 } from '../../../utils/axe-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { recordSnapshotUiCall } from './shared/snapshot-ui-state.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const snapshotUiSchema = z.object({
   simulatorId: z.uuid({ message: 'Invalid Simulator UUID format' }),
 });
 
-// Use z.infer for type safety
 type SnapshotUiParams = z.infer<typeof snapshotUiSchema>;
 
 export interface AxeHelpers {
   getAxePath: () => string | null;
   getBundledAxeEnvironment: () => Record<string, string>;
-  createAxeNotAvailableResponse: () => ToolResponse;
 }
 
 const LOG_PREFIX = '[AXe]';
@@ -44,7 +42,6 @@ export async function snapshot_uiLogic(
   axeHelpers: AxeHelpers = {
     getAxePath,
     getBundledAxeEnvironment,
-    createAxeNotAvailableResponse,
   },
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
 ): Promise<ToolResponse> {
@@ -52,12 +49,15 @@ export async function snapshot_uiLogic(
   const { simulatorId } = params;
   const commandArgs = ['describe-ui'];
 
+  const headerEvent = header('Snapshot UI', [{ label: 'Simulator', value: simulatorId }]);
+
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedResponse) return guard.blockedResponse;
+  if (guard.blockedMessage)
+    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
 
   log('info', `${LOG_PREFIX}/${toolName}: Starting for ${simulatorId}`);
 
@@ -70,50 +70,53 @@ export async function snapshot_uiLogic(
       axeHelpers,
     );
 
-    // Record the snapshot_ui call for warning system
     recordSnapshotUiCall(simulatorId);
 
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-    const response: ToolResponse = {
-      content: [
-        {
-          type: 'text',
-          text:
-            'Accessibility hierarchy retrieved successfully:\n```json\n' + responseText + '\n```',
-        },
-        {
-          type: 'text',
-          text: `Tips:\n- Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)\n- If a debugger is attached, ensure the app is running (not stopped on breakpoints)\n- Screenshots are for visual verification only`,
-        },
-      ],
+    const events = [
+      headerEvent,
+      statusLine('success', 'Accessibility hierarchy retrieved successfully.'),
+      section('Accessibility Hierarchy', ['```json', responseText, '```']),
+      section('Tips', [
+        '- Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)',
+        '- If a debugger is attached, ensure the app is running (not stopped on breakpoints)',
+        '- Screenshots are for visual verification only',
+      ]),
+      ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
+    ];
+    return toolResponse(events, {
       nextStepParams: {
         snapshot_ui: { simulatorId },
         tap: { simulatorId, x: 0, y: 0 },
         screenshot: { simulatorId },
       },
-    };
-    if (guard.warningText) {
-      response.content.push({ type: 'text', text: guard.warningText });
-    }
-    return response;
+    });
   } catch (error) {
     log('error', `${LOG_PREFIX}/${toolName}: Failed - ${error}`);
     if (error instanceof DependencyError) {
-      return axeHelpers.createAxeNotAvailableResponse();
+      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
     } else if (error instanceof AxeError) {
-      return createErrorResponse(
-        `Failed to get accessibility hierarchy: ${error.message}`,
-        error.axeOutput,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to get accessibility hierarchy: ${error.message}`),
+        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+      ]);
     } else if (error instanceof SystemError) {
-      return createErrorResponse(
-        `System error executing axe: ${error.message}`,
-        error.originalError?.stack,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `System error executing axe: ${error.message}`),
+        ...(error.originalError?.stack
+          ? [section('Stack Trace', [error.originalError.stack])]
+          : []),
+      ]);
     }
-    return createErrorResponse(
-      `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    ]);
   }
 }
 
@@ -132,7 +135,6 @@ export const handler = createSessionAwareTool<SnapshotUiParams>({
     snapshot_uiLogic(params, executor, {
       getAxePath,
       getBundledAxeEnvironment,
-      createAxeNotAvailableResponse,
     }),
   getExecutor: getDefaultCommandExecutor,
   requirements: [{ allOf: ['simulatorId'], message: 'simulatorId is required' }],
@@ -144,7 +146,7 @@ async function executeAxeCommand(
   simulatorId: string,
   commandName: string,
   executor: CommandExecutor = getDefaultCommandExecutor(),
-  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment, createAxeNotAvailableResponse },
+  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment },
 ): Promise<string> {
   // Get the appropriate axe binary path
   const axeBinary = axeHelpers.getAxePath();

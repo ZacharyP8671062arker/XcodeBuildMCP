@@ -10,7 +10,15 @@ import {
   __setTestFileSystemExecutorOverride,
   __clearTestExecutorOverrides,
 } from '../../../../utils/execution/index.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
 import { schema, handler, get_coverage_reportLogic } from '../get_coverage_report.ts';
+
+function allText(result: ToolResponse): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
 
 const sampleTargets = [
   { name: 'MyApp.app', coveredLines: 100, executableLines: 200, lineCoverage: 0.5 },
@@ -99,7 +107,7 @@ describe('get_coverage_report', () => {
       const result = await handler({ xcresultPath: '/tmp/missing.xcresult', showFiles: false });
 
       expect(result.isError).toBe(true);
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('File not found');
     });
 
@@ -181,9 +189,9 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content).toHaveLength(1);
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
-      expect(text).toContain('Code Coverage Report');
+      expect(result.content.length).toBeGreaterThanOrEqual(1);
+      const text = allText(result);
+      expect(text).toContain('Coverage Report');
       expect(text).toContain('Overall: 24.7%');
       expect(text).toContain('180/730 lines');
       const coreIdx = text.indexOf('Core');
@@ -222,7 +230,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('Core: 10.0%');
       expect(text).toContain('MyApp.app: 50.0%');
     });
@@ -241,7 +249,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('MyApp.app');
       expect(text).toContain('MyAppTests.xctest');
       expect(text).not.toMatch(/^\s+Core:/m);
@@ -259,7 +267,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('Core: 10.0%');
     });
 
@@ -275,7 +283,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('No targets found matching "NonExistent"');
     });
   });
@@ -293,7 +301,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('AppDelegate.swift: 20.0%');
       expect(text).toContain('ViewModel.swift: 60.0%');
       expect(text).toContain('Service.swift: 0.0%');
@@ -311,7 +319,7 @@ describe('get_coverage_report', () => {
         { executor: mockExecutor, fileSystem: mockFileSystem },
       );
 
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       const appDelegateIdx = text.indexOf('AppDelegate.swift');
       const viewModelIdx = text.indexOf('ViewModel.swift');
       expect(appDelegateIdx).toBeLessThan(viewModelIdx);
@@ -329,7 +337,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('File not found');
       expect(text).toContain('/tmp/missing.xcresult');
     });
@@ -346,7 +354,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('Failed to get coverage report');
       expect(text).toContain('Failed to load result bundle');
     });
@@ -363,7 +371,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('Failed to parse coverage JSON output');
     });
 
@@ -379,7 +387,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('Unexpected coverage data format');
     });
 
@@ -395,7 +403,7 @@ describe('get_coverage_report', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content[0].type === 'text' ? result.content[0].text : '';
+      const text = allText(result);
       expect(text).toContain('No coverage data found');
     });
   });

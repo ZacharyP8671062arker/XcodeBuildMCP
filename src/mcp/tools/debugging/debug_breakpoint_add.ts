@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createErrorResponse, createTextResponse } from '../../../utils/responses/index.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 import {
@@ -37,6 +38,8 @@ export async function debug_breakpoint_addLogic(
   params: DebugBreakpointAddParams,
   ctx: DebuggerToolContext,
 ): Promise<ToolResponse> {
+  const headerEvent = header('Add Breakpoint');
+
   try {
     const spec: BreakpointSpec = params.function
       ? { kind: 'function', name: params.function }
@@ -46,10 +49,17 @@ export async function debug_breakpoint_addLogic(
       condition: params.condition,
     });
 
-    return createTextResponse(`✅ Breakpoint ${result.id} set.\n\n${result.rawOutput.trim()}`);
+    const rawOutput = result.rawOutput.trim();
+    const events = [
+      headerEvent,
+      statusLine('success', `Breakpoint ${result.id} set`),
+      ...(rawOutput ? [section('Output', [rawOutput])] : []),
+    ];
+
+    return toolResponse(events);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return createErrorResponse('Failed to add breakpoint', message);
+    return toolResponse([headerEvent, statusLine('error', `Failed to add breakpoint: ${message}`)]);
   }
 }
 

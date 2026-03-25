@@ -88,13 +88,11 @@ describe('install_app_sim tool', () => {
           ['xcrun', 'simctl', 'install', 'test-uuid-123', '/path/to/app.app'],
           'Install App in Simulator',
           false,
-          undefined,
         ],
         [
           ['defaults', 'read', '/path/to/app.app/Info', 'CFBundleIdentifier'],
           'Extract Bundle ID',
           false,
-          undefined,
         ],
       ]);
     });
@@ -129,13 +127,11 @@ describe('install_app_sim tool', () => {
           ['xcrun', 'simctl', 'install', 'different-uuid-456', '/different/path/MyApp.app'],
           'Install App in Simulator',
           false,
-          undefined,
         ],
         [
           ['defaults', 'read', '/different/path/MyApp.app/Info', 'CFBundleIdentifier'],
           'Extract Bundle ID',
           false,
-          undefined,
         ],
       ]);
     });
@@ -156,15 +152,12 @@ describe('install_app_sim tool', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: "File not found: '/path/to/app.app'. Please check the path and try again.",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+      expect(text).toContain("File not found: '/path/to/app.app'");
     });
 
     it('should handle bundle id extraction failure gracefully', async () => {
@@ -206,17 +199,12 @@ describe('install_app_sim tool', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'App installed successfully in simulator test-uuid-123.',
-          },
-        ],
-        nextStepParams: {
-          open_sim: {},
-          launch_app_sim: { simulatorId: 'test-uuid-123', bundleId: 'YOUR_APP_BUNDLE_ID' },
-        },
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('App installed successfully');
+      expect(text).toContain('test-uuid-123');
+      expect(result.nextStepParams).toEqual({
+        open_sim: {},
+        launch_app_sim: { simulatorId: 'test-uuid-123', bundleId: 'YOUR_APP_BUNDLE_ID' },
       });
       expect(bundleIdCalls).toHaveLength(2);
     });
@@ -260,17 +248,12 @@ describe('install_app_sim tool', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'App installed successfully in simulator test-uuid-123.',
-          },
-        ],
-        nextStepParams: {
-          open_sim: {},
-          launch_app_sim: { simulatorId: 'test-uuid-123', bundleId: 'io.sentry.myapp' },
-        },
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('App installed successfully');
+      expect(text).toContain('test-uuid-123');
+      expect(result.nextStepParams).toEqual({
+        open_sim: {},
+        launch_app_sim: { simulatorId: 'test-uuid-123', bundleId: 'io.sentry.myapp' },
       });
       expect(bundleIdCalls).toHaveLength(2);
     });
@@ -298,14 +281,10 @@ describe('install_app_sim tool', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Install app in simulator operation failed: Install failed',
-          },
-        ],
-      });
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Install app in simulator operation failed');
+      expect(text).toContain('Install failed');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle exception with Error object', async () => {
@@ -324,14 +303,10 @@ describe('install_app_sim tool', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Install app in simulator operation failed: Command execution failed',
-          },
-        ],
-      });
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Install app in simulator operation failed');
+      expect(text).toContain('Command execution failed');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle exception with string error', async () => {
@@ -350,14 +325,10 @@ describe('install_app_sim tool', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Install app in simulator operation failed: String error',
-          },
-        ],
-      });
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Install app in simulator operation failed');
+      expect(text).toContain('String error');
+      expect(result.isError).toBe(true);
     });
   });
 });

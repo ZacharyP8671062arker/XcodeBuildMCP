@@ -13,6 +13,13 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, key_sequenceLogic } from '../key_sequence.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
 
+function allText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
+
 describe('Key Sequence Tool', () => {
   beforeEach(() => {
     sessionStore.clear();
@@ -83,15 +90,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       await key_sequenceLogic(
@@ -128,15 +126,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       await key_sequenceLogic(
@@ -176,15 +165,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       await key_sequenceLogic(
@@ -221,15 +201,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/path/to/bundled/axe',
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       await key_sequenceLogic(
@@ -260,8 +231,8 @@ describe('Key Sequence Tool', () => {
       const result = await handler({ keyCodes: [40] });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Missing required session defaults');
-      expect(result.content[0].text).toContain('simulatorId is required');
+      expect(allText(result)).toContain('Missing required session defaults');
+      expect(allText(result)).toContain('simulatorId is required');
     });
 
     it('should return success for valid key sequence execution', async () => {
@@ -274,15 +245,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await key_sequenceLogic(
@@ -295,12 +257,8 @@ describe('Key Sequence Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text' as const, text: 'Key sequence [40,42,44] executed successfully.' },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Key sequence [40,42,44] executed successfully.');
     });
 
     it('should return success for key sequence without delay', async () => {
@@ -313,15 +271,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await key_sequenceLogic(
@@ -333,25 +282,14 @@ describe('Key Sequence Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text' as const, text: 'Key sequence [40] executed successfully.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Key sequence [40] executed successfully.');
     });
 
     it('should handle DependencyError when axe binary not found', async () => {
       const mockAxeHelpers = {
         getAxePath: () => null,
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await key_sequenceLogic(
@@ -363,15 +301,8 @@ describe('Key Sequence Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle AxeError from command execution', async () => {
@@ -384,15 +315,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await key_sequenceLogic(
@@ -404,15 +326,10 @@ describe('Key Sequence Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: "Error: Failed to execute key sequence: axe command 'key-sequence' failed.\nDetails: Simulator not found",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        "Failed to execute key sequence: axe command 'key-sequence' failed.",
+      );
     });
 
     it('should handle SystemError from command execution', async () => {
@@ -423,15 +340,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await key_sequenceLogic(
@@ -443,8 +351,8 @@ describe('Key Sequence Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result.content[0].text).toMatch(
-        /^Error: System error executing axe: Failed to execute axe command: ENOENT: no such file or directory/,
+      expect(allText(result)).toMatch(
+        /System error executing axe: Failed to execute axe command: ENOENT: no such file or directory/,
       );
       expect(result.isError).toBe(true);
     });
@@ -457,15 +365,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await key_sequenceLogic(
@@ -477,8 +376,8 @@ describe('Key Sequence Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result.content[0].text).toMatch(
-        /^Error: System error executing axe: Failed to execute axe command: Unexpected error/,
+      expect(allText(result)).toMatch(
+        /System error executing axe: Failed to execute axe command: Unexpected error/,
       );
       expect(result.isError).toBe(true);
     });
@@ -491,15 +390,6 @@ describe('Key Sequence Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await key_sequenceLogic(
@@ -511,15 +401,10 @@ describe('Key Sequence Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Error: System error executing axe: Failed to execute axe command: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: String error',
+      );
     });
   });
 });

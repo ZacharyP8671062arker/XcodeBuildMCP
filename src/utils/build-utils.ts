@@ -1,27 +1,9 @@
-/**
- * Build Utilities - Higher-level abstractions for Xcode build operations
- *
- * This utility module provides specialized functions for build-related operations
- * across different platforms (macOS, iOS, watchOS, etc.). It serves as a higher-level
- * abstraction layer on top of the core Xcode utilities.
- *
- * Responsibilities:
- * - Providing a unified interface (executeXcodeBuild) for all build operations
- * - Handling build-specific parameter formatting and validation
- * - Standardizing response formatting for build results
- * - Managing build-specific error handling and reporting
- * - Supporting various build actions (build, clean, showBuildSettings, etc.)
- * - Supporting xcodemake as an alternative build strategy for faster incremental builds
- *
- * This file depends on the lower-level utilities in xcode.ts for command execution
- * while adding build-specific behavior, formatting, and error handling.
- */
-
 import { log } from './logger.ts';
 import { XcodePlatform, constructDestinationString } from './xcode.ts';
 import type { CommandExecutor, CommandExecOptions } from './command.ts';
 import type { ToolResponse, SharedBuildParams, PlatformBuildOptions } from '../types/common.ts';
-import { createTextResponse } from './validation.ts';
+import { toolResponse } from './tool-response.ts';
+import { header, statusLine } from './tool-event-builders.ts';
 import {
   isXcodemakeEnabled,
   isXcodemakeAvailable,
@@ -47,28 +29,20 @@ function getDefaultSwiftPackageCachePath(): string {
   return path.join(os.homedir(), 'Library', 'Caches', 'org.swift.swiftpm');
 }
 
-function grepWarningsAndErrors(text: string): { type: 'warning' | 'error'; content: string }[] {
-  return text
-    .split('\n')
-    .map((content) => {
-      if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)warning:\s/i.test(content))
-        return { type: 'warning', content };
-      if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)(?:fatal )?error:\s/i.test(content))
-        return { type: 'error', content };
-      return null;
-    })
-    .filter(Boolean) as { type: 'warning' | 'error'; content: string }[];
+type DiagnosticLine = { type: 'warning' | 'error'; content: string };
+
+function grepWarningsAndErrors(text: string): DiagnosticLine[] {
+  return text.split('\n').flatMap<DiagnosticLine>((content) => {
+    if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)warning:\s/i.test(content)) {
+      return [{ type: 'warning', content }];
+    }
+    if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)(?:fatal )?error:\s/i.test(content)) {
+      return [{ type: 'error', content }];
+    }
+    return [];
+  });
 }
 
-/**
- * Common function to execute an Xcode build command across platforms
- * @param params Common build parameters
- * @param platformOptions Platform-specific options
- * @param preferXcodebuild Whether to prefer xcodebuild over xcodemake, useful for if xcodemake is failing
- * @param buildAction The xcodebuild action to perform (e.g., 'build', 'clean', 'test')
- * @param executor Optional command executor for dependency injection (used for testing)
- * @returns Promise resolving to tool response
- */
 export async function executeXcodeBuildCommand(
   params: SharedBuildParams,
   platformOptions: PlatformBuildOptions,
@@ -93,7 +67,6 @@ export async function executeXcodeBuildCommand(
 
   log('info', `Starting ${platformOptions.logPrefix} ${buildAction} for scheme ${params.scheme}`);
 
-  // Check if xcodemake is enabled and available
   const isXcodemakeEnabledFlag = isXcodemakeEnabled();
   let xcodemakeAvailableFlag = false;
 
@@ -116,6 +89,12 @@ export async function executeXcodeBuildCommand(
       addBuildMessage('ℹ️ xcodemake is enabled and available, using it for incremental builds.');
     }
   }
+
+  const useXcodemake =
+    isXcodemakeEnabledFlag &&
+    xcodemakeAvailableFlag &&
+    buildAction === 'build' &&
+    !preferXcodebuild;
 
   try {
     const command = ['xcodebuild'];
@@ -140,7 +119,6 @@ export async function executeXcodeBuildCommand(
     command.push('-configuration', params.configuration);
     command.push('-skipMacroValidation');
 
-    // Construct destination string based on platform
     let destinationString: string;
     const isSimulatorPlatform = [
       XcodePlatform.iOSSimulator,
@@ -164,10 +142,16 @@ export async function executeXcodeBuildCommand(
           platformOptions.useLatestOS,
         );
       } else {
-        return createTextResponse(
-          `For ${platformOptions.platform} platform, either simulatorId or simulatorName must be provided`,
-          true,
-        );
+        return toolResponse([
+          header(`${platformOptions.logPrefix} ${buildAction}`, [
+            { label: 'Scheme', value: params.scheme },
+            { label: 'Platform', value: String(platformOptions.platform) },
+          ]),
+          statusLine(
+            'error',
+            `For ${platformOptions.platform} platform, either simulatorId or simulatorName must be provided`,
+          ),
+        ]);
       }
     } else if (platformOptions.platform === XcodePlatform.macOS) {
       destinationString = constructDestinationString(
@@ -192,7 +176,13 @@ export async function executeXcodeBuildCommand(
         destinationString = `generic/platform=${platformName}`;
       }
     } else {
-      return createTextResponse(`Unsupported platform: ${platformOptions.platform}`, true);
+      return toolResponse([
+        header(`${platformOptions.logPrefix} ${buildAction}`, [
+          { label: 'Scheme', value: params.scheme },
+          { label: 'Platform', value: String(platformOptions.platform) },
+        ]),
+        statusLine('error', `Unsupported platform: ${platformOptions.platform}`),
+      ]);
     }
 
     command.push('-destination', destinationString);
@@ -220,12 +210,7 @@ export async function executeXcodeBuildCommand(
     command.push(buildAction);
 
     let result;
-    if (
-      isXcodemakeEnabledFlag &&
-      xcodemakeAvailableFlag &&
-      buildAction === 'build' &&
-      !preferXcodebuild
-    ) {
+    if (useXcodemake) {
       const makefileExists = doesMakefileExist(projectDir);
       log('debug', 'Makefile exists: ' + makefileExists);
 
@@ -251,7 +236,6 @@ export async function executeXcodeBuildCommand(
           }
         : {};
 
-      // Pass projectDir as cwd to ensure CocoaPods relative paths resolve correctly
       result = await executor(command, platformOptions.logPrefix, false, {
         ...execOpts,
         cwd: projectDir,
@@ -259,7 +243,6 @@ export async function executeXcodeBuildCommand(
       });
     }
 
-    // When pipeline is active, skip warning/error grepping - the parser handles it
     let warningOrErrorLines: { type: 'warning' | 'error'; content: string }[] = [];
     if (!pipeline) {
       warningOrErrorLines = grepWarningsAndErrors(result.output);
@@ -291,22 +274,23 @@ export async function executeXcodeBuildCommand(
         `${platformOptions.logPrefix} ${buildAction} failed: ${result.error}`,
         { sentry: isMcpError },
       );
-      const errorResponse = createTextResponse(
-        `❌ ${platformOptions.logPrefix} ${buildAction} failed for scheme ${params.scheme}.`,
-        true,
-      );
+      const errorResponse = toolResponse([
+        header(`${platformOptions.logPrefix} ${buildAction}`, [
+          { label: 'Scheme', value: params.scheme },
+          { label: 'Platform', value: String(platformOptions.platform) },
+          { label: 'Configuration', value: params.configuration },
+        ]),
+        statusLine(
+          'error',
+          `${platformOptions.logPrefix} ${buildAction} failed for scheme ${params.scheme}.`,
+        ),
+      ]);
 
       if (buildMessages.length > 0 && errorResponse.content) {
         errorResponse.content.unshift(...buildMessages);
       }
 
-      if (
-        warningOrErrorLines.length === 0 &&
-        isXcodemakeEnabledFlag &&
-        xcodemakeAvailableFlag &&
-        buildAction === 'build' &&
-        !preferXcodebuild
-      ) {
+      if (warningOrErrorLines.length === 0 && useXcodemake) {
         errorResponse.content.push({
           type: 'text',
           text: `💡 Incremental build using xcodemake failed, suggest using preferXcodebuild option to try build again using slower xcodebuild command.`,
@@ -320,12 +304,7 @@ export async function executeXcodeBuildCommand(
 
     let additionalInfo = '';
 
-    if (
-      isXcodemakeEnabledFlag &&
-      xcodemakeAvailableFlag &&
-      buildAction === 'build' &&
-      !preferXcodebuild
-    ) {
+    if (useXcodemake) {
       additionalInfo += `xcodemake: Using faster incremental builds with xcodemake.
 Future builds will use the generated Makefile for improved performance.
 
@@ -385,9 +364,15 @@ Future builds will use the generated Makefile for improved performance.
       sentry: !isSpawnError,
     });
 
-    return createTextResponse(
-      `Error during ${platformOptions.logPrefix} ${buildAction}: ${errorMessage}`,
-      true,
-    );
+    return toolResponse([
+      header(`${platformOptions.logPrefix} ${buildAction}`, [
+        { label: 'Scheme', value: params.scheme },
+        { label: 'Platform', value: String(platformOptions.platform) },
+      ]),
+      statusLine(
+        'error',
+        `Error during ${platformOptions.logPrefix} ${buildAction}: ${errorMessage}`,
+      ),
+    ]);
   }
 }

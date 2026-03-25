@@ -32,6 +32,13 @@ describe('manage_workflows tool', () => {
     vi.mocked(getRegisteredWorkflows).mockReset();
   });
 
+  function allText(result: { content: Array<{ type: string; text: string }> }): string {
+    return result.content
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join('\n');
+  }
+
   it('merges new workflows with current set when enable is true', async () => {
     vi.mocked(getRegisteredWorkflows).mockReturnValue(['simulator']);
     vi.mocked(applyWorkflowSelectionFromManifest).mockResolvedValue({
@@ -49,7 +56,8 @@ describe('manage_workflows tool', () => {
       ['simulator', 'device'],
       expect.objectContaining({ runtime: 'mcp' }),
     );
-    expect(result.content[0].text).toBe('Workflows enabled: simulator, device');
+    const text = allText(result);
+    expect(text).toContain('Workflows enabled: simulator, device');
   });
 
   it('removes requested workflows when enable is false', async () => {
@@ -69,7 +77,8 @@ describe('manage_workflows tool', () => {
       ['simulator'],
       expect.objectContaining({ runtime: 'mcp' }),
     );
-    expect(result.content[0].text).toBe('Workflows enabled: simulator');
+    const text = allText(result);
+    expect(text).toContain('Workflows enabled: simulator');
   });
 
   it('accepts workflowName as an array', async () => {

@@ -1,0 +1,12 @@
+🔨 Build
+
+  Scheme: NONEXISTENT
+  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  Configuration: Debug
+  Platform: iOS Simulator
+  Simulator: iPhone 17
+
+Errors (1):
+  ✗ Scheme NONEXISTENT is not currently configured for the build action.
+
+❌ Build failed. (⏱️ <DURATION>)

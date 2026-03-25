@@ -19,6 +19,8 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 import {
   activeDeviceLogSessions,
   type DeviceLogSession,
@@ -601,7 +603,6 @@ async function cleanOldDeviceLogs(fileSystemExecutor: FileSystemExecutor): Promi
   );
 }
 
-// Define schema as ZodObject
 const startDeviceLogCapSchema = z.object({
   deviceId: z.string().describe('UDID of the device (obtained from list_devices)'),
   bundleId: z.string(),
@@ -612,7 +613,6 @@ const publicSchemaObject = startDeviceLogCapSchema.omit({
   bundleId: true,
 } as const);
 
-// Use z.infer for type safety
 type StartDeviceLogCapParams = z.infer<typeof startDeviceLogCapSchema>;
 
 /**
@@ -634,28 +634,35 @@ export async function start_device_log_capLogic(
   );
 
   if (error) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Failed to start device log capture: ${error}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Start Log Capture', [
+        { label: 'Device', value: deviceId },
+        { label: 'Bundle ID', value: bundleId },
+      ]),
+      statusLine('error', `Failed to start device log capture: ${error}`),
+    ]);
   }
 
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `✅ Device log capture started successfully\n\nSession ID: ${sessionId}\n\nNote: The app has been launched on the device with console output capture enabled.\nDo not call launch_app_device during this capture session; relaunching can interrupt captured output.\n\nInteract with your app on the device, then stop capture to retrieve logs.`,
-      },
+  return toolResponse(
+    [
+      header('Start Log Capture', [
+        { label: 'Device', value: deviceId },
+        { label: 'Bundle ID', value: bundleId },
+      ]),
+      section('Details', [
+        `Session ID: ${sessionId}`,
+        'The app has been launched on the device with console output capture enabled.',
+        'Do not call launch_app_device during this capture session; relaunching can interrupt captured output.',
+        'Interact with your app on the device, then stop capture to retrieve logs.',
+      ]),
+      statusLine('success', 'Log capture started.'),
     ],
-    nextStepParams: {
-      stop_device_log_cap: { logSessionId: sessionId },
+    {
+      nextStepParams: {
+        stop_device_log_cap: { logSessionId: sessionId },
+      },
     },
-  };
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

@@ -1,0 +1,24 @@
+🚀 Build & Run
+
+  Scheme: CalculatorApp
+  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  Configuration: Debug
+  Platform: iOS Simulator
+  Simulator: iPhone 17
+
+✓ Resolving app path
+✓ Booting simulator
+✓ Installing app
+
+✅ Build succeeded. (⏱️ <DURATION>)
+
+✅ Build & Run complete
+
+  ├ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphonesimulator/CalculatorApp.app
+  └ Bundle ID: io.sentry.calculatorapp
+
+Next steps:
+1. Capture structured logs (app continues running): xcodebuildmcp logging start-simulator-log-capture --simulator-id "<UUID>" --bundle-id "io.sentry.calculatorapp"
+2. Stop app in simulator: xcodebuildmcp simulator stop --simulator-id "<UUID>" --bundle-id "io.sentry.calculatorapp"
+3. Capture console + structured logs (app restarts): xcodebuildmcp logging start-simulator-log-capture --simulator-id "<UUID>" --bundle-id "io.sentry.calculatorapp" --capture-console
+4. Launch app with logs in one step: xcodebuildmcp simulator launch-app-with-logs --simulator-id "<UUID>" --bundle-id "io.sentry.calculatorapp"

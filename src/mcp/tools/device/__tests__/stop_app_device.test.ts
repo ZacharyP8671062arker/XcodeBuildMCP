@@ -162,6 +162,13 @@ describe('stop_app_device plugin', () => {
   });
 
   describe('Success Path Tests', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return successful stop response', async () => {
       const mockExecutor = createMockExecutor({
         success: true,
@@ -176,14 +183,12 @@ describe('stop_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App stopped successfully\n\nApp terminated successfully',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Stop App');
+      expect(text).toContain('test-device-123');
+      expect(text).toContain('12345');
+      expect(text).toContain('App stopped successfully');
     });
 
     it('should return successful stop with detailed output', async () => {
@@ -200,14 +205,10 @@ describe('stop_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App stopped successfully\n\nTerminating process...\nProcess ID: 12345\nTermination completed successfully',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Stop App');
+      expect(text).toContain('App stopped successfully');
     });
 
     it('should return successful stop with empty output', async () => {
@@ -224,18 +225,21 @@ describe('stop_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App stopped successfully\n\n',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Stop App');
+      expect(text).toContain('App stopped successfully');
     });
   });
 
   describe('Error Handling', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return stop failure response', async () => {
       const mockExecutor = createMockExecutor({
         success: false,
@@ -250,15 +254,9 @@ describe('stop_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to stop app: Terminate failed: Process not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to stop app: Terminate failed: Process not found');
     });
 
     it('should return exception handling response', async () => {
@@ -272,15 +270,9 @@ describe('stop_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to stop app on device: Network error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to stop app on device: Network error');
     });
 
     it('should return string error handling response', async () => {
@@ -294,15 +286,9 @@ describe('stop_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to stop app on device: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to stop app on device: String error');
     });
   });
 });

@@ -24,10 +24,7 @@ describe('swift_package_list plugin', () => {
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
     it('should return empty list when no processes are running', async () => {
-      // Create empty mock process map
       const mockProcessMap = new Map();
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = () => [];
       const mockDateNow = () => Date.now();
 
@@ -40,19 +37,14 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: 'ℹ️ No Swift Package processes currently running.' },
-          { type: 'text', text: '💡 Use swift_package_run to start an executable.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift Package List');
+      expect(text).toContain('No Swift Package processes currently running');
     });
 
     it('should handle empty args object', async () => {
-      // Create empty mock process map
       const mockProcessMap = new Map();
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = () => [];
       const mockDateNow = () => Date.now();
 
@@ -65,19 +57,13 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: 'ℹ️ No Swift Package processes currently running.' },
-          { type: 'text', text: '💡 Use swift_package_run to start an executable.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('No Swift Package processes currently running');
     });
 
     it('should handle null args', async () => {
-      // Create empty mock process map
       const mockProcessMap = new Map();
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = () => [];
       const mockDateNow = () => Date.now();
 
@@ -87,19 +73,13 @@ describe('swift_package_list plugin', () => {
         dateNow: mockDateNow,
       });
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: 'ℹ️ No Swift Package processes currently running.' },
-          { type: 'text', text: '💡 Use swift_package_run to start an executable.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('No Swift Package processes currently running');
     });
 
     it('should handle undefined args', async () => {
-      // Create empty mock process map
       const mockProcessMap = new Map();
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = () => [];
       const mockDateNow = () => Date.now();
 
@@ -109,19 +89,13 @@ describe('swift_package_list plugin', () => {
         dateNow: mockDateNow,
       });
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: 'ℹ️ No Swift Package processes currently running.' },
-          { type: 'text', text: '💡 Use swift_package_run to start an executable.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('No Swift Package processes currently running');
     });
 
     it('should handle args with extra properties', async () => {
-      // Create empty mock process map
       const mockProcessMap = new Map();
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = () => [];
       const mockDateNow = () => Date.now();
 
@@ -137,12 +111,9 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: 'ℹ️ No Swift Package processes currently running.' },
-          { type: 'text', text: '💡 Use swift_package_run to start an executable.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('No Swift Package processes currently running');
     });
 
     it('should return single process when one process is running', async () => {
@@ -153,12 +124,9 @@ describe('swift_package_list plugin', () => {
         startedAt: startedAt,
       };
 
-      // Create mock process map with one process
       const mockProcessMap = new Map([[12345, mockProcess]]);
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = (mapEntries: any) => Array.from(mapEntries);
-      const mockDateNow = () => startedAt.getTime() + 5000; // 5 seconds after start
+      const mockDateNow = () => startedAt.getTime() + 5000;
 
       const result = await swift_package_listLogic(
         {},
@@ -169,13 +137,13 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '📋 Active Swift Package processes (1):' },
-          { type: 'text', text: '  • PID 12345: MyApp (/test/package) - running 5s' },
-          { type: 'text', text: '💡 Use swift_package_stop with a PID to terminate a process.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Active Processes (1)');
+      expect(text).toContain('12345');
+      expect(text).toContain('MyApp');
+      expect(text).toContain('/test/package');
+      expect(text).toContain('5s');
     });
 
     it('should return multiple processes when several are running', async () => {
@@ -189,12 +157,11 @@ describe('swift_package_list plugin', () => {
       };
 
       const mockProcess2 = {
-        executableName: undefined, // Test default executable name
+        executableName: undefined,
         packagePath: '/test/package2',
         startedAt: startedAt2,
       };
 
-      // Create mock process map with multiple processes
       const mockProcessMap = new Map<
         number,
         { executableName?: string; packagePath: string; startedAt: Date }
@@ -203,9 +170,8 @@ describe('swift_package_list plugin', () => {
         [12346, mockProcess2],
       ]);
 
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = (mapEntries: any) => Array.from(mapEntries);
-      const mockDateNow = () => startedAt1.getTime() + 10000; // 10 seconds after first start
+      const mockDateNow = () => startedAt1.getTime() + 10000;
 
       const result = await swift_package_listLogic(
         {},
@@ -216,33 +182,34 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '📋 Active Swift Package processes (2):' },
-          { type: 'text', text: '  • PID 12345: MyApp (/test/package1) - running 10s' },
-          { type: 'text', text: '  • PID 12346: default (/test/package2) - running 3s' },
-          { type: 'text', text: '💡 Use swift_package_stop with a PID to terminate a process.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Active Processes (2)');
+      expect(text).toContain('12345');
+      expect(text).toContain('MyApp');
+      expect(text).toContain('/test/package1');
+      expect(text).toContain('10s');
+      expect(text).toContain('12346');
+      expect(text).toContain('default');
+      expect(text).toContain('/test/package2');
+      expect(text).toContain('3s');
     });
 
     it('should handle process with missing executableName', async () => {
       const startedAt = new Date('2023-01-01T10:00:00.000Z');
       const mockProcess = {
-        executableName: undefined, // Test missing executable name
+        executableName: undefined,
         packagePath: '/test/package',
         startedAt: startedAt,
       };
 
-      // Create mock process map with one process
       const mockProcessMap = new Map<
         number,
         { executableName?: string; packagePath: string; startedAt: Date }
       >([[12345, mockProcess]]);
 
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = (mapEntries: any) => Array.from(mapEntries);
-      const mockDateNow = () => startedAt.getTime() + 1000; // 1 second after start
+      const mockDateNow = () => startedAt.getTime() + 1000;
 
       const result = await swift_package_listLogic(
         {},
@@ -253,29 +220,23 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '📋 Active Swift Package processes (1):' },
-          { type: 'text', text: '  • PID 12345: default (/test/package) - running 1s' },
-          { type: 'text', text: '💡 Use swift_package_stop with a PID to terminate a process.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('default');
+      expect(text).toContain('1s');
     });
 
     it('should handle process with empty string executableName', async () => {
       const startedAt = new Date('2023-01-01T10:00:00.000Z');
       const mockProcess = {
-        executableName: '', // Test empty string executable name
+        executableName: '',
         packagePath: '/test/package',
         startedAt: startedAt,
       };
 
-      // Create mock process map with one process
       const mockProcessMap = new Map([[12345, mockProcess]]);
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = (mapEntries: any) => Array.from(mapEntries);
-      const mockDateNow = () => startedAt.getTime() + 2000; // 2 seconds after start
+      const mockDateNow = () => startedAt.getTime() + 2000;
 
       const result = await swift_package_listLogic(
         {},
@@ -286,13 +247,10 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '📋 Active Swift Package processes (1):' },
-          { type: 'text', text: '  • PID 12345: default (/test/package) - running 2s' },
-          { type: 'text', text: '💡 Use swift_package_stop with a PID to terminate a process.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('default');
+      expect(text).toContain('2s');
     });
 
     it('should handle very recent process (less than 1 second)', async () => {
@@ -303,12 +261,9 @@ describe('swift_package_list plugin', () => {
         startedAt: startedAt,
       };
 
-      // Create mock process map with one process
       const mockProcessMap = new Map([[12345, mockProcess]]);
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = (mapEntries: any) => Array.from(mapEntries);
-      const mockDateNow = () => startedAt.getTime() + 500; // 500ms after start
+      const mockDateNow = () => startedAt.getTime() + 500;
 
       const result = await swift_package_listLogic(
         {},
@@ -319,13 +274,10 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '📋 Active Swift Package processes (1):' },
-          { type: 'text', text: '  • PID 12345: FastApp (/test/package) - running 1s' },
-          { type: 'text', text: '💡 Use swift_package_stop with a PID to terminate a process.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('FastApp');
+      expect(text).toContain('1s');
     });
 
     it('should handle process running for exactly 0 milliseconds', async () => {
@@ -336,12 +288,9 @@ describe('swift_package_list plugin', () => {
         startedAt: startedAt,
       };
 
-      // Create mock process map with one process
       const mockProcessMap = new Map([[12345, mockProcess]]);
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = (mapEntries: any) => Array.from(mapEntries);
-      const mockDateNow = () => startedAt.getTime(); // Same time as start
+      const mockDateNow = () => startedAt.getTime();
 
       const result = await swift_package_listLogic(
         {},
@@ -352,13 +301,10 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '📋 Active Swift Package processes (1):' },
-          { type: 'text', text: '  • PID 12345: InstantApp (/test/package) - running 1s' },
-          { type: 'text', text: '💡 Use swift_package_stop with a PID to terminate a process.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('InstantApp');
+      expect(text).toContain('1s');
     });
 
     it('should handle process running for a long time', async () => {
@@ -369,12 +315,9 @@ describe('swift_package_list plugin', () => {
         startedAt: startedAt,
       };
 
-      // Create mock process map with one process
       const mockProcessMap = new Map([[12345, mockProcess]]);
-
-      // Use pure dependency injection with stub functions
       const mockArrayFrom = (mapEntries: any) => Array.from(mapEntries);
-      const mockDateNow = () => startedAt.getTime() + 7200000; // 2 hours later
+      const mockDateNow = () => startedAt.getTime() + 7200000;
 
       const result = await swift_package_listLogic(
         {},
@@ -385,13 +328,10 @@ describe('swift_package_list plugin', () => {
         },
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '📋 Active Swift Package processes (1):' },
-          { type: 'text', text: '  • PID 12345: LongRunningApp (/test/package) - running 7200s' },
-          { type: 'text', text: '💡 Use swift_package_stop with a PID to terminate a process.' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('LongRunningApp');
+      expect(text).toContain('7200s');
     });
   });
 });

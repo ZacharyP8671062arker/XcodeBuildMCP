@@ -4,45 +4,37 @@ import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const stopMacAppSchema = z.object({
   appName: z.string().optional(),
   processId: z.number().optional(),
 });
 
-// Use z.infer for type safety
 type StopMacAppParams = z.infer<typeof stopMacAppSchema>;
 
 export async function stop_mac_appLogic(
   params: StopMacAppParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
+  const target = params.processId ? `PID ${params.processId}` : params.appName;
+
   if (!params.appName && !params.processId) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: 'Either appName or processId must be provided.',
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Stop macOS App'),
+      statusLine('error', 'Either appName or processId must be provided.'),
+    ]);
   }
 
-  log(
-    'info',
-    `Stopping macOS app: ${params.processId ? `PID ${params.processId}` : params.appName}`,
-  );
+  log('info', `Stopping macOS app: ${target}`);
 
   try {
     let command: string[];
 
     if (params.processId) {
-      // Stop by process ID
       command = ['kill', String(params.processId)];
     } else {
-      // Stop by app name - use shell command with fallback for complex logic
       command = [
         'sh',
         '-c',
@@ -52,26 +44,17 @@ export async function stop_mac_appLogic(
 
     await executor(command, 'Stop macOS App');
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `✅ macOS app stopped successfully: ${params.processId ? `PID ${params.processId}` : params.appName}`,
-        },
-      ],
-    };
+    return toolResponse([
+      header('Stop macOS App', [{ label: 'Target', value: target! }]),
+      statusLine('success', 'App stopped successfully.'),
+    ]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error stopping macOS app: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `❌ Stop macOS app operation failed: ${errorMessage}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Stop macOS App', [{ label: 'Target', value: target! }]),
+      statusLine('error', `Stop macOS app operation failed: ${errorMessage}`),
+    ]);
   }
 }
 

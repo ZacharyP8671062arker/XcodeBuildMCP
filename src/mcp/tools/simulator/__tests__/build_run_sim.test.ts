@@ -246,14 +246,16 @@ describe('build_run_sim tool', () => {
         expect.objectContaining({
           tailEvents: [
             expect.objectContaining({
-              type: 'notice',
-              code: 'build-run-result',
-              data: expect.objectContaining({
-                scheme: 'MyScheme',
-                appPath: '/path/to/build/MyApp.app',
-                bundleId: 'io.sentry.MyApp',
-                launchState: 'requested',
-              }),
+              type: 'status-line',
+              level: 'success',
+              message: 'Build & Run complete',
+            }),
+            expect.objectContaining({
+              type: 'detail-tree',
+              items: expect.arrayContaining([
+                expect.objectContaining({ label: 'App Path', value: '/path/to/build/MyApp.app' }),
+                expect.objectContaining({ label: 'Bundle ID', value: 'io.sentry.MyApp' }),
+              ]),
             }),
           ],
         }),
@@ -720,11 +722,6 @@ describe('build_run_sim tool', () => {
 
       // Summary
       expect(textContent).toContain('Build succeeded.');
-
-      // Footer with execution-derived values
-      expect(textContent).toContain('Build & Run complete');
-      expect(textContent).toContain('App Path: /path/to/build/MyApp.app');
-      expect(textContent).toContain('Bundle ID: io.sentry.MyApp');
 
       // No next steps in finalized output (those come from tool invoker)
       expect(textContent).not.toContain('Next steps:');

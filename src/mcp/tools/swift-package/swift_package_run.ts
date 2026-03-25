@@ -1,19 +1,18 @@
 import * as z from 'zod';
 import path from 'node:path';
-import { createTextResponse, createErrorResponse } from '../../../utils/responses/index.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createTextContent } from '../../../types/common.ts';
 import { addProcess } from './active-processes.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { acquireDaemonActivity } from '../../../daemon/activity-registry.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const baseSchemaObject = z.object({
   packagePath: z.string(),
   executableName: z.string().optional(),
@@ -30,7 +29,6 @@ const publicSchemaObject = baseSchemaObject.omit({
 
 const swiftPackageRunSchema = baseSchemaObject;
 
-// Use z.infer for type safety
 type SwiftPackageRunParams = z.infer<typeof swiftPackageRunSchema>;
 
 export async function swift_package_runLogic(
@@ -45,10 +43,19 @@ export async function swift_package_runLogic(
 
   const swiftArgs = ['run', '--package-path', resolvedPath];
 
+  const headerEvent = header('Swift Package Run', [
+    { label: 'Package', value: resolvedPath },
+    ...(params.executableName ? [{ label: 'Executable', value: params.executableName }] : []),
+    ...(params.background ? [{ label: 'Mode', value: 'background' }] : []),
+  ]);
+
   if (params.configuration?.toLowerCase() === 'release') {
     swiftArgs.push('-c', 'release');
   } else if (params.configuration && params.configuration.toLowerCase() !== 'debug') {
-    return createTextResponse("Invalid configuration. Use 'debug' or 'release'.", true);
+    return toolResponse([
+      headerEvent,
+      statusLine('error', "Invalid configuration. Use 'debug' or 'release'."),
+    ]);
   }
 
   if (params.parseAsLibrary) {
@@ -71,16 +78,14 @@ export async function swift_package_runLogic(
     if (params.background) {
       // Background mode: Use CommandExecutor but don't wait for completion
       if (isTestEnvironment) {
-        // In test environment, return mock response without real process
         const mockPid = 12345;
-        return {
-          content: [
-            createTextContent(
-              `🚀 Started executable in background (PID: ${mockPid})\n` +
-                `💡 Process is running independently. Use swift_package_stop with PID ${mockPid} to terminate when needed.`,
-            ),
-          ],
-        };
+        return toolResponse([
+          headerEvent,
+          statusLine('success', `Started executable in background (PID: ${mockPid})`),
+          section('Next Steps', [
+            `Use swift_package_stop with PID ${mockPid} to terminate when needed.`,
+          ]),
+        ]);
       } else {
         // Production: use CommandExecutor to start the process
         const command = ['swift', ...swiftArgs];
@@ -119,23 +124,19 @@ export async function swift_package_runLogic(
             releaseActivity: acquireDaemonActivity('swift-package.background-process'),
           });
 
-          return {
-            content: [
-              createTextContent(
-                `🚀 Started executable in background (PID: ${result.process.pid})\n` +
-                  `💡 Process is running independently. Use swift_package_stop with PID ${result.process.pid} to terminate when needed.`,
-              ),
-            ],
-          };
+          return toolResponse([
+            headerEvent,
+            statusLine('success', `Started executable in background (PID: ${result.process.pid})`),
+            section('Next Steps', [
+              `Use swift_package_stop with PID ${result.process.pid} to terminate when needed.`,
+            ]),
+          ]);
         } else {
-          return {
-            content: [
-              createTextContent(
-                `🚀 Started executable in background\n` +
-                  `💡 Process is running independently. PID not available for this execution.`,
-              ),
-            ],
-          };
+          return toolResponse([
+            headerEvent,
+            statusLine('success', 'Started executable in background'),
+            section('Next Steps', ['PID not available for this execution.']),
+          ]);
         }
       }
     } else {
@@ -143,7 +144,7 @@ export async function swift_package_runLogic(
       const command = ['swift', ...swiftArgs];
 
       // Create a promise that will either complete with the command result or timeout
-      const commandPromise = executor(command, 'Swift Package Run', false, undefined);
+      const commandPromise = executor(command, 'Swift Package Run', false);
 
       const timeoutPromise = new Promise<{
         success: boolean;
@@ -167,57 +168,55 @@ export async function swift_package_runLogic(
       if ('timedOut' in result && result.timedOut) {
         // For timeout case, the process may still be running - provide timeout response
         if (isTestEnvironment) {
-          // In test environment, return mock response
           const mockPid = 12345;
-          return {
-            content: [
-              createTextContent(
-                `⏱️ Process timed out after ${timeout / 1000} seconds but may continue running.`,
-              ),
-              createTextContent(`PID: ${mockPid} (mock)`),
-              createTextContent(
-                `💡 Process may still be running. Use swift_package_stop with PID ${mockPid} to terminate when needed.`,
-              ),
-              createTextContent(result.output || '(no output so far)'),
-            ],
-          };
+          return toolResponse([
+            headerEvent,
+            statusLine(
+              'warning',
+              `Process timed out after ${timeout / 1000} seconds but may continue running.`,
+            ),
+            section('Details', [
+              `PID: ${mockPid} (mock)`,
+              `Use swift_package_stop with PID ${mockPid} to terminate when needed.`,
+              result.output || '(no output so far)',
+            ]),
+          ]);
         } else {
-          // Production: timeout occurred, but we don't start a new process
-          return {
-            content: [
-              createTextContent(`⏱️ Process timed out after ${timeout / 1000} seconds.`),
-              createTextContent(
-                `💡 Process execution exceeded the timeout limit. Consider using background mode for long-running executables.`,
-              ),
-              createTextContent(result.output || '(no output so far)'),
-            ],
-          };
+          return toolResponse([
+            headerEvent,
+            statusLine('warning', `Process timed out after ${timeout / 1000} seconds.`),
+            section('Details', [
+              'Process execution exceeded the timeout limit. Consider using background mode for long-running executables.',
+              result.output || '(no output so far)',
+            ]),
+          ]);
         }
       }
 
       if (result.success) {
-        return {
-          content: [
-            createTextContent('✅ Swift executable completed successfully.'),
-            createTextContent('💡 Process finished cleanly. Check output for results.'),
-            createTextContent(result.output || '(no output)'),
-          ],
-        };
+        return toolResponse([
+          headerEvent,
+          ...(result.output ? [section('Output', [result.output])] : []),
+          statusLine('success', 'Swift executable completed successfully'),
+        ]);
       } else {
-        const content = [
-          createTextContent('❌ Swift executable failed.'),
-          createTextContent(result.output || '(no output)'),
-        ];
-        if (result.error) {
-          content.push(createTextContent(`Errors:\n${result.error}`));
-        }
-        return { content };
+        const errorDetail = result.error
+          ? `${result.output || '(no output)'}\nErrors:\n${result.error}`
+          : result.output || '(no output)';
+        return toolResponse([
+          headerEvent,
+          section('Output', [errorDetail]),
+          statusLine('error', 'Swift executable failed'),
+        ]);
       }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log('error', `Swift run failed: ${message}`);
-    return createErrorResponse('Failed to execute swift run', message);
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to execute swift run: ${message}`),
+    ]);
   }
 }
 

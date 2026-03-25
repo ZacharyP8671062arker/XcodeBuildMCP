@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createErrorResponse, createTextResponse } from '../../../utils/responses/index.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 import {
   getDefaultDebuggerToolContext,
@@ -19,15 +20,23 @@ export async function debug_stackLogic(
   params: DebugStackParams,
   ctx: DebuggerToolContext,
 ): Promise<ToolResponse> {
+  const headerEvent = header('Stack Trace');
+
   try {
     const output = await ctx.debugger.getStack(params.debugSessionId, {
       threadIndex: params.threadIndex,
       maxFrames: params.maxFrames,
     });
-    return createTextResponse(output.trim());
+    const trimmed = output.trim();
+
+    return toolResponse([
+      headerEvent,
+      statusLine('success', 'Stack trace retrieved'),
+      ...(trimmed ? [section('Frames', [trimmed])] : []),
+    ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return createErrorResponse('Failed to get stack', message);
+    return toolResponse([headerEvent, statusLine('error', `Failed to get stack: ${message}`)]);
   }
 }
 

@@ -1,14 +1,22 @@
-import type { XcodebuildEvent } from '../../types/xcodebuild-events.ts';
+import type {
+  CompilerErrorEvent,
+  CompilerWarningEvent,
+  PipelineEvent,
+} from '../../types/pipeline-events.ts';
 import { createCliProgressReporter } from '../cli-progress-reporter.ts';
 import { formatCliTextLine } from '../terminal-output.ts';
 import { deriveDiagnosticBaseDir } from './index.ts';
 import type { XcodebuildRenderer } from './index.ts';
 import {
-  formatStartEvent,
-  formatStatusEvent,
-  formatTransientStatusEvent,
-  formatNoticeEvent,
-  formatTransientNoticeEvent,
+  formatHeaderEvent,
+  formatBuildStageEvent,
+  formatTransientBuildStageEvent,
+  formatStatusLineEvent,
+  formatTransientStatusLineEvent,
+  formatSectionEvent,
+  formatDetailTreeEvent,
+  formatTableEvent,
+  formatFileRefEvent,
   formatGroupedCompilerErrors,
   formatGroupedWarnings,
   formatTestFailureEvent,
@@ -26,8 +34,8 @@ function formatCliTextBlock(text: string): string {
 export function createCliTextRenderer(options: { interactive: boolean }): XcodebuildRenderer {
   const { interactive } = options;
   const reporter = createCliProgressReporter();
-  const groupedCompilerErrors: Extract<XcodebuildEvent, { type: 'error' }>[] = [];
-  const groupedWarnings: Extract<XcodebuildEvent, { type: 'warning' }>[] = [];
+  const groupedCompilerErrors: CompilerErrorEvent[] = [];
+  const groupedWarnings: CompilerWarningEvent[] = [];
   let pendingTransientRuntimeLine: string | null = null;
   let diagnosticBaseDir: string | null = null;
   let hasDurableRuntimeContent = false;
@@ -46,52 +54,69 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
   }
 
   function flushPendingTransientRuntimeLine(): void {
-    if (!pendingTransientRuntimeLine) {
-      return;
+    if (pendingTransientRuntimeLine) {
+      writeDurable(pendingTransientRuntimeLine);
     }
-
-    const line = pendingTransientRuntimeLine;
-    writeDurable(line);
   }
 
   return {
-    onEvent(event: XcodebuildEvent): void {
+    onEvent(event: PipelineEvent): void {
       switch (event.type) {
-        case 'start': {
+        case 'header': {
           diagnosticBaseDir = deriveDiagnosticBaseDir(event);
           hasDurableRuntimeContent = false;
-          writeSection(formatStartEvent(event));
+          writeSection(formatHeaderEvent(event));
           break;
         }
 
-        case 'status': {
+        case 'build-stage': {
           if (interactive) {
-            pendingTransientRuntimeLine = formatStatusEvent(event);
-            reporter.update(formatTransientStatusEvent(event));
+            pendingTransientRuntimeLine = formatBuildStageEvent(event);
+            reporter.update(formatTransientBuildStageEvent(event));
           } else {
-            writeDurable(formatStatusEvent(event));
+            writeDurable(formatBuildStageEvent(event));
           }
           break;
         }
 
-        case 'notice': {
-          const transientNotice = interactive ? formatTransientNoticeEvent(event) : null;
-          if (transientNotice) {
-            pendingTransientRuntimeLine = formatNoticeEvent(event);
-            reporter.update(transientNotice);
+        case 'status-line': {
+          const transient = interactive ? formatTransientStatusLineEvent(event) : null;
+          if (transient) {
+            pendingTransientRuntimeLine = formatStatusLineEvent(event);
+            reporter.update(transient);
             break;
           }
 
-          writeDurable(formatNoticeEvent(event));
+          writeDurable(formatStatusLineEvent(event));
           break;
         }
 
-        case 'warning': {
+        case 'section': {
+          writeSection(formatSectionEvent(event));
+          break;
+        }
+
+        case 'detail-tree': {
+          writeDurable(formatDetailTreeEvent(event));
+          break;
+        }
+
+        case 'table': {
+          writeSection(formatTableEvent(event));
+          break;
+        }
+
+        case 'file-ref': {
+          writeDurable(formatFileRefEvent(event));
+          break;
+        }
+
+        case 'compiler-warning': {
           groupedWarnings.push(event);
           break;
         }
 
-        case 'error': {
+        case 'compiler-error': {
           groupedCompilerErrors.push(event);
           break;
         }

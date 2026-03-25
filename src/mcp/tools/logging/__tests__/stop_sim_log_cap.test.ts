@@ -18,6 +18,14 @@ import {
   createMockExecutor,
   createMockFileSystemExecutor,
 } from '../../../../test-utils/mock-executors.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
+
+function allText(response: ToolResponse): string {
+  return response.content
+    .filter((item) => item.type === 'text')
+    .map((item) => item.text)
+    .join('\n');
+}
 
 describe('stop_sim_log_cap plugin', () => {
   const mockExecutor = createMockExecutor({ success: true, output: '' });
@@ -56,8 +64,6 @@ describe('stop_sim_log_cap plugin', () => {
 
   describe('Input Validation', () => {
     it('should handle null logSessionId (validation handled by framework)', async () => {
-      // With typed tool factory, invalid params won't reach the logic function
-      // This test now validates that the logic function works with valid empty strings
       const stopLogCaptureStub = async () => ({
         logContent: 'Log content for empty session',
         error: undefined,
@@ -73,14 +79,12 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe(
-        'Log capture session  stopped successfully. Log content follows:\n\nLog content for empty session',
-      );
+      const text = allText(result);
+      expect(text).toContain('Log content for empty session');
+      expect(text).toContain('Log capture stopped');
     });
 
     it('should handle undefined logSessionId (validation handled by framework)', async () => {
-      // With typed tool factory, invalid params won't reach the logic function
-      // This test now validates that the logic function works with valid empty strings
       const stopLogCaptureStub = async () => ({
         logContent: 'Log content for empty session',
         error: undefined,
@@ -96,9 +100,9 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe(
-        'Log capture session  stopped successfully. Log content follows:\n\nLog content for empty session',
-      );
+      const text = allText(result);
+      expect(text).toContain('Log content for empty session');
+      expect(text).toContain('Log capture stopped');
     });
 
     it('should handle empty string logSessionId', async () => {
@@ -117,9 +121,9 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe(
-        'Log capture session  stopped successfully. Log content follows:\n\nLog content for empty session',
-      );
+      const text = allText(result);
+      expect(text).toContain('Log content for empty session');
+      expect(text).toContain('Log capture stopped');
     });
   });
 
@@ -142,9 +146,10 @@ describe('stop_sim_log_cap plugin', () => {
 
       expect(capturedSessionId).toBe('test-session-id');
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe(
-        'Log capture session test-session-id stopped successfully. Log content follows:\n\nMock log content from file',
-      );
+      const text = allText(result);
+      expect(text).toContain('test-session-id');
+      expect(text).toContain('Mock log content from file');
+      expect(text).toContain('Log capture stopped');
     });
 
     it('should call stopLogCapture with different session ID', async () => {
@@ -165,9 +170,10 @@ describe('stop_sim_log_cap plugin', () => {
 
       expect(capturedSessionId).toBe('different-session-id');
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe(
-        'Log capture session different-session-id stopped successfully. Log content follows:\n\nDifferent log content',
-      );
+      const text = allText(result);
+      expect(text).toContain('different-session-id');
+      expect(text).toContain('Different log content');
+      expect(text).toContain('Log capture stopped');
     });
   });
 
@@ -188,9 +194,10 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe(
-        'Log capture session test-session-id stopped successfully. Log content follows:\n\nMock log content from file',
-      );
+      const text = allText(result);
+      expect(text).toContain('test-session-id');
+      expect(text).toContain('Mock log content from file');
+      expect(text).toContain('Log capture stopped');
     });
 
     it('should handle empty log content', async () => {
@@ -209,9 +216,9 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe(
-        'Log capture session test-session-id stopped successfully. Log content follows:\n\n',
-      );
+      const text = allText(result);
+      expect(text).toContain('test-session-id');
+      expect(text).toContain('Log capture stopped');
     });
 
     it('should handle multiline log content', async () => {
@@ -230,9 +237,11 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe(
-        'Log capture session test-session-id stopped successfully. Log content follows:\n\nLine 1\nLine 2\nLine 3',
-      );
+      const text = allText(result);
+      expect(text).toContain('Line 1');
+      expect(text).toContain('Line 2');
+      expect(text).toContain('Line 3');
+      expect(text).toContain('Log capture stopped');
     });
 
     it('should handle log capture stop errors for non-existent session', async () => {
@@ -251,9 +260,9 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe(
-        'Error stopping log capture session non-existent-session: Log capture session not found: non-existent-session',
-      );
+      const text = allText(result);
+      expect(text).toContain('Error stopping log capture session non-existent-session');
+      expect(text).toContain('Log capture session not found');
     });
 
     it('should handle file read errors', async () => {
@@ -272,9 +281,8 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain(
-        'Error stopping log capture session test-session-id:',
-      );
+      const text = allText(result);
+      expect(text).toContain('Error stopping log capture session test-session-id');
     });
 
     it('should handle permission errors', async () => {
@@ -293,9 +301,8 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain(
-        'Error stopping log capture session test-session-id:',
-      );
+      const text = allText(result);
+      expect(text).toContain('Error stopping log capture session test-session-id');
     });
 
     it('should handle various error types', async () => {
@@ -314,9 +321,8 @@ describe('stop_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain(
-        'Error stopping log capture session test-session-id:',
-      );
+      const text = allText(result);
+      expect(text).toContain('Error stopping log capture session test-session-id');
     });
   });
 });

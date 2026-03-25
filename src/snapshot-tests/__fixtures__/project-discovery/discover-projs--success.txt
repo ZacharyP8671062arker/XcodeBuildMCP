@@ -1,0 +1,11 @@
+
+🔍 Discover Projects
+
+✅ Found 1 project(s) and 1 workspace(s).
+
+Projects
+  example_projects/iOS_Calculator/CalculatorApp.xcodeproj
+
+Workspaces
+  example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+ℹ️ Save a default with session-set-defaults { projectPath: '...' } or { workspacePath: '...' }.

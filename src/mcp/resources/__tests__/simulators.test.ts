@@ -49,9 +49,10 @@ describe('simulators resource', () => {
       const result = await simulatorsResourceLogic(mockExecutor);
 
       expect(result.contents).toHaveLength(1);
-      expect(result.contents[0].text).toContain('Available iOS Simulators:');
-      expect(result.contents[0].text).toContain('iPhone 15 Pro');
-      expect(result.contents[0].text).toContain('ABC123-DEF456-GHI789');
+      const text = result.contents[0].text;
+      expect(text).toContain('List Simulators');
+      expect(text).toContain('iPhone 15 Pro');
+      expect(text).toContain('ABC123-DEF456-GHI789');
     });
 
     it('should handle command execution failure', async () => {
@@ -94,8 +95,10 @@ describe('simulators resource', () => {
       const result = await simulatorsResourceLogic(mockExecutor);
 
       expect(result.contents).toHaveLength(1);
-      expect(result.contents[0].text).toContain('iPhone 15 (test-uuid-123)');
-      expect(result.contents[0].text).toContain('iOS 17.0');
+      const text = result.contents[0].text;
+      expect(text).toContain('iPhone 15');
+      expect(text).toContain('test-uuid-123');
+      expect(text).toContain('iOS 17.0');
     });
 
     it('should handle spawn errors', async () => {
@@ -117,7 +120,7 @@ describe('simulators resource', () => {
       const result = await simulatorsResourceLogic(mockExecutor);
 
       expect(result.contents).toHaveLength(1);
-      expect(result.contents[0].text).toContain('Available iOS Simulators:');
+      expect(result.contents[0].text).toContain('List Simulators');
     });
 
     it('should handle booted simulators correctly', async () => {
@@ -139,7 +142,7 @@ describe('simulators resource', () => {
 
       const result = await simulatorsResourceLogic(mockExecutor);
 
-      expect(result.contents[0].text).toContain('[Booted]');
+      expect(result.contents[0].text).toContain('Booted');
     });
 
     it('should filter out unavailable simulators', async () => {
@@ -190,10 +193,9 @@ describe('simulators resource', () => {
 
       const result = await simulatorsResourceLogic(mockExecutor);
 
-      // The resource returns text content with simulator list and hint
-      expect(result.contents[0].text).toContain('iPhone 15 Pro');
-      expect(result.contents[0].text).toContain('ABC123-DEF456-GHI789');
-      expect(result.contents[0].text).toContain('session-set-defaults');
+      const text = result.contents[0].text;
+      expect(text).toContain('iPhone 15 Pro');
+      expect(text).toContain('ABC123-DEF456-GHI789');
     });
   });
 });

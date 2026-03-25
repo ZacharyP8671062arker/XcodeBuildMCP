@@ -1,9 +1,3 @@
-/**
- * Tests for sim_statusbar plugin
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
-
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import {
@@ -12,6 +6,14 @@ import {
   type CommandExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, sim_statusbarLogic } from '../sim_statusbar.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
+
+function allText(result: ToolResponse): string {
+  return result.content
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
 
 describe('sim_statusbar tool', () => {
   describe('Schema Validation', () => {
@@ -43,19 +45,13 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Successfully set simulator test-uuid-123 status bar data network to wifi',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Statusbar');
+      expect(text).toContain('Status bar data network set to wifi');
+      expect(result.isError).toBeFalsy();
     });
 
     it('should handle minimal valid parameters (Zod handles validation)', async () => {
-      // Note: With createTypedTool, Zod validation happens before the logic function is called
-      // So we test with a valid minimal parameter set since validation is handled upstream
       const mockExecutor = createMockExecutor({
         success: true,
         output: 'Status bar set successfully',
@@ -69,10 +65,9 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      // The logic function should execute normally with valid parameters
-      // Zod validation errors are handled by createTypedTool wrapper
-      expect(result.isError).toBe(undefined);
-      expect(result.content[0].text).toContain('Successfully set simulator');
+      expect(result.isError).toBeFalsy();
+      const text = allText(result);
+      expect(text).toContain('Status bar data network set to wifi');
     });
 
     it('should handle command failure', async () => {
@@ -89,15 +84,9 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to set status bar: Simulator not found',
-          },
-        ],
-        isError: true,
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to set status bar: Simulator not found');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle exception with Error object', async () => {
@@ -113,15 +102,9 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to set status bar: Connection failed',
-          },
-        ],
-        isError: true,
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to set status bar: Connection failed');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle exception with string error', async () => {
@@ -137,15 +120,9 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to set status bar: String error',
-          },
-        ],
-        isError: true,
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to set status bar: String error');
+      expect(result.isError).toBe(true);
     });
 
     it('should verify command generation with mock executor for override', async () => {
@@ -252,14 +229,9 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Successfully cleared status bar overrides for simulator test-uuid-123',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Status bar overrides cleared');
+      expect(result.isError).toBeFalsy();
     });
   });
 });

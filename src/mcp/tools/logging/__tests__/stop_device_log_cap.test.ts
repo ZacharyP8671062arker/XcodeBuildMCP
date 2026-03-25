@@ -10,8 +10,16 @@ import {
   type DeviceLogSession,
 } from '../../../../utils/log-capture/device-log-sessions.ts';
 import { createMockFileSystemExecutor } from '../../../../test-utils/mock-executors.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
 
 // Note: Logger is allowed to execute normally (integration testing pattern)
+
+function allText(response: ToolResponse): string {
+  return response.content
+    .filter((item) => item.type === 'text')
+    .map((item) => item.text)
+    .join('\n');
+}
 
 describe('stop_device_log_cap plugin', () => {
   beforeEach(() => {
@@ -80,9 +88,10 @@ describe('stop_device_log_cap plugin', () => {
         mockFileSystem,
       );
 
-      expect(result.content[0].text).toBe(
-        'Failed to stop device log capture session device-log-00008110-001A2C3D4E5F-io.sentry.MyApp: Device log capture session not found: device-log-00008110-001A2C3D4E5F-io.sentry.MyApp',
-      );
+      const text = allText(result);
+      expect(text).toContain('Failed to stop device log capture session');
+      expect(text).toContain('device-log-00008110-001A2C3D4E5F-io.sentry.MyApp');
+      expect(text).toContain('Device log capture session not found');
       expect(result.isError).toBe(true);
     });
 
@@ -118,15 +127,11 @@ describe('stop_device_log_cap plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: `✅ Device log capture session stopped successfully\n\nSession ID: ${testSessionId}\n\n--- Captured Logs ---\n${testLogContent}`,
-          },
-        ],
-      });
       expect(result.isError).toBeUndefined();
+      const text = allText(result);
+      expect(text).toContain(testSessionId);
+      expect(text).toContain(testLogContent);
+      expect(text).toContain('Log capture stopped');
       expect(testProcess.killCalls).toEqual(['SIGTERM']);
       expect(activeDeviceLogSessions.has(testSessionId)).toBe(false);
     });
@@ -163,14 +168,11 @@ describe('stop_device_log_cap plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: `✅ Device log capture session stopped successfully\n\nSession ID: ${testSessionId}\n\n--- Captured Logs ---\n${testLogContent}`,
-          },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = allText(result);
+      expect(text).toContain(testSessionId);
+      expect(text).toContain(testLogContent);
+      expect(text).toContain('Log capture stopped');
       expect(testProcess.killCalls).toEqual([]); // Should not kill already killed process
     });
 
@@ -204,15 +206,10 @@ describe('stop_device_log_cap plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: `Failed to stop device log capture session ${testSessionId}: Log file not found: ${testLogFilePath}`,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain(`Failed to stop device log capture session ${testSessionId}`);
+      expect(text).toContain('Log file not found');
       expect(activeDeviceLogSessions.has(testSessionId)).toBe(false); // Session still removed
     });
 
@@ -249,15 +246,10 @@ describe('stop_device_log_cap plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: `Failed to stop device log capture session ${testSessionId}: Read permission denied`,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain(`Failed to stop device log capture session ${testSessionId}`);
+      expect(text).toContain('Read permission denied');
     });
 
     it('should handle string error objects', async () => {
@@ -293,15 +285,10 @@ describe('stop_device_log_cap plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: `Failed to stop device log capture session ${testSessionId}: String error message`,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain(`Failed to stop device log capture session ${testSessionId}`);
+      expect(text).toContain('String error message');
     });
   });
 });

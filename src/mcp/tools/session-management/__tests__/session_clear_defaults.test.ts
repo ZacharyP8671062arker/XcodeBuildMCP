@@ -32,12 +32,19 @@ describe('session-clear-defaults tool', () => {
   });
 
   describe('Handler Behavior', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should clear specific keys when provided', async () => {
       const result = await sessionClearDefaultsLogic({
         keys: ['scheme', 'deviceId', 'derivedDataPath'],
       });
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toContain('Session defaults cleared');
+      expect(result.isError).toBeFalsy();
+      expect(textOf(result)).toContain('Session defaults cleared');
 
       const current = sessionStore.getAll();
       expect(current.scheme).toBeUndefined();
@@ -54,8 +61,8 @@ describe('session-clear-defaults tool', () => {
 
       const result = await sessionClearDefaultsLogic({ keys: ['env'] });
 
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toContain('Session defaults cleared');
+      expect(result.isError).toBeFalsy();
+      expect(textOf(result)).toContain('Session defaults cleared');
 
       const current = sessionStore.getAll();
       expect(current.env).toBeUndefined();
@@ -67,8 +74,8 @@ describe('session-clear-defaults tool', () => {
       sessionStore.setDefaults({ scheme: 'IOS' });
       sessionStore.setActiveProfile(null);
       const result = await sessionClearDefaultsLogic({ all: true });
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toBe('All session defaults cleared');
+      expect(result.isError).toBeFalsy();
+      expect(textOf(result)).toContain('All session defaults cleared');
 
       const current = sessionStore.getAll();
       expect(Object.keys(current).length).toBe(0);
@@ -84,7 +91,7 @@ describe('session-clear-defaults tool', () => {
       sessionStore.setActiveProfile('ios');
 
       const result = await sessionClearDefaultsLogic({});
-      expect(result.isError).toBe(false);
+      expect(result.isError).toBeFalsy();
 
       expect(sessionStore.getAll().scheme).toBe('Global');
       expect(sessionStore.listProfiles()).toEqual([]);
@@ -101,8 +108,8 @@ describe('session-clear-defaults tool', () => {
       sessionStore.setActiveProfile('watch');
 
       const result = await sessionClearDefaultsLogic({ profile: 'ios' });
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toContain('profile "ios"');
+      expect(result.isError).toBeFalsy();
+      expect(textOf(result)).toContain('profile "ios"');
 
       expect(sessionStore.listProfiles()).toEqual(['watch']);
       expect(sessionStore.getAll().scheme).toBe('Watch');
@@ -111,20 +118,20 @@ describe('session-clear-defaults tool', () => {
     it('should error when the specified profile does not exist', async () => {
       const result = await sessionClearDefaultsLogic({ profile: 'missing' });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('does not exist');
+      expect(textOf(result)).toContain('does not exist');
     });
 
     it('should reject all=true when combined with scoped arguments', async () => {
       const result = await sessionClearDefaultsLogic({ all: true, profile: 'ios' });
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('cannot be combined');
+      expect(textOf(result)).toContain('cannot be combined');
     });
 
     it('should validate keys enum', async () => {
       const result = (await handler({ keys: ['invalid' as any] })) as any;
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Parameter validation failed');
-      expect(result.content[0].text).toContain('keys');
+      expect(textOf(result)).toContain('Parameter validation failed');
+      expect(textOf(result)).toContain('keys');
     });
   });
 });

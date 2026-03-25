@@ -1,0 +1,14 @@
+🧪 Test
+
+  Scheme: CalculatorApp
+  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  Configuration: Debug
+  Platform: iOS Simulator
+  Simulator: iPhone 17
+
+Resolved to <N> test(s)
+
+✅ Test succeeded. (<TEST_COUNTS>, ⏱️ <DURATION>)
+
+Next steps:
+1. View test coverage: xcodebuildmcp coverage get-coverage-report --xcresult-path "XCRESULT_PATH"

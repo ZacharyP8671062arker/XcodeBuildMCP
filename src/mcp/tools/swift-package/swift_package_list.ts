@@ -1,14 +1,10 @@
-// Note: This tool shares the activeProcesses map with swift_package_run
-// Since both are in the same workflow directory, they can share state
-
-// Import the shared activeProcesses map from swift_package_run
-// This maintains the same behavior as the original implementation
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createTextContent } from '../../../types/common.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { getDefaultCommandExecutor } from '../../../utils/command.ts';
 import { activeProcesses } from './active-processes.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, table } from '../../../utils/tool-event-builders.ts';
 
 /**
  * Process list dependencies for dependency injection
@@ -52,37 +48,41 @@ export async function swift_package_listLogic(
 
   const processes = arrayFrom(processMap.entries());
 
+  const headerEvent = header('Swift Package List');
+
   if (processes.length === 0) {
-    return {
-      content: [
-        createTextContent('ℹ️ No Swift Package processes currently running.'),
-        createTextContent('💡 Use swift_package_run to start an executable.'),
-      ],
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('info', 'No Swift Package processes currently running.'),
+    ]);
   }
 
-  const content = [createTextContent(`📋 Active Swift Package processes (${processes.length}):`)];
-
-  for (const [pid, info] of processes) {
-    // Use logical OR instead of nullish coalescing to treat empty strings as falsy
+  const rows = processes.map(([pid, info]: [number, ListProcessInfo]) => {
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     const executableName = info.executableName || 'default';
     const runtime = Math.max(1, Math.round((dateNow() - info.startedAt.getTime()) / 1000));
     const packagePath = info.packagePath ?? 'unknown package';
-    content.push(
-      createTextContent(`  • PID ${pid}: ${executableName} (${packagePath}) - running ${runtime}s`),
-    );
-  }
+    return {
+      PID: String(pid),
+      Executable: executableName,
+      Package: packagePath,
+      Runtime: `${runtime}s`,
+    };
+  });
 
-  content.push(createTextContent('💡 Use swift_package_stop with a PID to terminate a process.'));
-
-  return { content };
+  return toolResponse([
+    headerEvent,
+    table(
+      ['PID', 'Executable', 'Package', 'Runtime'],
+      rows,
+      `Active Processes (${processes.length})`,
+    ),
+    statusLine('success', `${processes.length} process(es) running`),
+  ]);
 }
 
-// Define schema as ZodObject (empty for this tool)
 const swiftPackageListSchema = z.object({});
 
-// Use z.infer for type safety
 type SwiftPackageListParams = z.infer<typeof swiftPackageListSchema>;
 
 export const schema = swiftPackageListSchema.shape;

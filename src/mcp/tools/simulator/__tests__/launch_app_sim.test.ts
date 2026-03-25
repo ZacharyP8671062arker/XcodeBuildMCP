@@ -97,24 +97,20 @@ describe('launch_app_sim tool', () => {
         sequencedExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
+      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      expect(text).toContain('Launch App');
+      expect(text).toContain('App launched successfully');
+      expect(text).toContain('test-uuid-123');
+      expect(result.nextStepParams).toEqual({
+        open_sim: {},
+        start_sim_log_cap: [
+          { simulatorId: 'test-uuid-123', bundleId: 'io.sentry.testapp' },
           {
-            type: 'text',
-            text: 'App launched successfully in simulator test-uuid-123.',
+            simulatorId: 'test-uuid-123',
+            bundleId: 'io.sentry.testapp',
+            captureConsole: true,
           },
         ],
-        nextStepParams: {
-          open_sim: {},
-          start_sim_log_cap: [
-            { simulatorId: 'test-uuid-123', bundleId: 'io.sentry.testapp' },
-            {
-              simulatorId: 'test-uuid-123',
-              bundleId: 'io.sentry.testapp',
-              captureConsole: true,
-            },
-          ],
-        },
       });
     });
 
@@ -185,24 +181,20 @@ describe('launch_app_sim tool', () => {
         sequencedExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
+      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      expect(text).toContain('Launch App');
+      expect(text).toContain('App launched successfully');
+      expect(text).toContain('"iPhone 17" (resolved-uuid)');
+      expect(result.nextStepParams).toEqual({
+        open_sim: {},
+        start_sim_log_cap: [
+          { simulatorId: 'resolved-uuid', bundleId: 'io.sentry.testapp' },
           {
-            type: 'text',
-            text: 'App launched successfully in simulator "iPhone 17" (resolved-uuid).',
+            simulatorId: 'resolved-uuid',
+            bundleId: 'io.sentry.testapp',
+            captureConsole: true,
           },
         ],
-        nextStepParams: {
-          open_sim: {},
-          start_sim_log_cap: [
-            { simulatorId: 'resolved-uuid', bundleId: 'io.sentry.testapp' },
-            {
-              simulatorId: 'resolved-uuid',
-              bundleId: 'io.sentry.testapp',
-              captureConsole: true,
-            },
-          ],
-        },
       });
     });
 
@@ -232,15 +224,10 @@ describe('launch_app_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: `App is not installed on the simulator. Please use install_app_sim before launching.\n\nWorkflow: build → install → launch.`,
-          },
-        ],
-        isError: true,
-      });
+      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      expect(text).toContain('App is not installed on the simulator');
+      expect(text).toContain('install_app_sim');
+      expect(result.isError).toBe(true);
     });
 
     it('should return error when install check throws', async () => {
@@ -264,15 +251,10 @@ describe('launch_app_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: `App is not installed on the simulator (check failed). Please use install_app_sim before launching.\n\nWorkflow: build → install → launch.`,
-          },
-        ],
-        isError: true,
-      });
+      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      expect(text).toContain('App is not installed on the simulator (check failed)');
+      expect(text).toContain('install_app_sim');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle launch failure', async () => {
@@ -303,14 +285,10 @@ describe('launch_app_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Launch app in simulator operation failed: Launch failed',
-          },
-        ],
-      });
+      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      expect(text).toContain('Launch app in simulator operation failed');
+      expect(text).toContain('Launch failed');
+      expect(result.isError).toBe(true);
     });
 
     it('should pass env vars with SIMCTL_CHILD_ prefix to executor opts', async () => {

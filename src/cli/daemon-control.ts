@@ -111,25 +111,17 @@ export async function ensureDaemonRunning(opts: EnsureDaemonRunningOptions): Pro
   const client = new DaemonClient({ socketPath: opts.socketPath });
   const timeoutMs = opts.startupTimeoutMs ?? DEFAULT_DAEMON_STARTUP_TIMEOUT_MS;
 
-  // Check if already running
   const isRunning = await client.isRunning();
   if (isRunning) {
     return;
   }
 
-  // Start daemon in background
-  const startOptions: StartDaemonBackgroundOptions = {
+  startDaemonBackground({
     socketPath: opts.socketPath,
     workspaceRoot: opts.workspaceRoot,
-  };
+    env: opts.env,
+  });
 
-  if (opts.env) {
-    startOptions.env = { ...opts.env };
-  }
-
-  startDaemonBackground(startOptions);
-
-  // Wait for it to be ready
   await waitForDaemonReady({
     socketPath: opts.socketPath,
     timeoutMs,

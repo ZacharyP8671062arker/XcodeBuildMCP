@@ -68,7 +68,6 @@ describe('swift_package_clean plugin', () => {
 
   describe('Response Logic Testing', () => {
     it('should handle valid params without validation errors in logic function', async () => {
-      // Note: The logic function assumes valid params since createTypedTool handles validation
       const mockExecutor = createMockExecutor({
         success: true,
         output: 'Package cleaned successfully',
@@ -81,8 +80,9 @@ describe('swift_package_clean plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toBe('✅ Swift package cleaned successfully.');
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift package cleaned successfully');
     });
 
     it('should return successful clean response', async () => {
@@ -98,17 +98,11 @@ describe('swift_package_clean plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '✅ Swift package cleaned successfully.' },
-          {
-            type: 'text',
-            text: '💡 Build artifacts and derived data removed. Ready for fresh build.',
-          },
-          { type: 'text', text: 'Package cleaned successfully' },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift Package Clean');
+      expect(text).toContain('Swift package cleaned successfully');
+      expect(text).toContain('Package cleaned successfully');
     });
 
     it('should return successful clean response with no output', async () => {
@@ -124,17 +118,10 @@ describe('swift_package_clean plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '✅ Swift package cleaned successfully.' },
-          {
-            type: 'text',
-            text: '💡 Build artifacts and derived data removed. Ready for fresh build.',
-          },
-          { type: 'text', text: '(clean completed silently)' },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift Package Clean');
+      expect(text).toContain('Swift package cleaned successfully');
     });
 
     it('should return error response for clean failure', async () => {
@@ -150,15 +137,10 @@ describe('swift_package_clean plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Swift package clean failed\nDetails: Permission denied',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift package clean failed');
+      expect(text).toContain('Permission denied');
     });
 
     it('should handle spawn error', async () => {
@@ -173,15 +155,10 @@ describe('swift_package_clean plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Failed to execute swift package clean\nDetails: spawn ENOENT',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Failed to execute swift package clean');
+      expect(text).toContain('spawn ENOENT');
     });
   });
 });

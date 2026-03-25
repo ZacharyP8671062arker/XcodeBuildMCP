@@ -241,15 +241,11 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     const invoker = new DefaultToolInvoker(catalog);
     const response = await invoker.invoke('snapshot-ui', {}, { runtime: 'cli' });
 
-    expect(response.nextSteps).toEqual([
-      {
-        tool: 'screenshot',
-        label: 'Take screenshot',
-        params: { simulatorId: '123' },
-        workflow: 'ui-automation',
-        cliTool: 'screenshot',
-      },
-    ]);
+    expect(response.nextSteps).toBeUndefined();
+    const text = response.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
+    expect(text).toContain('Next steps:');
+    expect(text).toContain('Take screenshot');
+    expect(text).toContain('xcodebuildmcp ui-automation screenshot --simulator-id "123"');
   });
 
   it('injects manifest template next steps from dynamic nextStepParams when response omits nextSteps', async () => {
@@ -297,25 +293,13 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     const invoker = new DefaultToolInvoker(catalog);
     const response = await invoker.invoke('snapshot-ui', {}, { runtime: 'cli' });
 
-    expect(response.nextSteps).toEqual([
-      {
-        tool: 'snapshot_ui',
-        label: 'Refresh',
-        params: { simulatorId: '12345678-1234-4234-8234-123456789012' },
-        workflow: 'ui-automation',
-        cliTool: 'snapshot-ui',
-      },
-      {
-        label: 'Visually verify hierarchy output',
-      },
-      {
-        tool: 'tap',
-        label: 'Tap on element',
-        params: { simulatorId: '12345678-1234-4234-8234-123456789012', x: 0, y: 0 },
-        workflow: 'ui-automation',
-        cliTool: 'tap',
-      },
-    ]);
+    expect(response.nextSteps).toBeUndefined();
+    const text = response.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
+    expect(text).toContain('Refresh');
+    expect(text).toContain('snapshot-ui');
+    expect(text).toContain('Visually verify hierarchy output');
+    expect(text).toContain('Tap on element');
+    expect(text).toContain('tap');
   });
 
   it('prefers manifest templates over tool-provided next-step labels and tools', async () => {
@@ -363,16 +347,11 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     const invoker = new DefaultToolInvoker(catalog);
     const response = await invoker.invoke('start-simulator-log-capture', {}, { runtime: 'cli' });
 
-    expect(response.nextSteps).toEqual([
-      {
-        tool: 'stop_sim_log_cap',
-        label: 'Stop capture and retrieve logs',
-        params: { logSessionId: 'session-123' },
-        priority: 1,
-        workflow: 'logging',
-        cliTool: 'stop-simulator-log-capture',
-      },
-    ]);
+    expect(response.nextSteps).toBeUndefined();
+    const text = response.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
+    expect(text).toContain('Stop capture and retrieve logs');
+    expect(text).toContain('stop-simulator-log-capture');
+    expect(text).toContain('session-123');
   });
 
   it('preserves daemon-provided next-step params when nextStepParams are already consumed', async () => {
@@ -424,16 +403,11 @@ describe('DefaultToolInvoker next steps post-processing', () => {
       },
     );
 
-    expect(response.nextSteps).toEqual([
-      {
-        tool: 'stop_sim_log_cap',
-        label: 'Stop capture and retrieve logs',
-        params: { logSessionId: 'session-123' },
-        priority: 1,
-        workflow: 'logging',
-        cliTool: 'stop-simulator-log-capture',
-      },
-    ]);
+    expect(response.nextSteps).toBeUndefined();
+    const text = response.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
+    expect(text).toContain('Stop capture and retrieve logs');
+    expect(text).toContain('stop-simulator-log-capture');
+    expect(text).toContain('session-123');
   });
 
   it('overrides unresolved template placeholders with dynamic next-step params', async () => {
@@ -473,15 +447,11 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     const invoker = new DefaultToolInvoker(catalog);
     const response = await invoker.invoke('launch-app-sim', {}, { runtime: 'cli' });
 
-    expect(response.nextSteps).toEqual([
-      {
-        tool: 'boot_sim',
-        label: 'Boot simulator',
-        params: { simulatorId: 'ABC-123' },
-        workflow: 'simulator',
-        cliTool: 'boot-sim',
-      },
-    ]);
+    expect(response.nextSteps).toBeUndefined();
+    const text = response.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
+    expect(text).toContain('Boot simulator');
+    expect(text).toContain('boot-sim');
+    expect(text).toContain('ABC-123');
   });
 
   it('maps dynamic params to the correct template tool after catalog filtering', async () => {
@@ -525,16 +495,11 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     const invoker = new DefaultToolInvoker(catalog);
     const response = await invoker.invoke('start-simulator-log-capture', {}, { runtime: 'cli' });
 
-    expect(response.nextSteps).toEqual([
-      {
-        tool: 'stop_sim_log_cap',
-        label: 'Stop capture and retrieve logs',
-        params: { logSessionId: 'session-123' },
-        priority: 1,
-        workflow: 'logging',
-        cliTool: 'stop-simulator-log-capture',
-      },
-    ]);
+    expect(response.nextSteps).toBeUndefined();
+    const text = response.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
+    expect(text).toContain('Stop capture and retrieve logs');
+    expect(text).toContain('stop-simulator-log-capture');
+    expect(text).toContain('session-123');
   });
 
   it('suppresses manifest next steps for structured xcodebuild failures', async () => {
@@ -662,23 +627,11 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     const invoker = new DefaultToolInvoker(catalog);
     const response = await invoker.invoke('get-app-path', {}, { runtime: 'cli' });
 
-    expect(response.nextSteps).toEqual([
-      {
-        tool: 'get_app_bundle_id',
-        label: 'Get bundle ID',
-        params: {},
-        priority: 1,
-        workflow: 'project-discovery',
-        cliTool: 'get-app-bundle-id',
-      },
-      {
-        tool: 'boot_sim',
-        label: 'Boot simulator',
-        params: {},
-        priority: 2,
-        workflow: 'simulator',
-        cliTool: 'boot',
-      },
-    ]);
+    expect(response.nextSteps).toBeUndefined();
+    const text = response.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
+    expect(text).toContain('Get bundle ID');
+    expect(text).toContain('get-app-bundle-id');
+    expect(text).toContain('Boot simulator');
+    expect(text).toContain('boot');
   });
 });

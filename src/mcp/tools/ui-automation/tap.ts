@@ -1,16 +1,15 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
-import { createTextResponse, createErrorResponse } from '../../../utils/responses/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
 import {
-  createAxeNotAvailableResponse,
   getAxePath,
   getBundledAxeEnvironment,
+  AXE_NOT_AVAILABLE_MESSAGE,
 } from '../../../utils/axe-helpers.ts';
 import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import {
@@ -18,14 +17,14 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { getSnapshotUiWarning } from './shared/snapshot-ui-state.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 export interface AxeHelpers {
   getAxePath: () => string | null;
   getBundledAxeEnvironment: () => Record<string, string>;
-  createAxeNotAvailableResponse: () => ToolResponse;
 }
 
-// Define schema as ZodObject
 const baseTapSchema = z.object({
   simulatorId: z.uuid({ message: 'Invalid Simulator UUID format' }),
   x: z
@@ -104,7 +103,6 @@ const tapSchema = baseTapSchema.superRefine((values, ctx) => {
   }
 });
 
-// Use z.infer for type safety
 type TapParams = z.infer<typeof tapSchema>;
 
 const publicSchemaObject = z.strictObject(baseTapSchema.omit({ simulatorId: true } as const).shape);
@@ -117,19 +115,21 @@ export async function tapLogic(
   axeHelpers: AxeHelpers = {
     getAxePath,
     getBundledAxeEnvironment,
-    createAxeNotAvailableResponse,
   },
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
 ): Promise<ToolResponse> {
   const toolName = 'tap';
   const { simulatorId, x, y, id, label, preDelay, postDelay } = params;
 
+  const headerEvent = header('Tap', [{ label: 'Simulator', value: simulatorId }]);
+
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedResponse) return guard.blockedResponse;
+  if (guard.blockedMessage)
+    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
 
   let targetDescription = '';
   let actionDescription = '';
@@ -150,10 +150,10 @@ export async function tapLogic(
     actionDescription = `Tap on ${targetDescription}`;
     commandArgs.push('--label', label);
   } else {
-    return createErrorResponse(
-      'Parameter validation failed',
-      'Invalid parameters:\nroot: Missing tap target',
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine('error', 'Parameter validation failed: Missing tap target'),
+    ]);
   }
 
   if (preDelay !== undefined) {
@@ -170,33 +170,41 @@ export async function tapLogic(
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
     const coordinateWarning = usesCoordinates ? getSnapshotUiWarning(simulatorId) : null;
-    const message = `${actionDescription} simulated successfully.`;
-    const warnings = [guard.warningText, coordinateWarning].filter(Boolean).join('\n\n');
+    const warnings = [guard.warningText, coordinateWarning].filter(Boolean);
+    const events = [
+      headerEvent,
+      statusLine('success', `${actionDescription} simulated successfully.`),
+      ...warnings.map((w) => statusLine('warning' as const, w)),
+    ];
 
-    if (warnings) {
-      return createTextResponse(`${message}\n\n${warnings}`);
-    }
-
-    return createTextResponse(message);
+    return toolResponse(events);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `${LOG_PREFIX}/${toolName}: Failed - ${errorMessage}`);
     if (error instanceof DependencyError) {
-      return axeHelpers.createAxeNotAvailableResponse();
+      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
     } else if (error instanceof AxeError) {
-      return createErrorResponse(
-        `Failed to simulate ${actionDescription.toLowerCase()}: ${error.message}`,
-        error.axeOutput,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine(
+          'error',
+          `Failed to simulate ${actionDescription.toLowerCase()}: ${error.message}`,
+        ),
+        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+      ]);
     } else if (error instanceof SystemError) {
-      return createErrorResponse(
-        `System error executing axe: ${error.message}`,
-        error.originalError?.stack,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `System error executing axe: ${error.message}`),
+        ...(error.originalError?.stack
+          ? [section('Stack Trace', [error.originalError.stack])]
+          : []),
+      ]);
     }
-    return createErrorResponse(
-      `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `An unexpected error occurred: ${errorMessage}`),
+    ]);
   }
 }
 
@@ -211,7 +219,6 @@ export const handler = createSessionAwareTool<TapParams>({
     tapLogic(params, executor, {
       getAxePath,
       getBundledAxeEnvironment,
-      createAxeNotAvailableResponse,
     }),
   getExecutor: getDefaultCommandExecutor,
   requirements: [{ allOf: ['simulatorId'], message: 'simulatorId is required' }],
@@ -223,7 +230,7 @@ async function executeAxeCommand(
   simulatorId: string,
   commandName: string,
   executor: CommandExecutor = getDefaultCommandExecutor(),
-  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment, createAxeNotAvailableResponse },
+  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment },
 ): Promise<void> {
   // Get the appropriate axe binary path
   const axeBinary = axeHelpers.getAxePath();

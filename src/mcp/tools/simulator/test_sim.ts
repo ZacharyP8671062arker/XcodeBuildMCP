@@ -23,6 +23,8 @@ import {
 import { inferPlatform } from '../../../utils/infer-platform.ts';
 import { resolveTestPreflight } from '../../../utils/test-preflight.ts';
 import { resolveSimulatorIdOrName } from '../../../utils/simulator-resolver.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
   projectPath: z
@@ -118,10 +120,7 @@ export async function test_simLogic(
     params.simulatorName,
   );
   if (!simulatorResolution.success) {
-    return {
-      content: [{ type: 'text', text: simulatorResolution.error }],
-      isError: true,
-    };
+    return toolResponse([header('Test Simulator'), statusLine('error', simulatorResolution.error)]);
   }
 
   const destinationName = params.simulatorName ?? simulatorResolution.simulatorName;

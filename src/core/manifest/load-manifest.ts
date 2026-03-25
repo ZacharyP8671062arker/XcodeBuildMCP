@@ -15,14 +15,10 @@ import {
 } from './schema.ts';
 import { getManifestsDir, getPackageRoot } from '../resource-root.ts';
 
-// Re-export types for consumers
 export type { ResolvedManifest, ToolManifestEntry, WorkflowManifestEntry };
 import { isValidPredicate } from '../../visibility/predicate-registry.ts';
 export { getManifestsDir, getPackageRoot } from '../resource-root.ts';
 
-/**
- * Load all YAML files from a directory.
- */
 function loadYamlFiles(dir: string): unknown[] {
   if (!fs.existsSync(dir)) {
     return [];
@@ -47,9 +43,6 @@ function loadYamlFiles(dir: string): unknown[] {
   return results;
 }
 
-/**
- * Validation error for manifest loading.
- */
 export class ManifestValidationError extends Error {
   constructor(
     message: string,
@@ -72,7 +65,6 @@ export function loadManifest(): ResolvedManifest {
   const tools = new Map<string, ToolManifestEntry>();
   const workflows = new Map<string, WorkflowManifestEntry>();
 
-  // Load tools
   const toolFiles = loadYamlFiles(toolsDir);
   for (const raw of toolFiles) {
     const sourceFile = (raw as { _sourceFile?: string })._sourceFile;
@@ -86,12 +78,10 @@ export function loadManifest(): ResolvedManifest {
 
     const tool = result.data;
 
-    // Check for duplicate ID
     if (tools.has(tool.id)) {
       throw new ManifestValidationError(`Duplicate tool ID '${tool.id}'`, sourceFile);
     }
 
-    // Validate predicates
     for (const pred of tool.predicates) {
       if (!isValidPredicate(pred)) {
         throw new ManifestValidationError(
@@ -104,7 +94,6 @@ export function loadManifest(): ResolvedManifest {
     tools.set(tool.id, tool);
   }
 
-  // Load workflows
   const workflowFiles = loadYamlFiles(workflowsDir);
   for (const raw of workflowFiles) {
     const sourceFile = (raw as { _sourceFile?: string })._sourceFile;
@@ -118,12 +107,10 @@ export function loadManifest(): ResolvedManifest {
 
     const workflow = result.data;
 
-    // Check for duplicate ID
     if (workflows.has(workflow.id)) {
       throw new ManifestValidationError(`Duplicate workflow ID '${workflow.id}'`, sourceFile);
     }
 
-    // Validate predicates
     for (const pred of workflow.predicates) {
       if (!isValidPredicate(pred)) {
         throw new ManifestValidationError(
@@ -133,7 +120,6 @@ export function loadManifest(): ResolvedManifest {
       }
     }
 
-    // Validate tool references
     for (const toolId of workflow.tools) {
       if (!tools.has(toolId)) {
         throw new ManifestValidationError(
@@ -146,8 +132,7 @@ export function loadManifest(): ResolvedManifest {
     workflows.set(workflow.id, workflow);
   }
 
-  // Validate MCP name uniqueness
-  const mcpNames = new Map<string, string>(); // mcpName -> toolId
+  const mcpNames = new Map<string, string>();
   for (const [toolId, tool] of tools) {
     const existing = mcpNames.get(tool.names.mcp);
     if (existing) {
@@ -158,7 +143,6 @@ export function loadManifest(): ResolvedManifest {
     mcpNames.set(tool.names.mcp, toolId);
   }
 
-  // Validate next step template references
   for (const [toolId, tool] of tools.entries()) {
     const sourceFile = toolFiles.find((raw) => {
       const candidate = raw as { id?: string; _sourceFile?: string };
@@ -176,23 +160,6 @@ export function loadManifest(): ResolvedManifest {
   }
 
   return { tools, workflows };
-}
-
-/**
- * Validate that all tool modules exist on disk.
- * Call this at startup to fail fast on missing modules.
- */
-export function validateToolModules(manifest: ResolvedManifest): void {
-  const packageRoot = getPackageRoot();
-
-  for (const [toolId, tool] of manifest.tools) {
-    const modulePath = path.join(packageRoot, 'build', `${tool.module}.js`);
-    if (!fs.existsSync(modulePath)) {
-      throw new ManifestValidationError(
-        `Tool '${toolId}' references missing module: ${modulePath}`,
-      );
-    }
-  }
 }
 
 /**

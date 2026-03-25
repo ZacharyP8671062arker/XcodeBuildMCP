@@ -52,10 +52,6 @@ describe('record_sim_video logic - start behavior', () => {
     const axe = {
       areAxeToolsAvailable: () => true,
       isAxeAtLeastVersion: async () => true,
-      createAxeNotAvailableResponse: () => ({
-        content: [{ type: 'text' as const, text: 'AXe not available' }],
-        isError: true,
-      }),
     };
 
     const fs = createMockFileSystemExecutor();
@@ -73,13 +69,12 @@ describe('record_sim_video logic - start behavior', () => {
       fs,
     );
 
-    expect(res.isError).toBe(false);
+    expect(res.isError).not.toBe(true);
     const texts = (res.content ?? []).map((c: any) => c.text).join('\n');
 
-    expect(texts).toMatch(/30\s*fps/i);
+    expect(texts).toContain('30');
     expect(texts.toLowerCase()).toContain('outputfile is ignored');
 
-    // Check nextStepParams instead of embedded text
     expect(res.nextStepParams).toBeDefined();
     expect(res.nextStepParams?.record_sim_video).toBeDefined();
     expect(res.nextStepParams?.record_sim_video).toHaveProperty('stop', true);
@@ -106,10 +101,6 @@ describe('record_sim_video logic - end-to-end stop with rename', () => {
     const axe = {
       areAxeToolsAvailable: () => true,
       isAxeAtLeastVersion: async () => true,
-      createAxeNotAvailableResponse: () => ({
-        content: [{ type: 'text' as const, text: 'AXe not available' }],
-        isError: true,
-      }),
     };
 
     // Start (not strictly required for stop path, but included to mimic flow)
@@ -123,7 +114,7 @@ describe('record_sim_video logic - end-to-end stop with rename', () => {
       video,
       fs,
     );
-    expect(startRes.isError).toBe(false);
+    expect(startRes.isError).not.toBe(true);
 
     // Stop and rename
     const outputFile = '/var/videos/final.mp4';
@@ -139,12 +130,11 @@ describe('record_sim_video logic - end-to-end stop with rename', () => {
       fs,
     );
 
-    expect(stopRes.isError).toBe(false);
+    expect(stopRes.isError).not.toBe(true);
     const texts = (stopRes.content ?? []).map((c: any) => c.text).join('\n');
     expect(texts).toContain('Original file: /tmp/recorded.mp4');
     expect(texts).toContain(`Saved to: ${outputFile}`);
 
-    // _meta should include final saved path
     expect((stopRes as any)._meta?.outputFile).toBe(outputFile);
   });
 });
@@ -154,10 +144,6 @@ describe('record_sim_video logic - version gate', () => {
     const axe = {
       areAxeToolsAvailable: () => true,
       isAxeAtLeastVersion: async () => false,
-      createAxeNotAvailableResponse: () => ({
-        content: [{ type: 'text' as const, text: 'AXe not available' }],
-        isError: true,
-      }),
     };
 
     const video: any = {
@@ -184,7 +170,7 @@ describe('record_sim_video logic - version gate', () => {
     );
 
     expect(res.isError).toBe(true);
-    const text = (res.content?.[0] as any)?.text ?? '';
+    const text = (res.content ?? []).map((c: any) => c.text).join('\n');
     expect(text).toContain('AXe v1.1.0');
   });
 });

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createXcodebuildEventParser } from '../xcodebuild-event-parser.ts';
-import type { XcodebuildEvent } from '../../types/xcodebuild-events.ts';
+import type { PipelineEvent } from '../../types/pipeline-events.ts';
 
 function collectEvents(
   operation: 'BUILD' | 'TEST',
   lines: { source: 'stdout' | 'stderr'; text: string }[],
-): XcodebuildEvent[] {
-  const events: XcodebuildEvent[] = [];
+): PipelineEvent[] {
+  const events: PipelineEvent[] = [];
   const parser = createXcodebuildEventParser({
     operation,
     onEvent: (event) => events.push(event),
@@ -30,7 +30,7 @@ describe('xcodebuild-event-parser', () => {
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      type: 'status',
+      type: 'build-stage',
       operation: 'TEST',
       stage: 'RESOLVING_PACKAGES',
       message: 'Resolving packages',
@@ -44,7 +44,7 @@ describe('xcodebuild-event-parser', () => {
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      type: 'status',
+      type: 'build-stage',
       operation: 'BUILD',
       stage: 'COMPILING',
       message: 'Compiling',
@@ -58,7 +58,7 @@ describe('xcodebuild-event-parser', () => {
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      type: 'status',
+      type: 'build-stage',
       operation: 'BUILD',
       stage: 'LINKING',
       message: 'Linking',
@@ -70,7 +70,7 @@ describe('xcodebuild-event-parser', () => {
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
-      type: 'status',
+      type: 'build-stage',
       stage: 'RUN_TESTS',
     });
   });
@@ -129,10 +129,10 @@ describe('xcodebuild-event-parser', () => {
       },
     ]);
 
-    const errors = events.filter((e) => e.type === 'error');
+    const errors = events.filter((e) => e.type === 'compiler-error');
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatchObject({
-      type: 'error',
+      type: 'compiler-error',
       location: '/tmp/App.swift:8',
       message: "cannot convert value of type 'String' to specified type 'Int'",
     });
@@ -143,10 +143,10 @@ describe('xcodebuild-event-parser', () => {
       { source: 'stdout', text: 'error: emit-module command failed with exit code 1\n' },
     ]);
 
-    const errors = events.filter((e) => e.type === 'error');
+    const errors = events.filter((e) => e.type === 'compiler-error');
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatchObject({
-      type: 'error',
+      type: 'compiler-error',
       message: 'emit-module command failed with exit code 1',
     });
   });
@@ -161,10 +161,10 @@ describe('xcodebuild-event-parser', () => {
       { source: 'stderr', text: '\n' },
     ]);
 
-    const errors = events.filter((e) => e.type === 'error');
+    const errors = events.filter((e) => e.type === 'compiler-error');
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatchObject({
-      type: 'error',
+      type: 'compiler-error',
       message:
         'Unable to find a device matching the provided destination specifier:\n{ platform:iOS Simulator, name:iPhone 22, OS:latest }',
     });
@@ -175,10 +175,10 @@ describe('xcodebuild-event-parser', () => {
       { source: 'stdout', text: '/tmp/App.swift:10:5: warning: variable unused\n' },
     ]);
 
-    const warnings = events.filter((e) => e.type === 'warning');
+    const warnings = events.filter((e) => e.type === 'compiler-warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatchObject({
-      type: 'warning',
+      type: 'compiler-warning',
       location: '/tmp/App.swift:10',
       message: 'variable unused',
     });
@@ -189,16 +189,16 @@ describe('xcodebuild-event-parser', () => {
       { source: 'stdout', text: 'ld: warning: directory not found for option\n' },
     ]);
 
-    const warnings = events.filter((e) => e.type === 'warning');
+    const warnings = events.filter((e) => e.type === 'compiler-warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatchObject({
-      type: 'warning',
+      type: 'compiler-warning',
       message: 'directory not found for option',
     });
   });
 
   it('handles split chunks across buffer boundaries', () => {
-    const events: XcodebuildEvent[] = [];
+    const events: PipelineEvent[] = [];
     const parser = createXcodebuildEventParser({
       operation: 'TEST',
       onEvent: (event) => events.push(event),
@@ -209,7 +209,7 @@ describe('xcodebuild-event-parser', () => {
     parser.flush();
 
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ type: 'status', stage: 'RESOLVING_PACKAGES' });
+    expect(events[0]).toMatchObject({ type: 'build-stage', stage: 'RESOLVING_PACKAGES' });
   });
 
   it('processes full test lifecycle', () => {
@@ -229,7 +229,7 @@ describe('xcodebuild-event-parser', () => {
     ]);
 
     const types = events.map((e) => e.type);
-    expect(types).toContain('status');
+    expect(types).toContain('build-stage');
     expect(types).toContain('test-progress');
     expect(types).toContain('test-failure');
   });
@@ -241,7 +241,7 @@ describe('xcodebuild-event-parser', () => {
     ]);
 
     // Test Suite 'All tests' started triggers RUN_TESTS status; 'passed' is noise
-    const statusEvents = events.filter((e) => e.type === 'status');
+    const statusEvents = events.filter((e) => e.type === 'build-stage');
     expect(statusEvents.length).toBeLessThanOrEqual(1);
   });
 });

@@ -79,14 +79,11 @@ describe('stop_app_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'App io.sentry.App stopped successfully in simulator test-uuid',
-          },
-        ],
-      });
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Stop App');
+      expect(text).toContain('io.sentry.App');
+      expect(text).toContain('stopped successfully');
+      expect(text).toContain('test-uuid');
     });
 
     it('should display friendly name when simulatorName is provided alongside resolved simulatorId', async () => {
@@ -101,14 +98,11 @@ describe('stop_app_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'App io.sentry.App stopped successfully in simulator "iPhone 17" (resolved-uuid)',
-          },
-        ],
-      });
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Stop App');
+      expect(text).toContain('io.sentry.App');
+      expect(text).toContain('stopped successfully');
+      expect(text).toContain('"iPhone 17" (resolved-uuid)');
     });
 
     it('should surface terminate failures', async () => {
@@ -126,15 +120,10 @@ describe('stop_app_sim tool', () => {
         terminateExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Stop app in simulator operation failed: Simulator not found',
-          },
-        ],
-        isError: true,
-      });
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Stop app in simulator operation failed');
+      expect(text).toContain('Simulator not found');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle unexpected exceptions', async () => {
@@ -150,15 +139,10 @@ describe('stop_app_sim tool', () => {
         throwingExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Stop app in simulator operation failed: Unexpected error',
-          },
-        ],
-        isError: true,
-      });
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Stop app in simulator operation failed');
+      expect(text).toContain('Unexpected error');
+      expect(result.isError).toBe(true);
     });
 
     it('should call correct terminate command', async () => {

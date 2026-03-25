@@ -12,10 +12,18 @@ import {
   createCommandMatchingMockExecutor,
   mockProcess,
 } from '../../../../test-utils/mock-executors.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { SystemError } from '../../../../utils/responses/index.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, screenshotLogic } from '../../ui-automation/screenshot.ts';
+
+function allText(result: ToolResponse): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
 
 describe('screenshot plugin', () => {
   beforeEach(() => {
@@ -313,15 +321,15 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'image',
-            data: mockImageBuffer.toString('base64'),
-            mimeType: 'image/jpeg', // Now JPEG after optimization
-          },
-        ],
-        isError: false,
+      expect(result.isError).toBeUndefined();
+      const text = allText(result);
+      expect(text).toContain('Screenshot');
+      expect(text).toContain('Screenshot captured.');
+      const imageContent = result.content.find((c) => c.type === 'image');
+      expect(imageContent).toEqual({
+        type: 'image',
+        data: mockImageBuffer.toString('base64'),
+        mimeType: 'image/jpeg',
       });
     });
 
@@ -361,15 +369,11 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: System error executing screenshot: Failed to capture screenshot: Command failed',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain(
+        'System error executing screenshot: Failed to capture screenshot: Command failed',
+      );
     });
 
     it('should handle file read failure', async () => {
@@ -404,15 +408,11 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Screenshot captured but failed to process image file: File not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain(
+        'Screenshot captured but failed to process image file: File not found',
+      );
     });
 
     it('should call correct command with direct execution', async () => {
@@ -534,15 +534,9 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: System error executing screenshot: System error occurred',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain('System error executing screenshot: System error occurred');
     });
 
     it('should handle unexpected Error objects', async () => {
@@ -567,15 +561,9 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: An unexpected error occurred: Unexpected error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain('An unexpected error occurred: Unexpected error');
     });
 
     it('should handle unexpected string errors', async () => {
@@ -600,15 +588,9 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: An unexpected error occurred: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain('An unexpected error occurred: String error');
     });
 
     it('should handle file read error with fileSystemExecutor', async () => {
@@ -643,15 +625,11 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Screenshot captured but failed to process image file: File system error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain(
+        'Screenshot captured but failed to process image file: File system error',
+      );
     });
   });
 });

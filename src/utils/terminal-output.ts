@@ -19,22 +19,6 @@ function colorYellow(text: string): string {
   return `${ANSI_YELLOW}${text}${ANSI_RESET}`;
 }
 
-function colorizeWarningTriangleLine(line: string): string {
-  return line.replace(/^(\s*)(⚠ )/u, (_match, indent: string, prefix: string) => {
-    return `${indent}${colorYellow(prefix)}`;
-  });
-}
-
-function colorizeSummaryCrossLine(line: string): string {
-  return line.replace(/^(\s*)(✗ )/u, (_match, indent: string, prefix: string) => {
-    return `${indent}${colorRed(prefix)}`;
-  });
-}
-
-function colorizeFailureIconLine(line: string): string {
-  return line.replace(/^(❌ )/u, (_match, prefix: string) => colorRed(prefix));
-}
-
 export function formatCliTextLine(line: string): string {
   if (!shouldUseCliColor()) {
     return line;
@@ -45,15 +29,21 @@ export function formatCliTextLine(line: string): string {
   }
 
   if (/^\s*⚠ /u.test(line)) {
-    return colorizeWarningTriangleLine(line);
+    return line.replace(
+      /^(\s*)(⚠ )/u,
+      (_m, indent: string, prefix: string) => `${indent}${colorYellow(prefix)}`,
+    );
   }
 
   if (/^\s*✗ /u.test(line)) {
-    return colorizeSummaryCrossLine(line);
+    return line.replace(
+      /^(\s*)(✗ )/u,
+      (_m, indent: string, prefix: string) => `${indent}${colorRed(prefix)}`,
+    );
   }
 
   if (/^❌ /u.test(line)) {
-    return colorizeFailureIconLine(line);
+    return line.replace(/^(❌ )/u, (_m, prefix: string) => colorRed(prefix));
   }
 
   return line;

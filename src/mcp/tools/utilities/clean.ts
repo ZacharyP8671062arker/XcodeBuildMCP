@@ -1,10 +1,3 @@
-/**
- * Utilities Plugin: Clean (Unified)
- *
- * Cleans build products for either a project or workspace using xcodebuild.
- * Accepts mutually exclusive `projectPath` or `workspacePath`.
- */
-
 import * as z from 'zod';
 import {
   createSessionAwareTool,
@@ -15,13 +8,13 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
 import type { ToolResponse, SharedBuildParams } from '../../../types/common.ts';
 import { XcodePlatform } from '../../../types/common.ts';
-import { createErrorResponse } from '../../../utils/responses/index.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 
-// Unified schema: XOR between projectPath and workspacePath, sharing common options
 const baseOptions = {
   scheme: z.string().optional().describe('Optional: The scheme to clean'),
   configuration: z
@@ -73,19 +66,15 @@ export async function cleanLogic(
   params: CleanParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
-  // Extra safety: ensure workspace path has a scheme (xcodebuild requires it)
   if (params.workspacePath && !params.scheme) {
-    return createErrorResponse(
-      'Parameter validation failed',
-      'Invalid parameters:\nscheme: scheme is required when workspacePath is provided.',
-    );
+    return toolResponse([
+      header('Clean'),
+      statusLine('error', 'scheme is required when workspacePath is provided.'),
+    ]);
   }
 
-  // Use provided platform or default to iOS
   const targetPlatform = params.platform ?? 'iOS';
 
-  // Map human-friendly platform names to XcodePlatform enum values
-  // This is safer than direct key lookup and handles the space-containing simulator names
   const platformMap = {
     macOS: XcodePlatform.macOS,
     iOS: XcodePlatform.iOS,
@@ -100,10 +89,10 @@ export async function cleanLogic(
 
   const platformEnum = platformMap[targetPlatform];
   if (!platformEnum) {
-    return createErrorResponse(
-      'Parameter validation failed',
-      `Invalid parameters:\nplatform: unsupported value "${targetPlatform}".`,
-    );
+    return toolResponse([
+      header('Clean'),
+      statusLine('error', `Unsupported platform: "${targetPlatform}".`),
+    ]);
   }
 
   const hasProjectPath = typeof params.projectPath === 'string';
@@ -111,17 +100,12 @@ export async function cleanLogic(
     ...(hasProjectPath
       ? { projectPath: params.projectPath as string }
       : { workspacePath: params.workspacePath as string }),
-    // scheme may be omitted for project; when omitted we do not pass -scheme
-    // Provide empty string to satisfy type, executeXcodeBuildCommand only emits -scheme when non-empty
     scheme: params.scheme ?? '',
     configuration: params.configuration ?? 'Debug',
     derivedDataPath: params.derivedDataPath,
     extraArgs: params.extraArgs,
   };
 
-  // For clean operations, simulator platforms should be mapped to their device equivalents
-  // since clean works at the build product level, not runtime level, and build products
-  // are shared between device and simulator platforms
   const cleanPlatformMap: Partial<Record<XcodePlatform, XcodePlatform>> = {
     [XcodePlatform.iOSSimulator]: XcodePlatform.iOS,
     [XcodePlatform.watchOSSimulator]: XcodePlatform.watchOS,

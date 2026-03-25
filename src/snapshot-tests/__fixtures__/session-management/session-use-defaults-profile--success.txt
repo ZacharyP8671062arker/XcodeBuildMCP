@@ -1,0 +1,7 @@
+
+⚙️ Use Defaults Profile
+
+  Active Profile: global
+  Known Profiles: (none)
+
+✅ Active profile: global

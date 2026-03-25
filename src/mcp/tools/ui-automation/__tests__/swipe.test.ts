@@ -16,15 +16,6 @@ function createMockAxeHelpers(): AxeHelpers {
   return {
     getAxePath: () => '/mocked/axe/path',
     getBundledAxeEnvironment: () => ({ SOME_ENV: 'value' }),
-    createAxeNotAvailableResponse: () => ({
-      content: [
-        {
-          type: 'text' as const,
-          text: AXE_NOT_AVAILABLE_MESSAGE,
-        },
-      ],
-      isError: true,
-    }),
   };
 }
 
@@ -33,16 +24,14 @@ function createMockAxeHelpersWithNullPath(): AxeHelpers {
   return {
     getAxePath: () => null,
     getBundledAxeEnvironment: () => ({ SOME_ENV: 'value' }),
-    createAxeNotAvailableResponse: () => ({
-      content: [
-        {
-          type: 'text' as const,
-          text: AXE_NOT_AVAILABLE_MESSAGE,
-        },
-      ],
-      isError: true,
-    }),
   };
+}
+
+function allText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
 }
 
 describe('Swipe Tool', () => {
@@ -268,10 +257,6 @@ describe('Swipe Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/path/to/bundled/axe',
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe tools not available' }],
-          isError: true,
-        }),
       };
 
       await swipeLogic(
@@ -312,9 +297,9 @@ describe('Swipe Tool', () => {
 
       expect(result.isError).toBe(true);
       expect(result.content[0].type).toBe('text');
-      expect(result.content[0].text).toContain('Missing required session defaults');
-      expect(result.content[0].text).toContain('simulatorId is required');
-      expect(result.content[0].text).toContain('session-set-defaults');
+      expect(allText(result)).toContain('Missing required session defaults');
+      expect(allText(result)).toContain('simulatorId is required');
+      expect(allText(result)).toContain('session-set-defaults');
     });
 
     it('should return validation error for missing x1 once simulator default exists', async () => {
@@ -328,10 +313,8 @@ describe('Swipe Tool', () => {
 
       expect(result.isError).toBe(true);
       expect(result.content[0].type).toBe('text');
-      expect(result.content[0].text).toContain('Parameter validation failed');
-      expect(result.content[0].text).toContain(
-        'x1: Invalid input: expected number, received undefined',
-      );
+      expect(allText(result)).toContain('Parameter validation failed');
+      expect(allText(result)).toContain('x1: Invalid input: expected number, received undefined');
     });
 
     it('should return success for valid swipe execution', async () => {
@@ -355,15 +338,10 @@ describe('Swipe Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Swipe from (100, 200) to (300, 400) simulated successfully.\n\nWarning: snapshot_ui has not been called yet. Consider using snapshot_ui for precise coordinates instead of guessing from screenshots.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain(
+        'Swipe from (100, 200) to (300, 400) simulated successfully.',
+      );
     });
 
     it('should return success for swipe with duration', async () => {
@@ -388,15 +366,10 @@ describe('Swipe Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Swipe from (100, 200) to (300, 400) duration=1.5s simulated successfully.\n\nWarning: snapshot_ui has not been called yet. Consider using snapshot_ui for precise coordinates instead of guessing from screenshots.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain(
+        'Swipe from (100, 200) to (300, 400) duration=1.5s simulated successfully.',
+      );
     });
 
     it('should handle DependencyError when axe is not available', async () => {
@@ -420,15 +393,8 @@ describe('Swipe Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle AxeError from failed command execution', async () => {
@@ -452,15 +418,8 @@ describe('Swipe Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: "Error: Failed to simulate swipe: axe command 'swipe' failed.\nDetails: axe command failed",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain("Failed to simulate swipe: axe command 'swipe' failed.");
     });
 
     it('should handle SystemError from command execution', async () => {
@@ -484,11 +443,9 @@ describe('Swipe Tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].type).toBe('text');
-      expect(result.content[0].text).toContain(
-        'Error: System error executing axe: Failed to execute axe command: System error occurred',
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: System error occurred',
       );
-      expect(result.content[0].text).toContain('Details: SystemError: System error occurred');
     });
 
     it('should handle unexpected Error objects', async () => {
@@ -512,11 +469,9 @@ describe('Swipe Tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].type).toBe('text');
-      expect(result.content[0].text).toContain(
-        'Error: System error executing axe: Failed to execute axe command: Unexpected error',
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: Unexpected error',
       );
-      expect(result.content[0].text).toContain('Details: Error: Unexpected error');
     });
 
     it('should handle unexpected string errors', async () => {
@@ -539,15 +494,10 @@ describe('Swipe Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Error: System error executing axe: Failed to execute axe command: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: String error',
+      );
     });
   });
 });

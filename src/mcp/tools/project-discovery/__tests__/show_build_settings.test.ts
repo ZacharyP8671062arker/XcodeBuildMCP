@@ -3,9 +3,15 @@ import * as z from 'zod';
 import { createMockExecutor, type CommandExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, showBuildSettingsLogic } from '../show_build_settings.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { formatToolPreflight } from '../../../../utils/build-preflight.ts';
 
 describe('show_build_settings plugin', () => {
+  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+    return result.content
+      .filter((i) => i.type === 'text')
+      .map((i) => i.text)
+      .join('\n');
+  }
+
   beforeEach(() => {
     sessionStore.clear();
   });
@@ -36,9 +42,10 @@ describe('show_build_settings plugin', () => {
         { projectPath: '/valid/path.xcodeproj', scheme: 'MyScheme' },
         mockExecutor,
       );
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toContain('Show Build Settings');
-      expect(result.content[0].text).toContain('Scheme: MyScheme');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Show Build Settings');
+      expect(text).toContain('Scheme: MyScheme');
     });
 
     it('should test Zod validation through handler', async () => {
@@ -100,17 +107,13 @@ Build settings for action build and target MyApp:
         false,
       ]);
 
-      const expectedPreflight = formatToolPreflight({
-        operation: 'Show Build Settings',
-        scheme: 'MyScheme',
-        projectPath: '/path/to/MyProject.xcodeproj',
-      });
-
-      expect(result.isError).toBe(false);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain(expectedPreflight);
-      expect(result.content[0].text).toContain('Build settings for action build and target MyApp:');
-      expect(result.content[0].text).toContain('PRODUCT_NAME = MyApp');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Show Build Settings');
+      expect(text).toContain('Scheme: MyScheme');
+      expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
+      expect(text).toContain('Build settings for action build and target MyApp:');
+      expect(text).toContain('PRODUCT_NAME = MyApp');
       expect(result.nextStepParams).toEqual({
         build_macos: { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyScheme' },
         build_sim: {
@@ -131,12 +134,6 @@ Build settings for action build and target MyApp:
         process: { pid: 12345 },
       });
 
-      const expectedPreflight = formatToolPreflight({
-        operation: 'Show Build Settings',
-        scheme: 'InvalidScheme',
-        projectPath: '/path/to/MyProject.xcodeproj',
-      });
-
       const result = await showBuildSettingsLogic(
         {
           projectPath: '/path/to/MyProject.xcodeproj',
@@ -146,26 +143,18 @@ Build settings for action build and target MyApp:
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain(expectedPreflight);
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain(
+      const text = textOf(result);
+      expect(text).toContain('Show Build Settings');
+      expect(text).toContain(
         'The workspace named "App" does not contain a scheme named "InvalidScheme".',
       );
-      expect(result.content[0].text).toContain('Query failed.');
-      expect(result).not.toHaveProperty('nextStepParams');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should handle Error objects in catch blocks', async () => {
       const mockExecutor = async () => {
         throw new Error('Command execution failed');
       };
-
-      const expectedPreflight = formatToolPreflight({
-        operation: 'Show Build Settings',
-        scheme: 'MyScheme',
-        projectPath: '/path/to/MyProject.xcodeproj',
-      });
 
       const result = await showBuildSettingsLogic(
         {
@@ -176,12 +165,10 @@ Build settings for action build and target MyApp:
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain(expectedPreflight);
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('Command execution failed');
-      expect(result.content[0].text).toContain('Query failed.');
-      expect(result).not.toHaveProperty('nextStepParams');
+      const text = textOf(result);
+      expect(text).toContain('Show Build Settings');
+      expect(text).toContain('Command execution failed');
+      expect(result.nextStepParams).toBeUndefined();
     });
   });
 
@@ -218,9 +205,10 @@ Build settings for action build and target MyApp:
         mockExecutor,
       );
 
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toContain('Show Build Settings');
-      expect(result.content[0].text).toContain('Scheme: MyScheme');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Show Build Settings');
+      expect(text).toContain('Scheme: MyScheme');
     });
 
     it('should work with workspacePath only', async () => {
@@ -234,9 +222,10 @@ Build settings for action build and target MyApp:
         mockExecutor,
       );
 
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toContain('Show Build Settings');
-      expect(result.content[0].text).toContain('Workspace:');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Show Build Settings');
+      expect(text).toContain('Workspace:');
     });
   });
 

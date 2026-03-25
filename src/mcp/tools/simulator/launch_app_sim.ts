@@ -8,6 +8,8 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { normalizeSimctlChildEnv } from '../../../utils/environment.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
   simulatorId: z
@@ -32,7 +34,6 @@ const baseSchemaObject = z.object({
     ),
 });
 
-// Internal schema requires simulatorId (factory resolves simulatorName → simulatorId)
 const internalSchemaObject = z.object({
   simulatorId: z.string(),
   simulatorName: z.string().optional(),
@@ -59,6 +60,11 @@ export async function launch_app_simLogic(
 
   log('info', `Starting xcrun simctl launch request for simulator ${simulatorId}`);
 
+  const headerEvent = header('Launch App', [
+    { label: 'Simulator', value: simulatorDisplayName },
+    { label: 'Bundle ID', value: params.bundleId },
+  ]);
+
   try {
     const getAppContainerCmd = [
       'xcrun',
@@ -68,38 +74,29 @@ export async function launch_app_simLogic(
       params.bundleId,
       'app',
     ];
-    const getAppContainerResult = await executor(
-      getAppContainerCmd,
-      'Check App Installed',
-      false,
-      undefined,
-    );
+    const getAppContainerResult = await executor(getAppContainerCmd, 'Check App Installed', false);
     if (!getAppContainerResult.success) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `App is not installed on the simulator. Please use install_app_sim before launching.\n\nWorkflow: build → install → launch.`,
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        headerEvent,
+        statusLine(
+          'error',
+          'App is not installed on the simulator. Please use install_app_sim before launching. Workflow: build -> install -> launch.',
+        ),
+      ]);
     }
   } catch {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `App is not installed on the simulator (check failed). Please use install_app_sim before launching.\n\nWorkflow: build → install → launch.`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        'App is not installed on the simulator (check failed). Please use install_app_sim before launching. Workflow: build -> install -> launch.',
+      ),
+    ]);
   }
 
   try {
     const command = ['xcrun', 'simctl', 'launch', simulatorId, params.bundleId];
-    if (params.args && params.args.length > 0) {
+    if (params.args?.length) {
       command.push(...params.args);
     }
 
@@ -107,42 +104,34 @@ export async function launch_app_simLogic(
     const result = await executor(command, 'Launch App in Simulator', false, execOpts);
 
     if (!result.success) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Launch app in simulator operation failed: ${result.error}`,
-          },
-        ],
-      };
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Launch app in simulator operation failed: ${result.error}`),
+      ]);
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `App launched successfully in simulator ${simulatorDisplayName}.`,
-        },
+    return toolResponse(
+      [
+        headerEvent,
+        statusLine('success', `App launched successfully in simulator ${simulatorDisplayName}`),
       ],
-      nextStepParams: {
-        open_sim: {},
-        start_sim_log_cap: [
-          { simulatorId, bundleId: params.bundleId },
-          { simulatorId, bundleId: params.bundleId, captureConsole: true },
-        ],
+      {
+        nextStepParams: {
+          open_sim: {},
+          start_sim_log_cap: [
+            { simulatorId, bundleId: params.bundleId },
+            { simulatorId, bundleId: params.bundleId, captureConsole: true },
+          ],
+        },
       },
-    };
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during launch app in simulator operation: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Launch app in simulator operation failed: ${errorMessage}`,
-        },
-      ],
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Launch app in simulator operation failed: ${errorMessage}`),
+    ]);
   }
 }
 

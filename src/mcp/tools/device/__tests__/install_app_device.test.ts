@@ -161,6 +161,13 @@ describe('install_app_device plugin', () => {
   });
 
   describe('Success Path Tests', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return successful installation response', async () => {
       const mockExecutor = createMockExecutor({
         success: true,
@@ -175,14 +182,12 @@ describe('install_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App installed successfully on device test-device-123\n\nApp installation successful',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Install App');
+      expect(text).toContain('test-device-123');
+      expect(text).toContain('/path/to/test.app');
+      expect(text).toContain('App installed successfully');
     });
 
     it('should return successful installation with detailed output', async () => {
@@ -200,14 +205,10 @@ describe('install_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App installed successfully on device device-456\n\nInstalling app...\nApp bundle: /path/to/test.app\nInstallation completed successfully',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Install App');
+      expect(text).toContain('App installed successfully');
     });
 
     it('should return successful installation with empty output', async () => {
@@ -224,18 +225,21 @@ describe('install_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ App installed successfully on device empty-output-device\n\n',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Install App');
+      expect(text).toContain('App installed successfully');
     });
   });
 
   describe('Error Handling', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return installation failure response', async () => {
       const mockExecutor = createMockExecutor({
         success: false,
@@ -250,15 +254,9 @@ describe('install_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to install app: Installation failed: App not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to install app: Installation failed: App not found');
     });
 
     it('should return exception handling response', async () => {
@@ -272,15 +270,9 @@ describe('install_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to install app on device: Network error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to install app on device: Network error');
     });
 
     it('should return string error handling response', async () => {
@@ -294,15 +286,9 @@ describe('install_app_device plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to install app on device: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to install app on device: String error');
     });
   });
 });

@@ -7,7 +7,6 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
-import { createTextResponse, createErrorResponse } from '../../../utils/responses/index.ts';
 import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -15,17 +14,18 @@ import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
 import {
-  createAxeNotAvailableResponse,
   getAxePath,
   getBundledAxeEnvironment,
+  AXE_NOT_AVAILABLE_MESSAGE,
 } from '../../../utils/axe-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { getSnapshotUiWarning } from './shared/snapshot-ui-state.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const swipeSchema = z.object({
   simulatorId: z.uuid({ message: 'Invalid Simulator UUID format' }),
   x1: z.number().int({ message: 'Start X coordinate' }),
@@ -50,7 +50,6 @@ const swipeSchema = z.object({
     .describe('seconds'),
 });
 
-// Use z.infer for type safety
 export type SwipeParams = z.infer<typeof swipeSchema>;
 
 const publicSchemaObject = z.strictObject(swipeSchema.omit({ simulatorId: true } as const).shape);
@@ -58,7 +57,6 @@ const publicSchemaObject = z.strictObject(swipeSchema.omit({ simulatorId: true }
 export interface AxeHelpers {
   getAxePath: () => string | null;
   getBundledAxeEnvironment: () => Record<string, string>;
-  createAxeNotAvailableResponse: () => ToolResponse;
 }
 
 const LOG_PREFIX = '[AXe]';
@@ -72,19 +70,21 @@ export async function swipeLogic(
   axeHelpers: AxeHelpers = {
     getAxePath,
     getBundledAxeEnvironment,
-    createAxeNotAvailableResponse,
   },
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
 ): Promise<ToolResponse> {
   const toolName = 'swipe';
 
   const { simulatorId, x1, y1, x2, y2, duration, delta, preDelay, postDelay } = params;
+  const headerEvent = header('Swipe', [{ label: 'Simulator', value: simulatorId }]);
+
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedResponse) return guard.blockedResponse;
+  if (guard.blockedMessage)
+    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
 
   const commandArgs = [
     'swipe',
@@ -121,29 +121,43 @@ export async function swipeLogic(
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
     const coordinateWarning = getSnapshotUiWarning(simulatorId);
-    const message = `Swipe from (${x1}, ${y1}) to (${x2}, ${y2})${optionsText} simulated successfully.`;
-    const warnings = [guard.warningText, coordinateWarning].filter(Boolean).join('\n\n');
+    const warnings = [guard.warningText, coordinateWarning].filter(Boolean);
+    const events = [
+      headerEvent,
+      statusLine(
+        'success',
+        `Swipe from (${x1}, ${y1}) to (${x2}, ${y2})${optionsText} simulated successfully.`,
+      ),
+      ...warnings.map((w) => statusLine('warning' as const, w)),
+    ];
 
-    if (warnings) {
-      return createTextResponse(`${message}\n\n${warnings}`);
-    }
-
-    return createTextResponse(message);
+    return toolResponse(events);
   } catch (error) {
     log('error', `${LOG_PREFIX}/${toolName}: Failed - ${error}`);
     if (error instanceof DependencyError) {
-      return axeHelpers.createAxeNotAvailableResponse();
+      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
     } else if (error instanceof AxeError) {
-      return createErrorResponse(`Failed to simulate swipe: ${error.message}`, error.axeOutput);
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to simulate swipe: ${error.message}`),
+        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+      ]);
     } else if (error instanceof SystemError) {
-      return createErrorResponse(
-        `System error executing axe: ${error.message}`,
-        error.originalError?.stack,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `System error executing axe: ${error.message}`),
+        ...(error.originalError?.stack
+          ? [section('Stack Trace', [error.originalError.stack])]
+          : []),
+      ]);
     }
-    return createErrorResponse(
-      `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    ]);
   }
 }
 
@@ -158,7 +172,6 @@ export const handler = createSessionAwareTool<SwipeParams>({
     swipeLogic(params, executor, {
       getAxePath,
       getBundledAxeEnvironment,
-      createAxeNotAvailableResponse,
     }),
   getExecutor: getDefaultCommandExecutor,
   requirements: [{ allOf: ['simulatorId'], message: 'simulatorId is required' }],
@@ -170,7 +183,7 @@ async function executeAxeCommand(
   simulatorId: string,
   commandName: string,
   executor: CommandExecutor = getDefaultCommandExecutor(),
-  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment, createAxeNotAvailableResponse },
+  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment },
 ): Promise<void> {
   // Get the appropriate axe binary path
   const axeBinary = axeHelpers.getAxePath();

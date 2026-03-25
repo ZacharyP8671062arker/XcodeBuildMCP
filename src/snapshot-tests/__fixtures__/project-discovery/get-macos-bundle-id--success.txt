@@ -1,0 +1,8 @@
+
+🔍 Get macOS Bundle ID
+
+  App: <TMPDIR>/BundleTest.app
+
+❌ Could not extract bundle ID from Info.plist: Print: Entry, ":CFBundleIdentifier", Does Not Exist
+
+ℹ️ Make sure the path points to a valid macOS app bundle (.app directory).

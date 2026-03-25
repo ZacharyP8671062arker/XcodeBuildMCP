@@ -1,0 +1,13 @@
+🧪 Test
+
+  Scheme: MCPTest
+  Project: example_projects/macOS/MCPTest.xcodeproj
+  Configuration: Debug
+  Platform: macOS
+
+Resolved to <N> test(s)
+
+Failures (1):
+  ✗ MCPTestTests.testIntentionalFailure — Expectation failed
+
+❌ Test failed. (<TEST_COUNTS>, ⏱️ <DURATION>)

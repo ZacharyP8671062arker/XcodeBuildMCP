@@ -13,6 +13,8 @@ import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/command.ts';
 import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from '../../../utils/command.ts';
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 // Common base schema for both iOS and macOS
 const BaseScaffoldSchema = z.object({
@@ -30,7 +32,6 @@ const ScaffoldmacOSProjectSchema = BaseScaffoldSchema.extend({
   deploymentTarget: z.string().optional(),
 });
 
-// Use z.infer for type safety
 type ScaffoldMacOSProjectParams = z.infer<typeof ScaffoldmacOSProjectSchema>;
 
 /**
@@ -335,53 +336,42 @@ export async function scaffold_macos_projectLogic(
     const generatedProjectName = params.customizeNames === false ? 'MyProject' : params.projectName;
     const workspacePath = `${projectPath}/${generatedProjectName}.xcworkspace`;
 
-    const response = {
-      success: true,
-      projectPath,
-      platform: 'macOS',
-      message: `Successfully scaffolded macOS project "${params.projectName}" in ${projectPath}`,
-    };
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response, null, 2),
-        },
+    return toolResponse(
+      [
+        header('Scaffold macOS Project', [
+          { label: 'Name', value: params.projectName },
+          { label: 'Path', value: projectPath },
+          { label: 'Platform', value: 'macOS' },
+        ]),
+        statusLine('success', `Project scaffolded successfully at ${projectPath}.`),
       ],
-      nextStepParams: {
-        build_macos: {
-          workspacePath,
-          scheme: generatedProjectName,
-        },
-        build_run_macos: {
-          workspacePath,
-          scheme: generatedProjectName,
+      {
+        nextStepParams: {
+          build_macos: {
+            workspacePath,
+            scheme: generatedProjectName,
+          },
+          build_run_macos: {
+            workspacePath,
+            scheme: generatedProjectName,
+          },
         },
       },
-    };
+    );
   } catch (error) {
     log(
       'error',
       `Failed to scaffold macOS project: ${error instanceof Error ? error.message : String(error)}`,
     );
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(
-            {
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error occurred',
-            },
-            null,
-            2,
-          ),
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Scaffold macOS Project', [
+        { label: 'Name', value: params.projectName },
+        { label: 'Path', value: params.outputPath },
+        { label: 'Platform', value: 'macOS' },
+      ]),
+      statusLine('error', error instanceof Error ? error.message : 'Unknown error occurred'),
+    ]);
   }
 }
 

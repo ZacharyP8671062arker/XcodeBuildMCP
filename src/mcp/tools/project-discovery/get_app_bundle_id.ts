@@ -13,13 +13,13 @@ import { getDefaultFileSystemExecutor, getDefaultCommandExecutor } from '../../.
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { extractBundleIdFromAppPath } from '../../../utils/bundle-id.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const getAppBundleIdSchema = z.object({
   appPath: z.string().describe('Path to the .app bundle'),
 });
 
-// Use z.infer for type safety
 type GetAppBundleIdParams = z.infer<typeof getAppBundleIdSchema>;
 
 /**
@@ -31,19 +31,13 @@ export async function get_app_bundle_idLogic(
   executor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor,
 ): Promise<ToolResponse> {
-  // Zod validation is handled by createTypedTool, so params.appPath is guaranteed to be a string
   const appPath = params.appPath;
 
   if (!fileSystemExecutor.existsSync(appPath)) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `File not found: '${appPath}'. Please check the path and try again.`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Get Bundle ID', [{ label: 'App', value: appPath }]),
+      statusLine('error', `File not found: '${appPath}'. Please check the path and try again.`),
+    ]);
   }
 
   log('info', `Starting bundle ID extraction for app: ${appPath}`);
@@ -61,38 +55,29 @@ export async function get_app_bundle_idLogic(
 
     log('info', `Extracted app bundle ID: ${bundleId}`);
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `✅ Bundle ID: ${bundleId}`,
-        },
+    return toolResponse(
+      [
+        header('Get Bundle ID', [{ label: 'App', value: appPath }]),
+        statusLine('success', `Bundle ID: ${bundleId}`),
       ],
-      nextStepParams: {
-        install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
-        launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: bundleId.trim() },
-        install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: bundleId.trim() },
+      {
+        nextStepParams: {
+          install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
+          launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: bundleId.trim() },
+          install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+          launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: bundleId.trim() },
+        },
       },
-      isError: false,
-    };
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error extracting app bundle ID: ${errorMessage}`);
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Error extracting app bundle ID: ${errorMessage}`,
-        },
-        {
-          type: 'text',
-          text: `Make sure the path points to a valid app bundle (.app directory).`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Get Bundle ID', [{ label: 'App', value: appPath }]),
+      statusLine('error', `${errorMessage}`),
+      statusLine('info', 'Make sure the path points to a valid app bundle (.app directory).'),
+    ]);
   }
 }
 

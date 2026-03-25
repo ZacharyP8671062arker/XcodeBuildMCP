@@ -164,8 +164,6 @@ describe('swift_package_build plugin', () => {
 
   describe('Response Logic Testing', () => {
     it('should handle missing packagePath parameter (Zod handles validation)', async () => {
-      // Note: With createTypedTool, Zod validation happens before the logic function is called
-      // So we test with a valid but minimal parameter set since validation is handled upstream
       const executor = createMockExecutor({
         success: true,
         output: 'Build succeeded',
@@ -173,9 +171,7 @@ describe('swift_package_build plugin', () => {
 
       const result = await swift_package_buildLogic({ packagePath: '/test/package' }, executor);
 
-      // The logic function should execute normally with valid parameters
-      // Zod validation errors are handled by createTypedTool wrapper
-      expect(result.isError).toBe(false);
+      expect(result.isError).toBeUndefined();
     });
 
     it('should return successful build response', async () => {
@@ -191,17 +187,11 @@ describe('swift_package_build plugin', () => {
         executor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '✅ Swift package build succeeded.' },
-          {
-            type: 'text',
-            text: '💡 Next: Run tests with swift_package_test or execute with swift_package_run',
-          },
-          { type: 'text', text: 'Build complete.' },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift Package Build');
+      expect(text).toContain('Swift package build succeeded');
+      expect(text).toContain('Build complete.');
     });
 
     it('should return error response for build failure', async () => {
@@ -217,15 +207,10 @@ describe('swift_package_build plugin', () => {
         executor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Swift package build failed\nDetails: Compilation failed: error in main.swift',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift package build failed');
+      expect(text).toContain('Compilation failed: error in main.swift');
     });
 
     it('should include stdout diagnostics when stderr is empty on build failure', async () => {
@@ -243,15 +228,10 @@ describe('swift_package_build plugin', () => {
         executor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: "Error: Swift package build failed\nDetails: main.swift:10:25: error: cannot find type 'DOESNOTEXIST' in scope\nlet broken: DOESNOTEXIST = 42",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift package build failed');
+      expect(text).toContain("cannot find type 'DOESNOTEXIST' in scope");
     });
 
     it('should handle spawn error', async () => {
@@ -266,15 +246,10 @@ describe('swift_package_build plugin', () => {
         executor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Failed to execute swift build\nDetails: spawn ENOENT',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Failed to execute swift build');
+      expect(text).toContain('spawn ENOENT');
     });
 
     it('should handle successful build with parameters', async () => {
@@ -294,17 +269,11 @@ describe('swift_package_build plugin', () => {
         executor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '✅ Swift package build succeeded.' },
-          {
-            type: 'text',
-            text: '💡 Next: Run tests with swift_package_test or execute with swift_package_run',
-          },
-          { type: 'text', text: 'Build complete.' },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift Package Build');
+      expect(text).toContain('Swift package build succeeded');
+      expect(text).toContain('Build complete.');
     });
   });
 });

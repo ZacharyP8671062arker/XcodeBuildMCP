@@ -337,14 +337,22 @@ describe('get_mac_app_path plugin', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return Zod validation error for missing scheme', async () => {
       const result = await handler({
         workspacePath: '/path/to/MyProject.xcworkspace',
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('scheme is required');
-      expect(result.content[0].text).toContain('session-set-defaults');
+      const text = textOf(result);
+      expect(text).toContain('scheme is required');
+      expect(text).toContain('session-set-defaults');
     });
 
     it('should return exact successful app path response with workspace', async () => {
@@ -367,14 +375,14 @@ FULL_PRODUCT_NAME = MyApp.app
       const appPath =
         '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app';
 
-      expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Scheme: MyScheme');
-      expect(result.content[0].text).toContain('Workspace: /path/to/MyProject.xcworkspace');
-      expect(result.content[0].text).toContain('Configuration: Debug');
-      expect(result.content[0].text).toContain('Platform: macOS');
-      expect(result.content[0].text).toContain(`\u{2514} App Path: ${appPath}`);
-      expect(result.content[0].text).not.toContain('\u{2705}');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('Scheme: MyScheme');
+      expect(text).toContain('Workspace: /path/to/MyProject.xcworkspace');
+      expect(text).toContain('Configuration: Debug');
+      expect(text).toContain('Platform: macOS');
+      expect(text).toContain(`App Path: ${appPath}`);
       expect(result.nextStepParams).toEqual({
         get_mac_bundle_id: { appPath },
         launch_mac_app: { appPath },
@@ -401,14 +409,14 @@ FULL_PRODUCT_NAME = MyApp.app
       const appPath =
         '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app';
 
-      expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Scheme: MyScheme');
-      expect(result.content[0].text).toContain('Project: /path/to/MyProject.xcodeproj');
-      expect(result.content[0].text).toContain('Configuration: Debug');
-      expect(result.content[0].text).toContain('Platform: macOS');
-      expect(result.content[0].text).toContain(`\u{2514} App Path: ${appPath}`);
-      expect(result.content[0].text).not.toContain('\u{2705}');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('Scheme: MyScheme');
+      expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
+      expect(text).toContain('Configuration: Debug');
+      expect(text).toContain('Platform: macOS');
+      expect(text).toContain(`App Path: ${appPath}`);
       expect(result.nextStepParams).toEqual({
         get_mac_bundle_id: { appPath },
         launch_mac_app: { appPath },
@@ -430,11 +438,10 @@ FULL_PRODUCT_NAME = MyApp.app
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Scheme: MyScheme');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('\u{2717} No such scheme');
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = textOf(result);
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('Scheme: MyScheme');
+      expect(text).toContain('No such scheme');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -453,12 +460,9 @@ FULL_PRODUCT_NAME = MyApp.app
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain(
-        '\u{2717} Could not extract app path from build settings',
-      );
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = textOf(result);
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('Could not extract app path from build settings');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -476,10 +480,9 @@ FULL_PRODUCT_NAME = MyApp.app
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('\u{2717} Network error');
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = textOf(result);
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('Network error');
       expect(result.nextStepParams).toBeUndefined();
     });
   });

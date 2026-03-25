@@ -19,19 +19,16 @@ export async function simulatorsResourceLogic(
     const result = await list_simsLogic({}, executor);
 
     if (result.isError) {
-      const errorText = result.content[0]?.text;
-      throw new Error(
-        typeof errorText === 'string' ? errorText : 'Failed to retrieve simulator data',
-      );
+      const errorText = result.content.map((c) => ('text' in c ? c.text : '')).join('\n');
+      throw new Error(errorText || 'Failed to retrieve simulator data');
     }
+
+    const joinedText = result.content.map((c) => ('text' in c ? c.text : '')).join('\n');
 
     return {
       contents: [
         {
-          text:
-            typeof result.content[0]?.text === 'string'
-              ? result.content[0].text
-              : 'No simulator data available',
+          text: joinedText || 'No simulator data available',
         },
       ],
     };

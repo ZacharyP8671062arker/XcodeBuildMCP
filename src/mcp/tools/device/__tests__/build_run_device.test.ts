@@ -223,17 +223,17 @@ describe('build_run_device tool', () => {
         expect.objectContaining({
           tailEvents: [
             expect.objectContaining({
-              type: 'notice',
-              code: 'build-run-result',
-              data: expect.objectContaining({
-                scheme: 'MyApp',
-                platform: 'iOS',
-                target: 'iOS Device',
-                appPath: '/tmp/build/MyApp.app',
-                bundleId: 'io.sentry.MyApp',
-                launchState: 'requested',
-                processId: 1234,
-              }),
+              type: 'status-line',
+              level: 'success',
+              message: 'Build & Run complete',
+            }),
+            expect.objectContaining({
+              type: 'detail-tree',
+              items: expect.arrayContaining([
+                expect.objectContaining({ label: 'App Path', value: '/tmp/build/MyApp.app' }),
+                expect.objectContaining({ label: 'Bundle ID', value: 'io.sentry.MyApp' }),
+                expect.objectContaining({ label: 'Process ID', value: '1234' }),
+              ]),
             }),
           ],
         }),
@@ -276,9 +276,15 @@ describe('build_run_device tool', () => {
       expect(result.nextStepParams?.stop_app_device).toBeUndefined();
 
       const tailEvents = (
-        result._meta?.pendingXcodebuild as { tailEvents: Array<{ data: Record<string, unknown> }> }
+        result._meta?.pendingXcodebuild as {
+          tailEvents: Array<{ type: string; items?: Array<{ label: string; value: string }> }>;
+        }
       ).tailEvents;
-      expect(tailEvents[0].data.processId).toBeUndefined();
+      expect(tailEvents).toHaveLength(2);
+      expect(tailEvents[0].type).toBe('status-line');
+      const detailTree = tailEvents[1];
+      expect(detailTree.type).toBe('detail-tree');
+      expect(detailTree.items?.some((item) => item.label === 'Process ID')).toBe(false);
     });
 
     it('uses generic destination for build-settings lookup', async () => {
@@ -405,16 +411,9 @@ describe('build_run_device tool', () => {
       // Front matter
       expect(textContent).toContain('Build & Run');
       expect(textContent).toContain('Scheme: MyApp');
-      expect(textContent).toContain('Device: DEVICE-UDID');
 
       // Summary
       expect(textContent).toContain('Build succeeded.');
-
-      // Footer with execution-derived values
-      expect(textContent).toContain('Build & Run complete');
-      expect(textContent).toContain('App Path: /tmp/build/MyApp.app');
-      expect(textContent).toContain('Bundle ID: io.sentry.MyApp');
-      expect(textContent).toContain('Process ID: 42');
 
       // No next steps in finalized output (those come from tool invoker)
       expect(textContent).not.toContain('Next steps:');

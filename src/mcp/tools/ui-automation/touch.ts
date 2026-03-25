@@ -7,7 +7,6 @@
 
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
-import { createTextResponse, createErrorResponse } from '../../../utils/responses/index.ts';
 import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -15,9 +14,9 @@ import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
 import {
-  createAxeNotAvailableResponse,
   getAxePath,
   getBundledAxeEnvironment,
+  AXE_NOT_AVAILABLE_MESSAGE,
 } from '../../../utils/axe-helpers.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import {
@@ -25,8 +24,9 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { getSnapshotUiWarning } from './shared/snapshot-ui-state.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const touchSchema = z.object({
   simulatorId: z.uuid({ message: 'Invalid Simulator UUID format' }),
   x: z.number().int({ message: 'X coordinate must be an integer' }),
@@ -40,7 +40,6 @@ const touchSchema = z.object({
     .describe('seconds'),
 });
 
-// Use z.infer for type safety
 type TouchParams = z.infer<typeof touchSchema>;
 
 const publicSchemaObject = z.strictObject(touchSchema.omit({ simulatorId: true } as const).shape);
@@ -60,12 +59,14 @@ export async function touchLogic(
 ): Promise<ToolResponse> {
   const toolName = 'touch';
 
-  // Params are already validated by createTypedTool - use directly
   const { simulatorId, x, y, down, up, delay } = params;
+  const headerEvent = header('Touch', [{ label: 'Simulator', value: simulatorId }]);
 
-  // Validate that at least one of down or up is specified
   if (!down && !up) {
-    return createErrorResponse('At least one of "down" or "up" must be true');
+    return toolResponse([
+      headerEvent,
+      statusLine('error', 'At least one of "down" or "up" must be true'),
+    ]);
   }
 
   const guard = await guardUiAutomationAgainstStoppedDebugger({
@@ -73,7 +74,8 @@ export async function touchLogic(
     simulatorId,
     toolName,
   });
-  if (guard.blockedResponse) return guard.blockedResponse;
+  if (guard.blockedMessage)
+    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
 
   const commandArgs = ['touch', '-x', String(x), '-y', String(y)];
   if (down) {
@@ -97,35 +99,43 @@ export async function touchLogic(
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
     const coordinateWarning = getSnapshotUiWarning(simulatorId);
-    const message = `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`;
-    const warnings = [guard.warningText, coordinateWarning].filter(Boolean).join('\n\n');
+    const warnings = [guard.warningText, coordinateWarning].filter(Boolean);
+    const events = [
+      headerEvent,
+      statusLine('success', `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`),
+      ...warnings.map((w) => statusLine('warning' as const, w)),
+    ];
 
-    if (warnings) {
-      return createTextResponse(`${message}\n\n${warnings}`);
-    }
-
-    return createTextResponse(message);
+    return toolResponse(events);
   } catch (error) {
     log(
       'error',
       `${LOG_PREFIX}/${toolName}: Failed - ${error instanceof Error ? error.message : String(error)}`,
     );
     if (error instanceof DependencyError) {
-      return createAxeNotAvailableResponse();
+      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
     } else if (error instanceof AxeError) {
-      return createErrorResponse(
-        `Failed to execute touch event: ${error.message}`,
-        error.axeOutput,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to execute touch event: ${error.message}`),
+        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+      ]);
     } else if (error instanceof SystemError) {
-      return createErrorResponse(
-        `System error executing axe: ${error.message}`,
-        error.originalError?.stack,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `System error executing axe: ${error.message}`),
+        ...(error.originalError?.stack
+          ? [section('Stack Trace', [error.originalError.stack])]
+          : []),
+      ]);
     }
-    return createErrorResponse(
-      `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    ]);
   }
 }
 

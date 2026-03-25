@@ -1,5 +1,4 @@
 import type { ToolResponse, OutputStyle } from '../types/common.ts';
-import { processToolResponse } from '../utils/responses/index.ts';
 import { formatCliTextLine } from '../utils/terminal-output.ts';
 
 export type OutputFormat = 'text' | 'json';
@@ -33,8 +32,11 @@ function extractRenderedNextSteps(response: ToolResponse): string {
   return '';
 }
 
-function isCompleteXcodebuildStream(response: ToolResponse): boolean {
-  return response._meta?.xcodebuildStreamMode === 'complete';
+function isCompletePipelineStream(response: ToolResponse): boolean {
+  return (
+    response._meta?.xcodebuildStreamMode === 'complete' ||
+    response._meta?.pipelineStreamMode === 'complete'
+  );
 }
 
 /**
@@ -47,24 +49,21 @@ export function printToolResponse(
 ): void {
   const { format = 'text', style = 'normal' } = options;
 
-  if (isCompleteXcodebuildStream(response)) {
+  if (isCompletePipelineStream(response)) {
     if (response.isError) {
       process.exitCode = 1;
     }
     return;
   }
 
-  // Apply next steps rendering for CLI runtime
-  const processed = processToolResponse(response, 'cli', style);
-
   if (format === 'json') {
     // When events were streamed as JSONL during execution, skip re-printing them
-    const hasStreamedEvents = Array.isArray(processed._meta?.events);
+    const hasStreamedEvents = Array.isArray(response._meta?.events);
     if (hasStreamedEvents) {
-      const events = processed._meta?.events as Array<Record<string, unknown>>;
+      const events = response._meta?.events as Array<Record<string, unknown>>;
       const streamedEventCount =
-        typeof processed._meta?.streamedEventCount === 'number'
-          ? processed._meta.streamedEventCount
+        typeof response._meta?.streamedEventCount === 'number'
+          ? response._meta.streamedEventCount
           : events.length;
       const appendedEvents = events.slice(streamedEventCount);
 
@@ -74,32 +73,32 @@ export function printToolResponse(
 
       // Events were already written to stdout as JSONL by the CLI JSONL renderer.
       // Only emit non-event content (error messages, etc.) if present.
-      const nonEventContent = processed.content?.filter(
+      const nonEventContent = response.content?.filter(
         (item) => item.type !== 'text' || !item.text,
       );
       if (nonEventContent && nonEventContent.length > 0) {
-        writeLine(JSON.stringify({ ...processed, content: nonEventContent }, null, 2));
+        writeLine(JSON.stringify({ ...response, content: nonEventContent }, null, 2));
       }
     } else {
-      writeLine(JSON.stringify(processed, null, 2));
+      writeLine(JSON.stringify(response, null, 2));
     }
   } else {
-    const hasStreamedEvents = Array.isArray(processed._meta?.events);
+    const hasStreamedEvents = Array.isArray(response._meta?.events);
     const streamedContentCount =
-      typeof processed._meta?.streamedContentCount === 'number'
-        ? processed._meta.streamedContentCount
+      typeof response._meta?.streamedContentCount === 'number'
+        ? response._meta.streamedContentCount
         : 0;
 
     if (hasStreamedEvents && process.stdout.isTTY === true) {
-      const printedAny = printToolResponseText(processed, streamedContentCount);
+      const printedAny = printToolResponseText(response, streamedContentCount);
       if (!printedAny && style !== 'minimal') {
-        const nextStepsText = extractRenderedNextSteps(processed);
+        const nextStepsText = extractRenderedNextSteps(response);
         if (nextStepsText.length > 0) {
           writeLine(nextStepsText);
         }
       }
     } else {
-      printToolResponseText(processed);
+      printToolResponseText(response);
     }
   }
 
@@ -149,8 +148,12 @@ export function formatToolList(
   if (options.grouped) {
     const byWorkflow = new Map<string, typeof tools>();
     for (const tool of tools) {
-      const existing = byWorkflow.get(tool.workflow) ?? [];
-      byWorkflow.set(tool.workflow, [...existing, tool]);
+      let group = byWorkflow.get(tool.workflow);
+      if (!group) {
+        group = [];
+        byWorkflow.set(tool.workflow, group);
+      }
+      group.push(tool);
     }
 
     const sortedWorkflows = [...byWorkflow.keys()].sort();

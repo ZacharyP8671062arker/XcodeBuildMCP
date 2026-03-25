@@ -1,7 +1,8 @@
 import * as z from 'zod';
-import { createTextResponse, createErrorResponse } from '../../../utils/responses/index.ts';
 import { getProcess, terminateTrackedProcess, type ProcessInfo } from './active-processes.ts';
 import type { ToolResponse } from '../../../types/common.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const swiftPackageStopSchema = z.object({
   pid: z.number(),
@@ -39,44 +40,47 @@ export async function swift_package_stopLogic(
   processManager: ProcessManager = getDefaultProcessManager(),
   timeout: number = 5000,
 ): Promise<ToolResponse> {
+  const headerEvent = header('Swift Package Stop', [{ label: 'PID', value: String(params.pid) }]);
+
   const processInfo = processManager.getProcess(params.pid);
   if (!processInfo) {
-    return createTextResponse(
-      `⚠️ No running process found with PID ${params.pid}. Use swift_package_run to check active processes.`,
-      true,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        `No running process found with PID ${params.pid}. Use swift_package_list to check active processes.`,
+      ),
+    ]);
   }
 
   try {
     const result = await processManager.terminateTrackedProcess(params.pid, timeout);
     if (result.status === 'not-found') {
-      return createTextResponse(
-        `⚠️ No running process found with PID ${params.pid}. Use swift_package_run to check active processes.`,
-        true,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine(
+          'error',
+          `No running process found with PID ${params.pid}. Use swift_package_list to check active processes.`,
+        ),
+      ]);
     }
 
     if (result.error) {
-      return createErrorResponse('Failed to stop process', result.error);
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to stop process: ${result.error}`),
+      ]);
     }
 
     const startedAt = result.startedAt ?? processInfo.startedAt;
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `✅ Stopped executable (was running since ${startedAt.toISOString()})`,
-        },
-        {
-          type: 'text',
-          text: `💡 Process terminated. You can now run swift_package_run again if needed.`,
-        },
-      ],
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('success', `Stopped executable (was running since ${startedAt.toISOString()})`),
+    ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return createErrorResponse('Failed to stop process', message);
+    return toolResponse([headerEvent, statusLine('error', `Failed to stop process: ${message}`)]);
   }
 }
 
@@ -85,10 +89,13 @@ export const schema = swiftPackageStopSchema.shape;
 export async function handler(args: Record<string, unknown>): Promise<ToolResponse> {
   const parseResult = swiftPackageStopSchema.safeParse(args);
   if (!parseResult.success) {
-    return createErrorResponse(
-      'Parameter validation failed',
-      parseResult.error.issues.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
-    );
+    const details = parseResult.error.issues
+      .map((e) => `${e.path.join('.')}: ${e.message}`)
+      .join(', ');
+    return toolResponse([
+      header('Swift Package Stop'),
+      statusLine('error', `Parameter validation failed: ${details}`),
+    ]);
   }
 
   return swift_package_stopLogic(parseResult.data);

@@ -7,18 +7,17 @@
 import * as z from 'zod';
 import { stopLogCapture as _stopLogCapture } from '../../../utils/log-capture/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createTextContent } from '../../../types/common.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import type { CommandExecutor } from '../../../utils/command.ts';
 import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from '../../../utils/command.ts';
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const stopSimLogCapSchema = z.object({
   logSessionId: z.string(),
 });
 
-// Use z.infer for type safety
 type StopSimLogCapParams = z.infer<typeof stopSimLogCapSchema>;
 
 /**
@@ -37,20 +36,16 @@ export async function stop_sim_log_capLogic(
 ): Promise<ToolResponse> {
   const { logContent, error } = await stopLogCaptureFunction(params.logSessionId, fileSystem);
   if (error) {
-    return {
-      content: [
-        createTextContent(`Error stopping log capture session ${params.logSessionId}: ${error}`),
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Stop Log Capture', [{ label: 'Session ID', value: params.logSessionId }]),
+      statusLine('error', `Error stopping log capture session ${params.logSessionId}: ${error}`),
+    ]);
   }
-  return {
-    content: [
-      createTextContent(
-        `Log capture session ${params.logSessionId} stopped successfully. Log content follows:\n\n${logContent}`,
-      ),
-    ],
-  };
+  return toolResponse([
+    header('Stop Log Capture', [{ label: 'Session ID', value: params.logSessionId }]),
+    section('Captured Logs', [logContent]),
+    statusLine('success', 'Log capture stopped.'),
+  ]);
 }
 
 export const schema = stopSimLogCapSchema.shape; // MCP SDK compatibility

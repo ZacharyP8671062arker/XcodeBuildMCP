@@ -13,6 +13,13 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, gestureLogic } from '../gesture.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
 
+function allText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
+
 describe('Gesture Plugin', () => {
   beforeEach(() => {
     sessionStore.clear();
@@ -92,10 +99,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       await gestureLogic(
@@ -131,10 +134,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       await gestureLogic(
@@ -176,10 +175,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       await gestureLogic(
@@ -233,10 +228,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       await gestureLogic(
@@ -274,10 +265,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       const result = await gestureLogic(
@@ -289,10 +276,8 @@ describe('Gesture Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text' as const, text: "Gesture 'scroll-up' executed successfully." }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain("Gesture 'scroll-up' executed successfully.");
     });
 
     it('should return success for gesture execution with all optional parameters', async () => {
@@ -306,10 +291,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       const result = await gestureLogic(
@@ -327,27 +308,14 @@ describe('Gesture Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text' as const, text: "Gesture 'swipe-from-left-edge' executed successfully." },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain("Gesture 'swipe-from-left-edge' executed successfully.");
     });
 
     it('should handle DependencyError when axe is not available', async () => {
       const mockAxeHelpers = {
         getAxePath: () => null,
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await gestureLogic(
@@ -359,15 +327,8 @@ describe('Gesture Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle AxeError from failed command execution', async () => {
@@ -381,10 +342,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       const result = await gestureLogic(
@@ -396,15 +353,10 @@ describe('Gesture Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: "Error: Failed to execute gesture 'scroll-up': axe command 'gesture' failed.\nDetails: axe command failed",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        "Failed to execute gesture 'scroll-up': axe command 'gesture' failed.",
+      );
     });
 
     it('should handle SystemError from command execution', async () => {
@@ -413,10 +365,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       const result = await gestureLogic(
@@ -428,8 +376,8 @@ describe('Gesture Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result.content[0].text).toMatch(
-        /^Error: System error executing axe: Failed to execute axe command: ENOENT: no such file or directory/,
+      expect(allText(result)).toMatch(
+        /System error executing axe: Failed to execute axe command: ENOENT: no such file or directory/,
       );
       expect(result.isError).toBe(true);
     });
@@ -440,10 +388,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       const result = await gestureLogic(
@@ -455,8 +399,8 @@ describe('Gesture Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result.content[0].text).toMatch(
-        /^Error: System error executing axe: Failed to execute axe command: Unexpected error/,
+      expect(allText(result)).toMatch(
+        /System error executing axe: Failed to execute axe command: Unexpected error/,
       );
       expect(result.isError).toBe(true);
     });
@@ -467,10 +411,6 @@ describe('Gesture Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'AXe CLI is not available.' }],
-          isError: true,
-        }),
       };
 
       const result = await gestureLogic(
@@ -482,15 +422,10 @@ describe('Gesture Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Error: System error executing axe: Failed to execute axe command: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: String error',
+      );
     });
   });
 });

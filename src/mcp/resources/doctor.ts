@@ -35,13 +35,14 @@ export async function doctorResourceLogic(
       };
     }
 
-    const okTextItem = result.content.find((i) => i.type === 'text') as
-      | { type: 'text'; text: string }
-      | undefined;
+    const allText = result.content
+      .filter((i): i is { type: 'text'; text: string } => i.type === 'text')
+      .map((i) => i.text)
+      .join('\n');
     return {
       contents: [
         {
-          text: okTextItem?.text ?? 'No doctor data available',
+          text: allText || 'No doctor data available',
         },
       ],
     };

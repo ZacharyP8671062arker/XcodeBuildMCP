@@ -1,0 +1,10 @@
+🧪 Test
+
+  Scheme: MCPTest
+  Project: example_projects/macOS/MCPTest.xcodeproj
+  Configuration: Debug
+  Platform: macOS
+
+Resolved to <N> test(s)
+
+✅ Test succeeded. (<TEST_COUNTS>, ⏱️ <DURATION>)

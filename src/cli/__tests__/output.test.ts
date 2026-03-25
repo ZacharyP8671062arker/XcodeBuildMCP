@@ -93,14 +93,11 @@ describe('printToolResponse', () => {
     });
 
     printToolResponse({
-      content: [createTextContent('build succeeded')],
-      nextSteps: [
-        {
-          tool: 'launch_app_sim',
-          workflow: 'simulator',
-          cliTool: 'launch-app-sim',
-          params: { simulatorId: 'SIM-1', bundleId: 'com.example.app' },
-        },
+      content: [
+        createTextContent('build succeeded'),
+        createTextContent(
+          'Next steps:\n1. xcodebuildmcp simulator launch-app-sim --simulator-id "SIM-1" --bundle-id "com.example.app"',
+        ),
       ],
       _meta: {
         events: [

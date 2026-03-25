@@ -1,24 +1,24 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
-import { createTextResponse, createErrorResponse } from '../../../utils/responses/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
 import {
-  createAxeNotAvailableResponse,
   getAxePath,
   getBundledAxeEnvironment,
+  AXE_NOT_AVAILABLE_MESSAGE,
 } from '../../../utils/axe-helpers.ts';
 import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const buttonSchema = z.object({
   simulatorId: z.uuid({ message: 'Invalid Simulator UUID format' }),
   buttonType: z
@@ -31,13 +31,11 @@ const buttonSchema = z.object({
     .describe('seconds'),
 });
 
-// Use z.infer for type safety
 type ButtonParams = z.infer<typeof buttonSchema>;
 
 export interface AxeHelpers {
   getAxePath: () => string | null;
   getBundledAxeEnvironment: () => Record<string, string>;
-  createAxeNotAvailableResponse: () => ToolResponse;
 }
 
 const LOG_PREFIX = '[AXe]';
@@ -48,19 +46,21 @@ export async function buttonLogic(
   axeHelpers: AxeHelpers = {
     getAxePath,
     getBundledAxeEnvironment,
-    createAxeNotAvailableResponse,
   },
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
 ): Promise<ToolResponse> {
   const toolName = 'button';
   const { simulatorId, buttonType, duration } = params;
 
+  const headerEvent = header('Button', [{ label: 'Simulator', value: simulatorId }]);
+
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedResponse) return guard.blockedResponse;
+  if (guard.blockedMessage)
+    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
 
   const commandArgs = ['button', buttonType];
   if (duration !== undefined) {
@@ -72,29 +72,38 @@ export async function buttonLogic(
   try {
     await executeAxeCommand(commandArgs, simulatorId, 'button', executor, axeHelpers);
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-    const message = `Hardware button '${buttonType}' pressed successfully.`;
-    if (guard.warningText) {
-      return createTextResponse(`${message}\n\n${guard.warningText}`);
-    }
-    return createTextResponse(message);
+    const events = [
+      headerEvent,
+      statusLine('success', `Hardware button '${buttonType}' pressed successfully.`),
+      ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
+    ];
+    return toolResponse(events);
   } catch (error) {
     log('error', `${LOG_PREFIX}/${toolName}: Failed - ${error}`);
     if (error instanceof DependencyError) {
-      return axeHelpers.createAxeNotAvailableResponse();
+      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
     } else if (error instanceof AxeError) {
-      return createErrorResponse(
-        `Failed to press button '${buttonType}': ${error.message}`,
-        error.axeOutput,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to press button '${buttonType}': ${error.message}`),
+        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+      ]);
     } else if (error instanceof SystemError) {
-      return createErrorResponse(
-        `System error executing axe: ${error.message}`,
-        error.originalError?.stack,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `System error executing axe: ${error.message}`),
+        ...(error.originalError?.stack
+          ? [section('Stack Trace', [error.originalError.stack])]
+          : []),
+      ]);
     }
-    return createErrorResponse(
-      `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    ]);
   }
 }
 
@@ -111,7 +120,6 @@ export const handler = createSessionAwareTool<ButtonParams>({
     buttonLogic(params, executor, {
       getAxePath,
       getBundledAxeEnvironment,
-      createAxeNotAvailableResponse,
     }),
   getExecutor: getDefaultCommandExecutor,
   requirements: [{ allOf: ['simulatorId'], message: 'simulatorId is required' }],
@@ -123,7 +131,7 @@ async function executeAxeCommand(
   simulatorId: string,
   commandName: string,
   executor: CommandExecutor = getDefaultCommandExecutor(),
-  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment, createAxeNotAvailableResponse },
+  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment },
 ): Promise<void> {
   // Get the appropriate axe binary path
   const axeBinary = axeHelpers.getAxePath();

@@ -15,6 +15,8 @@ import {
   getDefaultFileSystemExecutor,
 } from '../../../utils/execution/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 // Common base schema for both iOS and macOS
 const BaseScaffoldSchema = z.object({
@@ -343,7 +345,6 @@ async function processDirectory(
   }
 }
 
-// Use z.infer for type safety
 type ScaffoldIOSProjectParams = z.infer<typeof ScaffoldiOSProjectSchema>;
 
 /**
@@ -361,55 +362,44 @@ export async function scaffold_ios_projectLogic(
     const generatedProjectName = params.customizeNames === false ? 'MyProject' : params.projectName;
     const workspacePath = `${projectPath}/${generatedProjectName}.xcworkspace`;
 
-    const response = {
-      success: true,
-      projectPath,
-      platform: 'iOS',
-      message: `Successfully scaffolded iOS project "${params.projectName}" in ${projectPath}`,
-    };
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(response, null, 2),
-        },
+    return toolResponse(
+      [
+        header('Scaffold iOS Project', [
+          { label: 'Name', value: params.projectName },
+          { label: 'Path', value: projectPath },
+          { label: 'Platform', value: 'iOS' },
+        ]),
+        statusLine('success', `Project scaffolded successfully at ${projectPath}.`),
       ],
-      nextStepParams: {
-        build_sim: {
-          workspacePath,
-          scheme: generatedProjectName,
-          simulatorName: 'iPhone 17',
-        },
-        build_run_sim: {
-          workspacePath,
-          scheme: generatedProjectName,
-          simulatorName: 'iPhone 17',
+      {
+        nextStepParams: {
+          build_sim: {
+            workspacePath,
+            scheme: generatedProjectName,
+            simulatorName: 'iPhone 17',
+          },
+          build_run_sim: {
+            workspacePath,
+            scheme: generatedProjectName,
+            simulatorName: 'iPhone 17',
+          },
         },
       },
-    };
+    );
   } catch (error) {
     log(
       'error',
       `Failed to scaffold iOS project: ${error instanceof Error ? error.message : String(error)}`,
     );
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(
-            {
-              success: false,
-              error: error instanceof Error ? error.message : 'Unknown error occurred',
-            },
-            null,
-            2,
-          ),
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Scaffold iOS Project', [
+        { label: 'Name', value: params.projectName },
+        { label: 'Path', value: params.outputPath },
+        { label: 'Platform', value: 'iOS' },
+      ]),
+      statusLine('error', error instanceof Error ? error.message : 'Unknown error occurred'),
+    ]);
   }
 }
 

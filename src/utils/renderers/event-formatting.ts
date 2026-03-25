@@ -1,15 +1,107 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { globSync } from 'glob';
-import type { ErrorEvent, WarningEvent, XcodebuildEvent } from '../../types/xcodebuild-events.ts';
+import type {
+  CompilerErrorEvent,
+  CompilerWarningEvent,
+  BuildStageEvent,
+  HeaderEvent,
+  StatusLineEvent,
+  SectionEvent,
+  TableEvent,
+  FileRefEvent,
+  DetailTreeEvent,
+  SummaryEvent,
+  TestDiscoveryEvent,
+  TestFailureEvent,
+  NextStepsEvent,
+} from '../../types/pipeline-events.ts';
+import { displayPath } from '../build-preflight.ts';
 import { renderNextStepsSection } from '../responses/next-steps-renderer.ts';
 
-function formatDetailTree(details: Array<{ label: string; value: string }>): string[] {
+// --- Operation emoji map ---
+
+export const OPERATION_EMOJI: Record<string, string> = {
+  Build: '\u{1F528}',
+  'Build & Run': '\u{1F680}',
+  Clean: '\u{1F9F9}',
+  Test: '\u{1F9EA}',
+  'List Schemes': '\u{1F50D}',
+  'Show Build Settings': '\u{1F50D}',
+  'Get App Path': '\u{1F50D}',
+  'Coverage Report': '\u{1F4CA}',
+  'File Coverage': '\u{1F4CA}',
+  'List Simulators': '\u{1F4F1}',
+  'Boot Simulator': '\u{1F4F1}',
+  'Open Simulator': '\u{1F4F1}',
+  'Set Appearance': '\u{1F3A8}',
+  'Set Location': '\u{1F4CD}',
+  'Reset Location': '\u{1F4CD}',
+  Statusbar: '\u{1F4F1}',
+  'Erase Simulator': '\u{1F5D1}',
+  'List Devices': '\u{1F4F1}',
+  'Install App': '\u{1F4E6}',
+  'Launch App': '\u{1F680}',
+  'Stop App': '\u{1F6D1}',
+  'Launch macOS App': '\u{1F680}',
+  'Stop macOS App': '\u{1F6D1}',
+  'Discover Projects': '\u{1F50D}',
+  'Get Bundle ID': '\u{1F50D}',
+  'Get macOS Bundle ID': '\u{1F50D}',
+  'Scaffold iOS Project': '\u{1F4DD}',
+  'Scaffold macOS Project': '\u{1F4DD}',
+  'Set Defaults': '\u{2699}\u{FE0F}',
+  'Show Defaults': '\u{2699}\u{FE0F}',
+  'Clear Defaults': '\u{2699}\u{FE0F}',
+  'Use Defaults Profile': '\u{2699}\u{FE0F}',
+  'Sync Xcode Defaults': '\u{2699}\u{FE0F}',
+  'Start Log Capture': '\u{1F4DD}',
+  'Stop Log Capture': '\u{1F4DD}',
+  'Attach Debugger': '\u{1F41B}',
+  'Add Breakpoint': '\u{1F41B}',
+  'Remove Breakpoint': '\u{1F41B}',
+  Continue: '\u{1F41B}',
+  Detach: '\u{1F41B}',
+  'LLDB Command': '\u{1F41B}',
+  'Stack Trace': '\u{1F41B}',
+  Variables: '\u{1F41B}',
+  Tap: '\u{1F446}',
+  Swipe: '\u{1F446}',
+  'Type Text': '\u{2328}\u{FE0F}',
+  Screenshot: '\u{1F4F7}',
+  'Snapshot UI': '\u{1F4F7}',
+  Button: '\u{1F446}',
+  Gesture: '\u{1F446}',
+  'Key Press': '\u{2328}\u{FE0F}',
+  'Key Sequence': '\u{2328}\u{FE0F}',
+  'Long Press': '\u{1F446}',
+  Touch: '\u{1F446}',
+  'Swift Package Build': '\u{1F4E6}',
+  'Swift Package Test': '\u{1F9EA}',
+  'Swift Package Clean': '\u{1F9F9}',
+  'Swift Package Run': '\u{1F680}',
+  'Swift Package List': '\u{1F4E6}',
+  'Swift Package Stop': '\u{1F6D1}',
+  'Xcode IDE Call Tool': '\u{1F527}',
+  'Xcode IDE List Tools': '\u{1F527}',
+  'Bridge Disconnect': '\u{1F527}',
+  'Bridge Status': '\u{1F527}',
+  'Bridge Sync': '\u{1F527}',
+  Doctor: '\u{1FA7A}',
+  'Manage Workflows': '\u{2699}\u{FE0F}',
+  'Record Video': '\u{1F3AC}',
+};
+
+// --- Detail tree formatting ---
+
+function formatDetailTreeLines(details: Array<{ label: string; value: string }>): string[] {
   return details.map((detail, index) => {
-    const branch = index === details.length - 1 ? '└' : '├';
+    const branch = index === details.length - 1 ? '\u2514' : '\u251C';
     return `  ${branch} ${detail.label}: ${detail.value}`;
   });
 }
+
+// --- Diagnostic path resolution ---
 
 const FILE_DIAGNOSTIC_REGEX =
   /^(?<file>.+?):(?<line>\d+)(?::(?<column>\d+))?:\s*(?<kind>warning|error):\s*(?<message>.+)$/i;
@@ -87,7 +179,7 @@ function formatDiagnosticFilePath(filePath: string, options?: DiagnosticFormatti
 }
 
 function parseHumanDiagnostic(
-  event: WarningEvent | ErrorEvent,
+  event: CompilerWarningEvent | CompilerErrorEvent,
   kind: 'warning' | 'error',
   options?: DiagnosticFormattingOptions,
 ): GroupedDiagnosticEntry {
@@ -114,45 +206,99 @@ function parseHumanDiagnostic(
   return { message: `${kind}: ${event.message}` };
 }
 
-function isBuildRunStepNotice(
-  event: Extract<XcodebuildEvent, { type: 'notice' }>,
-): event is Extract<XcodebuildEvent, { type: 'notice' }> & {
-  code: 'build-run-step';
-  data: { step: string; status: string; appPath?: string };
-} {
-  return event.code === 'build-run-step' && typeof event.data === 'object' && event.data !== null;
+// --- Canonical event formatters ---
+
+export function formatHeaderEvent(event: HeaderEvent): string {
+  const emoji = OPERATION_EMOJI[event.operation] ?? '\u{2699}\u{FE0F}';
+  const lines: string[] = [`${emoji} ${event.operation}`, ''];
+
+  for (const param of event.params) {
+    lines.push(`  ${param.label}: ${param.value}`);
+  }
+
+  lines.push('');
+  return lines.join('\n');
 }
 
-function isBuildRunResultNotice(
-  event: Extract<XcodebuildEvent, { type: 'notice' }>,
-): event is Extract<XcodebuildEvent, { type: 'notice' }> & {
-  code: 'build-run-result';
-  data: { scheme: string; platform: string; target: string; appPath: string; launchState: string };
-} {
-  return event.code === 'build-run-result' && typeof event.data === 'object' && event.data !== null;
-}
-
-function formatBuildRunStepLabel(step: string): string {
-  switch (step) {
-    case 'resolve-app-path':
-      return 'Resolving app path';
-    case 'resolve-simulator':
-      return 'Resolving simulator';
-    case 'boot-simulator':
-      return 'Booting simulator';
-    case 'install-app':
-      return 'Installing app';
-    case 'extract-bundle-id':
-      return 'Extracting bundle ID';
-    case 'launch-app':
-      return 'Launching app';
+export function formatStatusLineEvent(event: StatusLineEvent): string {
+  switch (event.level) {
+    case 'success':
+      return `\u{2705} ${event.message}`;
+    case 'error':
+      return `\u{274C} ${event.message}`;
+    case 'warning':
+      return `\u{26A0}\u{FE0F} ${event.message}`;
     default:
-      return 'Running step';
+      return `\u{2139}\u{FE0F} ${event.message}`;
   }
 }
 
+const SECTION_ICON_MAP: Record<NonNullable<SectionEvent['icon']>, string> = {
+  'red-circle': '\u{1F534}',
+  'yellow-circle': '\u{1F7E1}',
+  'green-circle': '\u{1F7E2}',
+  checkmark: '\u{2705}',
+  cross: '\u{274C}',
+  info: '\u{2139}\u{FE0F}',
+};
+
+export function formatSectionEvent(event: SectionEvent): string {
+  const icon = event.icon ? `${SECTION_ICON_MAP[event.icon]} ` : '';
+  const header = `${icon}${event.title}`;
+  if (event.lines.length === 0) {
+    return header;
+  }
+  const indented = event.lines.map((line) => `  ${line}`);
+  return [header, ...indented].join('\n');
+}
+
+export function formatTableEvent(event: TableEvent): string {
+  const lines: string[] = [];
+  if (event.heading) {
+    lines.push(event.heading);
+    lines.push('');
+  }
+
+  if (event.columns.length === 0 || event.rows.length === 0) {
+    return lines.join('\n');
+  }
+
+  const colWidths = event.columns.map((col) => col.length);
+  for (const row of event.rows) {
+    for (let i = 0; i < event.columns.length; i++) {
+      const value = row[event.columns[i]] ?? '';
+      colWidths[i] = Math.max(colWidths[i], value.length);
+    }
+  }
+
+  const headerLine = event.columns.map((col, i) => col.padEnd(colWidths[i])).join('  ');
+  lines.push(headerLine);
+  lines.push(colWidths.map((w) => '-'.repeat(w)).join('  '));
+
+  for (const row of event.rows) {
+    const rowLine = event.columns.map((col, i) => (row[col] ?? '').padEnd(colWidths[i])).join('  ');
+    lines.push(rowLine);
+  }
+
+  return lines.join('\n');
+}
+
+export function formatFileRefEvent(event: FileRefEvent): string {
+  const displayed = displayPath(event.path);
+  if (event.label) {
+    return `${event.label}: ${displayed}`;
+  }
+  return displayed;
+}
+
+export function formatDetailTreeEvent(event: DetailTreeEvent): string {
+  return formatDetailTreeLines(event.items).join('\n');
+}
+
+// --- Xcodebuild-specific formatters ---
+
 export function extractGroupedCompilerError(
-  event: ErrorEvent,
+  event: CompilerErrorEvent,
   options?: DiagnosticFormattingOptions,
 ): GroupedDiagnosticEntry | null {
   const firstRawLine = event.rawLine.split('\n')[0].trim();
@@ -179,7 +325,7 @@ export function extractGroupedCompilerError(
 }
 
 export function formatGroupedCompilerErrors(
-  events: ErrorEvent[],
+  events: CompilerErrorEvent[],
   options?: DiagnosticFormattingOptions,
 ): string {
   const hasFileLocated = events.some((e) => extractGroupedCompilerError(e, options) !== null);
@@ -191,13 +337,13 @@ export function formatGroupedCompilerErrors(
   for (const event of events) {
     const fileDiagnostic = extractGroupedCompilerError(event, options);
     if (fileDiagnostic) {
-      lines.push(`  ✗ ${fileDiagnostic.message}`);
+      lines.push(`  \u2717 ${fileDiagnostic.message}`);
       if (fileDiagnostic.location) {
         lines.push(`    ${fileDiagnostic.location}`);
       }
     } else {
       const messageLines = event.message.split('\n');
-      lines.push(`  ✗ ${messageLines[0]}`);
+      lines.push(`  \u2717 ${messageLines[0]}`);
       for (let i = 1; i < messageLines.length; i++) {
         lines.push(`    ${messageLines[i]}`);
       }
@@ -212,32 +358,26 @@ export function formatGroupedCompilerErrors(
   return lines.join('\n');
 }
 
-export function formatStartEvent(event: Extract<XcodebuildEvent, { type: 'start' }>): string {
-  return event.message;
-}
-
-export function formatStatusEvent(event: Extract<XcodebuildEvent, { type: 'status' }>): string {
+export function formatBuildStageEvent(event: BuildStageEvent): string {
   switch (event.stage) {
     case 'RESOLVING_PACKAGES':
-      return '› Resolving packages';
+      return '\u203A Resolving packages';
     case 'COMPILING':
-      return '› Compiling';
+      return '\u203A Compiling';
     case 'LINKING':
-      return '› Linking';
+      return '\u203A Linking';
     case 'PREPARING_TESTS':
-      return '› Preparing tests';
+      return '\u203A Preparing tests';
     case 'RUN_TESTS':
-      return '› Running tests';
+      return '\u203A Running tests';
     case 'ARCHIVING':
-      return '› Archiving';
+      return '\u203A Archiving';
     case 'COMPLETED':
       return event.message;
   }
 }
 
-export function formatTransientStatusEvent(
-  event: Extract<XcodebuildEvent, { type: 'status' }>,
-): string {
+export function formatTransientBuildStageEvent(event: BuildStageEvent): string {
   switch (event.stage) {
     case 'RESOLVING_PACKAGES':
       return 'Resolving packages...';
@@ -256,8 +396,8 @@ export function formatTransientStatusEvent(
   }
 }
 
-export function formatHumanWarningEvent(
-  event: Extract<XcodebuildEvent, { type: 'warning' }>,
+export function formatHumanCompilerWarningEvent(
+  event: CompilerWarningEvent,
   options?: DiagnosticFormattingOptions,
 ): string {
   const diagnostic = parseHumanDiagnostic(event, 'warning', options);
@@ -269,7 +409,7 @@ export function formatHumanWarningEvent(
 }
 
 export function formatGroupedWarnings(
-  events: Extract<XcodebuildEvent, { type: 'warning' }>[],
+  events: CompilerWarningEvent[],
   options?: DiagnosticFormattingOptions,
 ): string {
   const heading = `Warnings (${events.length}):`;
@@ -291,8 +431,8 @@ export function formatGroupedWarnings(
   return lines.join('\n');
 }
 
-export function formatHumanErrorEvent(
-  event: Extract<XcodebuildEvent, { type: 'error' }>,
+export function formatHumanCompilerErrorEvent(
+  event: CompilerErrorEvent,
   options?: DiagnosticFormattingOptions,
 ): string {
   const diagnostic = parseHumanDiagnostic(event, 'error', options);
@@ -301,57 +441,15 @@ export function formatHumanErrorEvent(
     : diagnostic.message;
 }
 
-export function formatNoticeEvent(event: Extract<XcodebuildEvent, { type: 'notice' }>): string {
-  if (isBuildRunStepNotice(event)) {
-    const stepLabel = formatBuildRunStepLabel(event.data.step);
-    return event.data.status === 'succeeded' ? `✓ ${stepLabel}` : `› ${stepLabel}`;
+export function formatTransientStatusLineEvent(event: StatusLineEvent): string | null {
+  if (event.level === 'info') {
+    return `${event.message}...`;
   }
-
-  if (isBuildRunResultNotice(event)) {
-    const details = [{ label: 'App Path', value: event.data.appPath }];
-
-    if ('bundleId' in event.data && typeof event.data.bundleId === 'string') {
-      details.push({ label: 'Bundle ID', value: event.data.bundleId });
-    }
-
-    if ('appId' in event.data && typeof event.data.appId === 'string') {
-      details.push({ label: 'App ID', value: event.data.appId });
-    }
-
-    if ('processId' in event.data && typeof event.data.processId === 'number') {
-      details.push({ label: 'Process ID', value: String(event.data.processId) });
-    }
-
-    if (event.data.launchState !== 'requested') {
-      details.push({ label: 'Launch', value: 'Running' });
-    }
-
-    return ['✅ Build & Run complete', '', ...formatDetailTree(details)].join('\n');
-  }
-
-  switch (event.level) {
-    case 'success':
-      return `\u{2705} ${event.message}`;
-    case 'warning':
-      return `\u{26A0}\u{FE0F} ${event.message}`;
-    default:
-      return `\u{2139}\u{FE0F} ${event.message}`;
-  }
-}
-
-export function formatTransientNoticeEvent(
-  event: Extract<XcodebuildEvent, { type: 'notice' }>,
-): string | null {
-  if (!isBuildRunStepNotice(event) || event.data.status !== 'started') {
-    return null;
-  }
-
-  const stepLabel = formatBuildRunStepLabel(event.data.step);
-  return `${stepLabel}...`;
+  return null;
 }
 
 export function formatTestFailureEvent(
-  event: Extract<XcodebuildEvent, { type: 'test-failure' }>,
+  event: TestFailureEvent,
   options?: DiagnosticFormattingOptions,
 ): string {
   const parts: string[] = [];
@@ -375,8 +473,10 @@ export function formatTestFailureEvent(
   return lines.join('\n');
 }
 
-export function formatSummaryEvent(event: Extract<XcodebuildEvent, { type: 'summary' }>): string {
-  const op = event.operation[0] + event.operation.slice(1).toLowerCase();
+export function formatSummaryEvent(event: SummaryEvent): string {
+  const op = event.operation
+    ? event.operation[0] + event.operation.slice(1).toLowerCase()
+    : 'Operation';
   const succeeded = event.status === 'SUCCEEDED';
   const statusEmoji = succeeded ? '\u{2705}' : '\u{274C}';
   const statusWord = succeeded ? 'succeeded' : 'failed';
@@ -405,17 +505,12 @@ export function formatSummaryEvent(event: Extract<XcodebuildEvent, { type: 'summ
   return `${statusEmoji} ${op} ${statusWord}.${detailsSuffix}`;
 }
 
-export function formatTestDiscoveryEvent(
-  event: Extract<XcodebuildEvent, { type: 'test-discovery' }>,
-): string {
+export function formatTestDiscoveryEvent(event: TestDiscoveryEvent): string {
   const testList = event.tests.join(', ');
   const truncation = event.truncated ? ` (and more)` : '';
   return `Discovered ${event.total} test(s): ${testList}${truncation}`;
 }
 
-export function formatNextStepsEvent(
-  event: Extract<XcodebuildEvent, { type: 'next-steps' }>,
-  runtime: 'cli' | 'mcp',
-): string {
+export function formatNextStepsEvent(event: NextStepsEvent, runtime: 'cli' | 'mcp'): string {
   return renderNextStepsSection(event.steps, runtime);
 }

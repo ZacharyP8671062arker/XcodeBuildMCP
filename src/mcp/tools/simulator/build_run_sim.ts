@@ -14,7 +14,6 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
-import { createTextResponse } from '../../../utils/responses/index.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import {
@@ -24,9 +23,12 @@ import {
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { inferPlatform } from '../../../utils/infer-platform.ts';
 import { constructDestinationString } from '../../../utils/xcode.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 import {
+  createBuildRunResultEvents,
   createPendingXcodebuildResponse,
   emitPipelineError,
   emitPipelineNotice,
@@ -160,18 +162,7 @@ export async function build_run_simLogic(
     if (params.simulatorId) {
       const validation = await validateAvailableSimulatorId(params.simulatorId, executor);
       if (validation.error) {
-        const errorText = validation.error.content
-          .filter((item) => item.type === 'text')
-          .flatMap((item) => item.text.split('\n'))
-          .map((line) => line.trim())
-          .find((line) => line.startsWith('Error:'))
-          ?.replace(/^Error:\s*/, '')
-          .trim();
-        emitPipelineError(
-          started,
-          'BUILD',
-          errorText ?? `No available simulator matched: ${params.simulatorId}`,
-        );
+        emitPipelineError(started, 'BUILD', validation.error);
         return createPendingXcodebuildResponse(started, {
           content: [],
           isError: true,
@@ -273,11 +264,7 @@ export async function build_run_simLogic(
         );
 
     if (uuidResult.error) {
-      const errorMsg = uuidResult.error.content
-        .filter((item) => item.type === 'text')
-        .map((item) => item.text)
-        .join(' ');
-      emitPipelineError(started, 'BUILD', `Failed to resolve simulator UUID: ${errorMsg}`);
+      emitPipelineError(started, 'BUILD', `Failed to resolve simulator UUID: ${uuidResult.error}`);
       return createPendingXcodebuildResponse(started, {
         content: [],
         isError: true,
@@ -488,30 +475,23 @@ export async function build_run_simLogic(
         },
       },
       {
-        tailEvents: [
-          {
-            type: 'notice',
-            timestamp: new Date().toISOString(),
-            operation: 'BUILD',
-            level: 'success',
-            message: 'Build & Run complete',
-            code: 'build-run-result',
-            data: {
-              scheme: params.scheme,
-              platform: displayPlatform,
-              target: `${platformName} Simulator`,
-              appPath: appBundlePath,
-              bundleId,
-              launchState: 'requested',
-            },
-          },
-        ],
+        tailEvents: createBuildRunResultEvents({
+          scheme: params.scheme,
+          platform: displayPlatform,
+          target: `${platformName} Simulator`,
+          appPath: appBundlePath,
+          bundleId,
+          launchState: 'requested',
+        }),
       },
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error in Simulator build and run: ${errorMessage}`);
-    return createTextResponse(`Error during simulator build and run: ${errorMessage}`, true);
+    return toolResponse([
+      header('Build & Run Simulator'),
+      statusLine('error', `Error during simulator build and run: ${errorMessage}`),
+    ]);
   }
 }
 

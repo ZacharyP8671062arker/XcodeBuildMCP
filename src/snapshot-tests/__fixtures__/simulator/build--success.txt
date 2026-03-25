@@ -1,0 +1,11 @@
+
+🔨 Build
+
+  Scheme: CalculatorApp
+  Configuration: Debug
+  Platform: iOS Simulator
+
+✅ Build succeeded. (⏱️ <DURATION>)
+
+Next steps:
+1. Get built app path in simulator derived data: xcodebuildmcp simulator get-app-path --simulator-name "iPhone 17" --scheme "CalculatorApp" --platform "iOS Simulator"

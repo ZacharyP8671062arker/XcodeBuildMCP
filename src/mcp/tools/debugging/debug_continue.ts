@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createErrorResponse, createTextResponse } from '../../../utils/responses/index.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 import {
   getDefaultDebuggerToolContext,
@@ -17,14 +18,22 @@ export async function debug_continueLogic(
   params: DebugContinueParams,
   ctx: DebuggerToolContext,
 ): Promise<ToolResponse> {
+  const headerEvent = header('Continue');
+
   try {
     const targetId = params.debugSessionId ?? ctx.debugger.getCurrentSessionId();
     await ctx.debugger.resumeSession(targetId ?? undefined);
 
-    return createTextResponse(`✅ Resumed debugger session${targetId ? ` ${targetId}` : ''}.`);
+    return toolResponse([
+      headerEvent,
+      statusLine('success', `Resumed debugger session${targetId ? ` ${targetId}` : ''}`),
+    ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return createErrorResponse('Failed to resume debugger', message);
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to resume debugger: ${message}`),
+    ]);
   }
 }
 

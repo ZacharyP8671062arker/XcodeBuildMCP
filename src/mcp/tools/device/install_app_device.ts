@@ -14,8 +14,9 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const installAppDeviceSchema = z.object({
   deviceId: z
     .string()
@@ -26,12 +27,8 @@ const installAppDeviceSchema = z.object({
 
 const publicSchemaObject = installAppDeviceSchema.omit({ deviceId: true } as const);
 
-// Use z.infer for type safety
 type InstallAppDeviceParams = z.infer<typeof installAppDeviceSchema>;
 
-/**
- * Business logic for installing an app on a physical Apple device
- */
 export async function install_app_deviceLogic(
   params: InstallAppDeviceParams,
   executor: CommandExecutor,
@@ -44,42 +41,36 @@ export async function install_app_deviceLogic(
     const result = await executor(
       ['xcrun', 'devicectl', 'device', 'install', 'app', '--device', deviceId, appPath],
       'Install app on device',
-      false, // useShell
-      undefined, // env
+      false,
     );
 
     if (!result.success) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Failed to install app: ${result.error}`,
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        header('Install App', [
+          { label: 'Device', value: deviceId },
+          { label: 'App', value: appPath },
+        ]),
+        statusLine('error', `Failed to install app: ${result.error}`),
+      ]);
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `✅ App installed successfully on device ${deviceId}\n\n${result.output}`,
-        },
-      ],
-    };
+    return toolResponse([
+      header('Install App', [
+        { label: 'Device', value: deviceId },
+        { label: 'App', value: appPath },
+      ]),
+      statusLine('success', 'App installed successfully.'),
+    ]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error installing app on device: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Failed to install app on device: ${errorMessage}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Install App', [
+        { label: 'Device', value: deviceId },
+        { label: 'App', value: appPath },
+      ]),
+      statusLine('error', `Failed to install app on device: ${errorMessage}`),
+    ]);
   }
 }
 

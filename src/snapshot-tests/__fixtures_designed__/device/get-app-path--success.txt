@@ -1,0 +1,13 @@
+🔍 Get App Path
+
+  Scheme: CalculatorApp
+  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  Configuration: Debug
+  Platform: iOS
+
+  └ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphoneos/CalculatorApp.app
+
+Next steps:
+1. Get bundle ID: xcodebuildmcp project-discovery get-app-bundle-id --app-path "..."
+2. Install on device: xcodebuildmcp device install --app-path "..."
+3. Launch on device: xcodebuildmcp device launch --bundle-id "BUNDLE_ID"

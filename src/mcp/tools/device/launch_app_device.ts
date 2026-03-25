@@ -18,8 +18,9 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { join } from 'path';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
-// Type for the launch JSON response
 type LaunchDataResponse = {
   result?: {
     process?: {
@@ -28,7 +29,6 @@ type LaunchDataResponse = {
   };
 };
 
-// Define schema as ZodObject
 const launchAppDeviceSchema = z.object({
   deviceId: z.string().describe('UDID of the device (obtained from list_devices)'),
   bundleId: z.string(),
@@ -43,7 +43,6 @@ const publicSchemaObject = launchAppDeviceSchema.omit({
   bundleId: true,
 } as const);
 
-// Use z.infer for type safety
 type LaunchAppDeviceParams = z.infer<typeof launchAppDeviceSchema>;
 
 export async function launch_app_deviceLogic(
@@ -78,46 +77,27 @@ export async function launch_app_deviceLogic(
 
     command.push(bundleId);
 
-    const result = await executor(
-      command,
-      'Launch app on device',
-      false, // useShell
-      undefined, // env
-    );
+    const result = await executor(command, 'Launch app on device', false);
+
+    const headerParams: Array<{ label: string; value: string }> = [
+      { label: 'Device', value: deviceId },
+      { label: 'Bundle ID', value: bundleId },
+    ];
 
     if (!result.success) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Failed to launch app: ${result.error}`,
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        header('Launch App', headerParams),
+        statusLine('error', `Failed to launch app: ${result.error}`),
+      ]);
     }
 
-    // Parse JSON to extract process ID
     let processId: number | undefined;
     try {
       const jsonContent = await fileSystem.readFile(tempJsonPath, 'utf8');
-      const parsedData: unknown = JSON.parse(jsonContent);
-
-      // Type guard to validate the parsed data structure
-      if (
-        parsedData &&
-        typeof parsedData === 'object' &&
-        'result' in parsedData &&
-        parsedData.result &&
-        typeof parsedData.result === 'object' &&
-        'process' in parsedData.result &&
-        parsedData.result.process &&
-        typeof parsedData.result.process === 'object' &&
-        'processIdentifier' in parsedData.result.process &&
-        typeof parsedData.result.process.processIdentifier === 'number'
-      ) {
-        const launchData = parsedData as LaunchDataResponse;
-        processId = launchData.result?.process?.processIdentifier;
+      const launchData = JSON.parse(jsonContent) as LaunchDataResponse;
+      const pid = launchData?.result?.process?.processIdentifier;
+      if (typeof pid === 'number') {
+        processId = pid;
       }
     } catch (error) {
       log('warn', `Failed to parse launch JSON output: ${error}`);
@@ -125,31 +105,28 @@ export async function launch_app_deviceLogic(
       await fileSystem.rm(tempJsonPath, { force: true }).catch(() => {});
     }
 
-    const responseText = processId
-      ? `✅ App launched successfully\n\n${result.output}\n\nProcess ID: ${processId}\n\nInteract with your app on the device.`
-      : `✅ App launched successfully\n\n${result.output}`;
+    const events = [header('Launch App', headerParams)];
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: responseText,
-        },
-      ],
-      ...(processId ? { nextStepParams: { stop_app_device: { deviceId, processId } } } : {}),
-    };
+    if (processId) {
+      events.push(detailTree([{ label: 'Process ID', value: processId.toString() }]));
+    }
+
+    events.push(statusLine('success', 'App launched successfully.'));
+
+    return toolResponse(
+      events,
+      processId ? { nextStepParams: { stop_app_device: { deviceId, processId } } } : undefined,
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error launching app on device: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Failed to launch app on device: ${errorMessage}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Launch App', [
+        { label: 'Device', value: deviceId },
+        { label: 'Bundle ID', value: bundleId },
+      ]),
+      statusLine('error', `Failed to launch app on device: ${errorMessage}`),
+    ]);
   }
 }
 

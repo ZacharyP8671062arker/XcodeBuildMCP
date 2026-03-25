@@ -1,0 +1,9 @@
+🐛 Variables
+
+(CalculatorService) self = {
+  ├ display = "0"
+  ├ expressionDisplay = ""
+  ├ currentValue = 0
+  ├ previousValue = 0
+  └ currentOperation = nil
+}

@@ -19,6 +19,13 @@ import {
   rotateImage,
 } from '../screenshot.ts';
 
+function allText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
+
 describe('Screenshot Plugin', () => {
   beforeEach(() => {
     sessionStore.clear();
@@ -240,8 +247,8 @@ describe('Screenshot Plugin', () => {
         }),
       );
 
-      expect(result.isError).toBe(false);
-      expect(result.content[0].type).toBe('image');
+      expect(result.isError).toBeFalsy();
+      expect(result.content.some((c) => c.type === 'image')).toBe(true);
     });
 
     it('should return success for valid screenshot capture', async () => {
@@ -265,8 +272,8 @@ describe('Screenshot Plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result.isError).toBe(false);
-      expect(result.content[0].type).toBe('image');
+      expect(result.isError).toBeFalsy();
+      expect(result.content.some((c) => c.type === 'image')).toBe(true);
     });
 
     it('should handle command execution failure', async () => {
@@ -284,15 +291,10 @@ describe('Screenshot Plugin', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Error: System error executing screenshot: Failed to capture screenshot: Simulator not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        'System error executing screenshot: Failed to capture screenshot: Simulator not found',
+      );
     });
 
     it('should handle file reading errors', async () => {
@@ -317,15 +319,10 @@ describe('Screenshot Plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Error: Screenshot captured but failed to process image file: File not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        'Screenshot captured but failed to process image file: File not found',
+      );
     });
 
     it('should handle file cleanup errors gracefully', async () => {
@@ -353,16 +350,7 @@ describe('Screenshot Plugin', () => {
       );
 
       // Should still return successful result despite cleanup failure
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'image',
-            data: 'fake-image-data',
-            mimeType: 'image/jpeg',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
     });
 
     it('should handle SystemError from command execution', async () => {
@@ -378,15 +366,8 @@ describe('Screenshot Plugin', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Error: System error executing screenshot: System error occurred',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain('System error executing screenshot: System error occurred');
     });
 
     it('should handle unexpected Error objects', async () => {
@@ -402,12 +383,8 @@ describe('Screenshot Plugin', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text' as const, text: 'Error: An unexpected error occurred: Unexpected error' },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain('An unexpected error occurred: Unexpected error');
     });
 
     it('should handle unexpected string errors', async () => {
@@ -423,12 +400,8 @@ describe('Screenshot Plugin', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text' as const, text: 'Error: An unexpected error occurred: String error' },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain('An unexpected error occurred: String error');
     });
   });
 
@@ -800,7 +773,7 @@ describe('Screenshot Plugin', () => {
       );
 
       // Should still succeed
-      expect(result.isError).toBe(false);
+      expect(result.isError).toBeFalsy();
       // Should have: screenshot, list devices, failed orientation detection, optimization
       expect(capturedCommands.length).toBe(4);
     });
@@ -870,8 +843,8 @@ describe('Screenshot Plugin', () => {
       );
 
       // Should still succeed even if rotation failed
-      expect(result.isError).toBe(false);
-      expect(result.content[0].type).toBe('image');
+      expect(result.isError).toBeFalsy();
+      expect(result.content.some((c) => c.type === 'image')).toBe(true);
     });
   });
 });

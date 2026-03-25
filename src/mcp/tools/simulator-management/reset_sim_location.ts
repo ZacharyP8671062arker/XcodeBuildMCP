@@ -7,67 +7,14 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const resetSimulatorLocationSchema = z.object({
   simulatorId: z.uuid().describe('UUID of the simulator to use (obtained from list_simulators)'),
 });
 
-// Use z.infer for type safety
 type ResetSimulatorLocationParams = z.infer<typeof resetSimulatorLocationSchema>;
-
-// Helper function to execute simctl commands and handle responses
-async function executeSimctlCommandAndRespond(
-  params: ResetSimulatorLocationParams,
-  simctlSubCommand: string[],
-  operationDescriptionForXcodeCommand: string,
-  successMessage: string,
-  failureMessagePrefix: string,
-  operationLogContext: string,
-  executor: CommandExecutor,
-  extraValidation?: () => ToolResponse | undefined,
-): Promise<ToolResponse> {
-  if (extraValidation) {
-    const validationResult = extraValidation();
-    if (validationResult) {
-      return validationResult;
-    }
-  }
-
-  try {
-    const command = ['xcrun', 'simctl', ...simctlSubCommand];
-    const result = await executor(command, operationDescriptionForXcodeCommand, false, {});
-
-    if (!result.success) {
-      const fullFailureMessage = `${failureMessagePrefix}: ${result.error}`;
-      log(
-        'error',
-        `${fullFailureMessage} (operation: ${operationLogContext}, simulator: ${params.simulatorId})`,
-      );
-      return {
-        content: [{ type: 'text', text: fullFailureMessage }],
-      };
-    }
-
-    log(
-      'info',
-      `${successMessage} (operation: ${operationLogContext}, simulator: ${params.simulatorId})`,
-    );
-    return {
-      content: [{ type: 'text', text: successMessage }],
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const fullFailureMessage = `${failureMessagePrefix}: ${errorMessage}`;
-    log(
-      'error',
-      `Error during ${operationLogContext} for simulator ${params.simulatorId}: ${errorMessage}`,
-    );
-    return {
-      content: [{ type: 'text', text: fullFailureMessage }],
-    };
-  }
-}
 
 export async function reset_sim_locationLogic(
   params: ResetSimulatorLocationParams,
@@ -75,15 +22,36 @@ export async function reset_sim_locationLogic(
 ): Promise<ToolResponse> {
   log('info', `Resetting simulator ${params.simulatorId} location`);
 
-  return executeSimctlCommandAndRespond(
-    params,
-    ['location', params.simulatorId, 'clear'],
-    'Reset Simulator Location',
-    `Successfully reset simulator ${params.simulatorId} location.`,
-    'Failed to reset simulator location',
-    'reset simulator location',
-    executor,
-  );
+  const headerEvent = header('Reset Location', [{ label: 'Simulator', value: params.simulatorId }]);
+
+  try {
+    const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'clear'];
+    const result = await executor(command, 'Reset Simulator Location', false, {});
+
+    if (!result.success) {
+      log(
+        'error',
+        `Failed to reset simulator location: ${result.error} (simulator: ${params.simulatorId})`,
+      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to reset simulator location: ${result.error}`),
+      ]);
+    }
+
+    log('info', `Reset simulator ${params.simulatorId} location`);
+    return toolResponse([headerEvent, statusLine('success', 'Location reset to default')]);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(
+      'error',
+      `Error during reset simulator location for simulator ${params.simulatorId}: ${errorMessage}`,
+    );
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to reset simulator location: ${errorMessage}`),
+    ]);
+  }
 }
 
 const publicSchemaObject = z.strictObject(

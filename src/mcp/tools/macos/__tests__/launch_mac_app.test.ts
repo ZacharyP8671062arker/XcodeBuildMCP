@@ -69,15 +69,12 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: "File not found: '/path/to/NonExistent.app'. Please check the path and try again.",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+      expect(text).toContain("File not found: '/path/to/NonExistent.app'");
     });
   });
 
@@ -184,6 +181,13 @@ describe('launch_mac_app plugin', () => {
   });
 
   describe('Response Processing', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return successful launch response', async () => {
       const mockExecutor = async () => Promise.resolve(createMockCommandResponse());
 
@@ -199,14 +203,11 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS app launched successfully: /path/to/MyApp.app',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Launch macOS App');
+      expect(text).toContain('/path/to/MyApp.app');
+      expect(text).toContain('App launched successfully');
     });
 
     it('should return successful launch response with args', async () => {
@@ -225,14 +226,9 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS app launched successfully: /path/to/MyApp.app',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('App launched successfully');
     });
 
     it('should handle launch failure with Error object', async () => {
@@ -252,15 +248,9 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '❌ Launch macOS app operation failed: App not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Launch macOS app operation failed: App not found');
     });
 
     it('should handle launch failure with string error', async () => {
@@ -280,15 +270,9 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '❌ Launch macOS app operation failed: Permission denied',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Launch macOS app operation failed: Permission denied');
     });
 
     it('should handle launch failure with unknown error type', async () => {
@@ -308,15 +292,9 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '❌ Launch macOS app operation failed: 123',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Launch macOS app operation failed: 123');
     });
   });
 });

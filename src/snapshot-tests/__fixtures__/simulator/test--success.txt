@@ -1,0 +1,16 @@
+
+🧪 Test
+
+  Scheme: CalculatorApp
+  Configuration: Debug
+  Platform: iOS Simulator
+
+⚙️ Test Run test-without-building
+
+  Scheme: CalculatorApp
+  Platform: iOS Simulator
+  Configuration: Debug
+
+❌ Test Run test-without-building failed for scheme CalculatorApp.
+
+❌ Test failed. (<TEST_COUNTS>, ⏱️ <DURATION>)

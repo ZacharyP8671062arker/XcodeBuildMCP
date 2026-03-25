@@ -19,17 +19,16 @@ export async function devicesResourceLogic(
     const result = await list_devicesLogic({}, executor);
 
     if (result.isError) {
-      const errorText = result.content[0]?.text;
-      throw new Error(typeof errorText === 'string' ? errorText : 'Failed to retrieve device data');
+      const errorText = result.content.map((c) => ('text' in c ? c.text : '')).join('\n');
+      throw new Error(errorText || 'Failed to retrieve device data');
     }
+
+    const joinedText = result.content.map((c) => ('text' in c ? c.text : '')).join('\n');
 
     return {
       contents: [
         {
-          text:
-            typeof result.content[0]?.text === 'string'
-              ? result.content[0].text
-              : 'No device data available',
+          text: joinedText || 'No device data available',
         },
       ],
     };

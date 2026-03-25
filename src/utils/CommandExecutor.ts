@@ -11,9 +11,6 @@ export interface CommandExecOptions {
 }
 
 /**
- * Command executor function type for dependency injection
- */
-/**
  * NOTE: `detached` only changes when the promise resolves; it does not detach/unref
  * the OS process. Callers must still manage lifecycle and open streams.
  */
@@ -24,9 +21,6 @@ export type CommandExecutor = (
   opts?: CommandExecOptions,
   detached?: boolean,
 ) => Promise<CommandResponse>;
-/**
- * Command execution response interface
- */
 
 export interface CommandResponse {
   success: boolean;

@@ -35,19 +35,19 @@ describe('stop_mac_app plugin', () => {
   });
 
   describe('Input Validation', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return exact validation error for missing parameters', async () => {
       const mockExecutor = async () => ({ success: true, output: '', process: {} as any });
       const result = await stop_mac_appLogic({}, mockExecutor);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Either appName or processId must be provided.',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toContain('Either appName or processId must be provided.');
     });
   });
 
@@ -113,6 +113,13 @@ describe('stop_mac_app plugin', () => {
   });
 
   describe('Response Processing', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return exact successful stop response by app name', async () => {
       const mockExecutor = async () => ({ success: true, output: '', process: {} as any });
 
@@ -123,14 +130,11 @@ describe('stop_mac_app plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS app stopped successfully: Calculator',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Stop macOS App');
+      expect(text).toContain('Calculator');
+      expect(text).toContain('App stopped successfully');
     });
 
     it('should return exact successful stop response by process ID', async () => {
@@ -143,14 +147,10 @@ describe('stop_mac_app plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS app stopped successfully: PID 1234',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('PID 1234');
+      expect(text).toContain('App stopped successfully');
     });
 
     it('should return exact successful stop response with both parameters (processId takes precedence)', async () => {
@@ -164,14 +164,10 @@ describe('stop_mac_app plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ macOS app stopped successfully: PID 1234',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('PID 1234');
+      expect(text).toContain('App stopped successfully');
     });
 
     it('should handle execution errors', async () => {
@@ -186,15 +182,9 @@ describe('stop_mac_app plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '❌ Stop macOS app operation failed: Process not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Stop macOS app operation failed: Process not found');
     });
   });
 });

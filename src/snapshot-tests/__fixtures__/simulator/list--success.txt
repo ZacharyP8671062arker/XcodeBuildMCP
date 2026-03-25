@@ -1,0 +1,59 @@
+
+📱 List Simulators
+
+com.apple.CoreSimulator.SimRuntime.iOS-26-4
+
+Name                   UUID                                  State
+---------------------  ------------------------------------  --------
+iPhone 17 Pro          <UUID>  Shutdown
+iPhone 17 Pro Max      <UUID>  Shutdown
+iPhone 17e             <UUID>  Shutdown
+iPhone Air             <UUID>  Shutdown
+iPhone 17              <UUID>  Booted
+iPad Pro 13-inch (M5)  <UUID>  Shutdown
+iPad Pro 11-inch (M5)  <UUID>  Shutdown
+iPad mini (A17 Pro)    <UUID>  Shutdown
+iPad Air 13-inch (M4)  <UUID>  Shutdown
+iPad Air 11-inch (M4)  <UUID>  Shutdown
+iPad (A16)             <UUID>  Shutdown
+
+com.apple.CoreSimulator.SimRuntime.xrOS-26-2
+
+Name              UUID                                  State
+----------------  ------------------------------------  --------
+Apple Vision Pro  <UUID>  Shutdown
+
+com.apple.CoreSimulator.SimRuntime.watchOS-26-2
+
+Name                          UUID                                  State
+----------------------------  ------------------------------------  --------
+Apple Watch Series 11 (46mm)  <UUID>  Shutdown
+Apple Watch Series 11 (42mm)  <UUID>  Shutdown
+Apple Watch Ultra 3 (49mm)    <UUID>  Shutdown
+Apple Watch SE 3 (44mm)       <UUID>  Shutdown
+Apple Watch SE 3 (40mm)       <UUID>  Shutdown
+
+com.apple.CoreSimulator.SimRuntime.tvOS-26-2
+
+Name                                     UUID                                  State
+---------------------------------------  ------------------------------------  --------
+Apple TV 4K (3rd generation)             <UUID>  Shutdown
+Apple TV 4K (3rd generation) (at 1080p)  <UUID>  Shutdown
+Apple TV                                 <UUID>  Shutdown
+
+com.apple.CoreSimulator.SimRuntime.iOS-26-2
+
+Name                   UUID                                  State
+---------------------  ------------------------------------  --------
+iPhone 17 Pro          <UUID>  Shutdown
+iPhone 17 Pro Max      <UUID>  Shutdown
+iPhone Air             <UUID>  Shutdown
+iPhone 17              <UUID>  Shutdown
+iPhone 16e             <UUID>  Shutdown
+iPad Pro 13-inch (M5)  <UUID>  Shutdown
+iPad Pro 11-inch (M5)  <UUID>  Shutdown
+iPad mini (A17 Pro)    <UUID>  Shutdown
+iPad (A16)             <UUID>  Shutdown
+iPad Air 13-inch (M3)  <UUID>  Shutdown
+iPad Air 11-inch (M3)  <UUID>  Shutdown
+✅ Listed available simulators

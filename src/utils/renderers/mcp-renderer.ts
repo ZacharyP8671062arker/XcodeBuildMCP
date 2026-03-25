@@ -1,12 +1,20 @@
-import type { XcodebuildEvent } from '../../types/xcodebuild-events.ts';
+import type {
+  CompilerErrorEvent,
+  CompilerWarningEvent,
+  PipelineEvent,
+} from '../../types/pipeline-events.ts';
 import type { ToolResponseContent } from '../../types/common.ts';
 import { sessionStore } from '../session-store.ts';
 import { deriveDiagnosticBaseDir } from './index.ts';
 import type { XcodebuildRenderer } from './index.ts';
 import {
-  formatStartEvent,
-  formatStatusEvent,
-  formatNoticeEvent,
+  formatHeaderEvent,
+  formatBuildStageEvent,
+  formatStatusLineEvent,
+  formatSectionEvent,
+  formatDetailTreeEvent,
+  formatTableEvent,
+  formatFileRefEvent,
   formatGroupedCompilerErrors,
   formatGroupedWarnings,
   formatTestFailureEvent,
@@ -20,8 +28,8 @@ export function createMcpRenderer(): XcodebuildRenderer & {
 } {
   const content: ToolResponseContent[] = [];
   const suppressWarnings = sessionStore.get('suppressWarnings');
-  const groupedCompilerErrors: Extract<XcodebuildEvent, { type: 'error' }>[] = [];
-  const groupedWarnings: Extract<XcodebuildEvent, { type: 'warning' }>[] = [];
+  const groupedCompilerErrors: CompilerErrorEvent[] = [];
+  const groupedWarnings: CompilerWarningEvent[] = [];
   let diagnosticBaseDir: string | null = null;
 
   function pushText(text: string): void {
@@ -33,25 +41,45 @@ export function createMcpRenderer(): XcodebuildRenderer & {
   }
 
   return {
-    onEvent(event: XcodebuildEvent): void {
+    onEvent(event: PipelineEvent): void {
       switch (event.type) {
-        case 'start': {
+        case 'header': {
           diagnosticBaseDir = deriveDiagnosticBaseDir(event);
-          pushSection(formatStartEvent(event));
+          pushSection(formatHeaderEvent(event));
           break;
         }
 
-        case 'status': {
-          pushText(formatStatusEvent(event));
+        case 'build-stage': {
+          pushText(formatBuildStageEvent(event));
           break;
         }
 
-        case 'notice': {
-          pushText(formatNoticeEvent(event));
+        case 'status-line': {
+          pushText(formatStatusLineEvent(event));
           break;
         }
 
-        case 'warning': {
+        case 'section': {
+          pushSection(formatSectionEvent(event));
+          break;
+        }
+
+        case 'detail-tree': {
+          pushText(formatDetailTreeEvent(event));
+          break;
+        }
+
+        case 'table': {
+          pushSection(formatTableEvent(event));
+          break;
+        }
+
+        case 'file-ref': {
+          pushText(formatFileRefEvent(event));
+          break;
+        }
+
+        case 'compiler-warning': {
           if (suppressWarnings) {
             return;
           }
@@ -59,7 +87,7 @@ export function createMcpRenderer(): XcodebuildRenderer & {
           break;
         }
 
-        case 'error': {
+        case 'compiler-error': {
           groupedCompilerErrors.push(event);
           break;
         }

@@ -24,14 +24,7 @@ export function isWorkflowDiscoveryEnabled(): boolean {
   return getConfig().experimentalWorkflowDiscovery;
 }
 
-/**
- * Resolve selected workflow names to only include workflows that
- * match real workflows, ensuring the mandatory workflows are always included.
- *
- * @param workflowNames - The list of selected workflow names
- * @returns The list of workflows to register.
- */
-export function resolveSelectedWorkflowNames(
+function resolveSelectedWorkflowNames(
   workflowNames: WorkflowName[] = [],
   availableWorkflowNames: WorkflowName[] = [],
 ): {
@@ -49,11 +42,9 @@ export function resolveSelectedWorkflowNames(
     baseAutoSelected.push(DEBUG_WORKFLOW);
   }
 
-  // When no workflows specified, default to simulator workflow
   const effectiveNames = normalizedNames.length > 0 ? normalizedNames : [DEFAULT_WORKFLOW];
   const selectedNames = [...new Set([...baseAutoSelected, ...effectiveNames])];
 
-  // Filter selected names to only include workflows that match real workflows.
   const selectedWorkflowNames = selectedNames.filter((workflowName) =>
     availableWorkflowNames.includes(workflowName),
   );
@@ -61,14 +52,6 @@ export function resolveSelectedWorkflowNames(
   return { selectedWorkflowNames, selectedNames };
 }
 
-/**
- * Resolve selected workflow groups to only include workflow groups that
- * match real workflow groups, ensuring the mandatory workflow groups are always included.
- *
- * @param workflowNames - The list of selected workflow names
- * @param workflowGroups - The map of workflow groups
- * @returns The list of workflow groups to register.
- */
 export function resolveSelectedWorkflows(
   workflowNames: WorkflowName[] = [],
   workflowGroupsParam?: Map<WorkflowName, WorkflowGroup>,
@@ -85,18 +68,4 @@ export function resolveSelectedWorkflows(
     .filter(isWorkflowGroup);
 
   return { selectedWorkflows, selectedNames: selection.selectedNames };
-}
-
-export function collectToolNames(workflows: WorkflowGroup[]): string[] {
-  const toolNames = new Set<string>();
-
-  for (const workflow of workflows) {
-    for (const tool of workflow.tools) {
-      if (tool?.name) {
-        toolNames.add(tool.name);
-      }
-    }
-  }
-
-  return [...toolNames];
 }

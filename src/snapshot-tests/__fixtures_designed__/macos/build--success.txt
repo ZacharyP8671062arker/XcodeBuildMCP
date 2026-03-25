@@ -1,0 +1,11 @@
+🔨 Build
+
+  Scheme: MCPTest
+  Project: example_projects/macOS/MCPTest.xcodeproj
+  Configuration: Debug
+  Platform: macOS
+
+✅ Build succeeded. (⏱️ <DURATION>)
+
+Next steps:
+1. Get built macOS app path: xcodebuildmcp macos get-app-path --scheme "MCPTest"

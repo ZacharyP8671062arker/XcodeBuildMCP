@@ -15,3 +15,4 @@ nextSteps:
   - label: Stop capture and retrieve logs
     toolId: stop_sim_log_cap
     priority: 1
+    when: success

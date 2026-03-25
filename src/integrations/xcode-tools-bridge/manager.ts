@@ -1,10 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { log } from '../../utils/logger.ts';
-import {
-  createErrorResponse,
-  createTextResponse,
-  type ToolResponse,
-} from '../../utils/responses/index.ts';
+import type { ToolResponse } from '../../types/common.ts';
+import { toolResponse } from '../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../utils/tool-event-builders.ts';
 import { XcodeToolsProxyRegistry, type ProxySyncResult } from './registry.ts';
 import {
   buildXcodeToolsBridgeStatus,
@@ -114,26 +112,27 @@ export class XcodeToolsBridgeManager {
 
   async statusTool(): Promise<ToolResponse> {
     const status = await this.getStatus();
-    return createTextResponse(JSON.stringify(status, null, 2));
+    return toolResponse([
+      header('Bridge Status'),
+      section('Status', [JSON.stringify(status, null, 2)]),
+    ]);
   }
 
   async syncTool(): Promise<ToolResponse> {
     try {
       const sync = await this.syncTools({ reason: 'manual' });
       const status = await this.getStatus();
-      return createTextResponse(
-        JSON.stringify(
-          {
-            sync,
-            status,
-          },
-          null,
-          2,
-        ),
-      );
+      return toolResponse([
+        header('Bridge Sync'),
+        section('Sync Result', [JSON.stringify({ sync, status }, null, 2)]),
+        statusLine('success', 'Bridge sync completed'),
+      ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return createErrorResponse('Bridge sync failed', message);
+      return toolResponse([
+        header('Bridge Sync'),
+        statusLine('error', `Bridge sync failed: ${message}`),
+      ]);
     }
   }
 
@@ -141,10 +140,17 @@ export class XcodeToolsBridgeManager {
     try {
       await this.disconnect();
       const status = await this.getStatus();
-      return createTextResponse(JSON.stringify(status, null, 2));
+      return toolResponse([
+        header('Bridge Disconnect'),
+        section('Status', [JSON.stringify(status, null, 2)]),
+        statusLine('success', 'Bridge disconnected'),
+      ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return createErrorResponse('Bridge disconnect failed', message);
+      return toolResponse([
+        header('Bridge Disconnect'),
+        statusLine('error', `Bridge disconnect failed: ${message}`),
+      ]);
     }
   }
 
@@ -162,7 +168,11 @@ export class XcodeToolsBridgeManager {
         toolCount: tools.length,
         tools: tools.map(serializeBridgeTool),
       };
-      return createTextResponse(JSON.stringify(payload, null, 2));
+      return toolResponse([
+        header('Xcode IDE List Tools'),
+        section('Tools', [JSON.stringify(payload, null, 2)]),
+        statusLine('success', `Found ${tools.length} tool(s)`),
+      ]);
     } catch (error) {
       return this.createBridgeFailureResponse(
         classifyBridgeError(error, 'list', {
@@ -202,6 +212,9 @@ export class XcodeToolsBridgeManager {
 
   private createBridgeFailureResponse(code: string, error: unknown): ToolResponse {
     const message = error instanceof Error ? error.message : String(error);
-    return createErrorResponse(code, message);
+    return toolResponse([
+      header('Xcode IDE Call Tool'),
+      statusLine('error', `[${code}] ${message}`),
+    ]);
   }
 }

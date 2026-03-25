@@ -1,6 +1,5 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createTextResponse } from '../../../utils/responses/index.ts';
 import {
   getDefaultCommandExecutor,
   getDefaultFileSystemExecutor,
@@ -9,7 +8,7 @@ import type { CommandExecutor, FileSystemExecutor } from '../../../utils/executi
 import {
   areAxeToolsAvailable,
   isAxeAtLeastVersion,
-  createAxeNotAvailableResponse,
+  AXE_NOT_AVAILABLE_MESSAGE,
 } from '../../../utils/axe/index.ts';
 import {
   startSimulatorVideoCapture,
@@ -20,6 +19,8 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { dirname } from 'path';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
 
 // Base schema object (used for MCP schema exposure)
 const recordSimVideoSchemaObject = z.object({
@@ -59,11 +60,9 @@ export async function record_sim_videoLogic(
   axe: {
     areAxeToolsAvailable(): boolean;
     isAxeAtLeastVersion(v: string, e: CommandExecutor): Promise<boolean>;
-    createAxeNotAvailableResponse(): ToolResponse;
   } = {
     areAxeToolsAvailable,
     isAxeAtLeastVersion,
-    createAxeNotAvailableResponse,
   },
   video: {
     startSimulatorVideoCapture: typeof startSimulatorVideoCapture;
@@ -74,16 +73,20 @@ export async function record_sim_videoLogic(
   },
   fs: FileSystemExecutor = getDefaultFileSystemExecutor(),
 ): Promise<ToolResponse> {
-  // Preflight checks for AXe availability and version
+  const headerEvent = header('Record Video', [{ label: 'Simulator', value: params.simulatorId }]);
+
   if (!axe.areAxeToolsAvailable()) {
-    return axe.createAxeNotAvailableResponse();
+    return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
   }
   const hasVersion = await axe.isAxeAtLeastVersion('1.1.0', executor);
   if (!hasVersion) {
-    return createTextResponse(
-      'AXe v1.1.0 or newer is required for simulator video capture. Please update bundled AXe artifacts.',
-      true,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        'AXe v1.1.0 or newer is required for simulator video capture. Please update bundled AXe artifacts.',
+      ),
+    ]);
   }
 
   if (params.start) {
@@ -94,10 +97,13 @@ export async function record_sim_videoLogic(
     );
 
     if (!startRes.started) {
-      return createTextResponse(
-        `Failed to start video recording: ${startRes.error ?? 'Unknown error'}`,
-        true,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine(
+          'error',
+          `Failed to start video recording: ${startRes.error ?? 'Unknown error'}`,
+        ),
+      ]);
     }
 
     const notes: string[] = [];
@@ -110,21 +116,20 @@ export async function record_sim_videoLogic(
       notes.push(startRes.warning);
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Video recording started for simulator ${params.simulatorId} at ${fpsUsed} fps.\nSession: ${startRes.sessionId}`,
-        },
-        ...(notes.length > 0
-          ? [
-              {
-                type: 'text' as const,
-                text: notes.join('\n'),
-              },
-            ]
-          : []),
-      ],
+    const events = [
+      headerEvent,
+      detailTree([
+        { label: 'FPS', value: String(fpsUsed) },
+        { label: 'Session', value: startRes.sessionId },
+      ]),
+      ...(notes.length > 0 ? [section('Notes', notes)] : []),
+      statusLine(
+        'success',
+        `Video recording started for simulator ${params.simulatorId} at ${fpsUsed} fps`,
+      ),
+    ];
+
+    return toolResponse(events, {
       nextStepParams: {
         record_sim_video: {
           simulatorId: params.simulatorId,
@@ -132,8 +137,7 @@ export async function record_sim_videoLogic(
           outputFile: '/path/to/output.mp4',
         },
       },
-      isError: false,
-    };
+    });
   }
 
   // params.stop must be true here per schema
@@ -143,22 +147,24 @@ export async function record_sim_videoLogic(
   );
 
   if (!stopRes.stopped) {
-    return createTextResponse(
-      `Failed to stop video recording: ${stopRes.error ?? 'Unknown error'}`,
-      true,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to stop video recording: ${stopRes.error ?? 'Unknown error'}`),
+    ]);
   }
 
-  // Attempt to move/rename the recording if we parsed a source path and an outputFile was given
   const outputs: string[] = [];
   let finalSavedPath = params.outputFile ?? stopRes.parsedPath ?? '';
   try {
     if (params.outputFile) {
       if (!stopRes.parsedPath) {
-        return createTextResponse(
-          `Recording stopped but could not determine the recorded file path from AXe output.\nRaw output:\n${stopRes.stdout ?? '(no output captured)'}`,
-          true,
-        );
+        return toolResponse([
+          headerEvent,
+          statusLine(
+            'error',
+            `Recording stopped but could not determine the recorded file path from AXe output. Raw output: ${stopRes.stdout ?? '(no output captured)'}`,
+          ),
+        ]);
       }
 
       const src = stopRes.parsedPath;
@@ -180,38 +186,24 @@ export async function record_sim_videoLogic(
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return createTextResponse(
-      `Recording stopped but failed to save/move the video file: ${msg}`,
-      true,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Recording stopped but failed to save/move the video file: ${msg}`),
+    ]);
   }
 
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `✅ Video recording stopped for simulator ${params.simulatorId}.`,
-      },
-      ...(outputs.length > 0
-        ? [
-            {
-              type: 'text' as const,
-              text: outputs.join('\n'),
-            },
-          ]
-        : []),
-      ...(!outputs.length && stopRes.stdout
-        ? [
-            {
-              type: 'text' as const,
-              text: `AXe output:\n${stopRes.stdout}`,
-            },
-          ]
-        : []),
-    ],
-    isError: false,
-    _meta: finalSavedPath ? { outputFile: finalSavedPath } : undefined,
-  };
+  const stopEvents = [
+    headerEvent,
+    ...(outputs.length > 0 ? [section('Output', outputs)] : []),
+    ...(!outputs.length && stopRes.stdout ? [section('AXe Output', [stopRes.stdout])] : []),
+    statusLine('success', `Video recording stopped for simulator ${params.simulatorId}`),
+  ];
+
+  const response = toolResponse(stopEvents);
+  if (finalSavedPath) {
+    (response as Record<string, unknown>)._meta = { outputFile: finalSavedPath };
+  }
+  return response;
 }
 
 const publicSchemaObject = z.strictObject(

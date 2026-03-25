@@ -173,6 +173,13 @@ describe('list_devices plugin (device-shared)', () => {
   });
 
   describe('Success Path Tests', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return successful devicectl response with parsed devices', async () => {
       const devicectlJson = {
         result: {
@@ -203,13 +210,11 @@ describe('list_devices plugin (device-shared)', () => {
         output: '',
       });
 
-      // Create mock path dependencies
       const mockPathDeps = {
         tmpdir: () => '/tmp',
         join: (...paths: string[]) => paths.join('/'),
       };
 
-      // Create mock filesystem with specific behavior
       const mockFsDeps = {
         readFile: async (_path: string, _encoding?: string) => JSON.stringify(devicectlJson),
         unlink: async () => {},
@@ -217,24 +222,24 @@ describe('list_devices plugin (device-shared)', () => {
 
       const result = await list_devicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: "Connected Devices:\n\n✅ Available Devices:\n\n📱 Test iPhone\n   UDID: test-device-123\n   Model: iPhone15,2\n   Product Type: iPhone15,2\n   Platform: iOS 17.0\n   Connection: USB\n\nNote: Use the device ID/UDID from above when required by other tools.\nHint: Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.\nBefore running build/run/test/UI automation tools, set the desired device identifier in session defaults.\n",
-          },
-        ],
-        nextStepParams: {
-          build_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
-          build_run_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
-          test_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
-          get_device_app_path: { scheme: 'SCHEME' },
-        },
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('List Devices');
+      expect(text).toContain('Test iPhone');
+      expect(text).toContain('test-device-123');
+      expect(text).toContain('iPhone15,2');
+      expect(text).toContain('iOS 17.0');
+      expect(text).toContain('USB');
+      expect(text).toContain('Devices discovered');
+      expect(result.nextStepParams).toEqual({
+        build_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
+        build_run_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
+        test_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
+        get_device_app_path: { scheme: 'SCHEME' },
       });
     });
 
     it('should return successful xctrace fallback response', async () => {
-      // Create executor with call count behavior
       let callCount = 0;
       const mockExecutor = async (
         _command: string[],
@@ -245,14 +250,12 @@ describe('list_devices plugin (device-shared)', () => {
       ) => {
         callCount++;
         if (callCount === 1) {
-          // First call fails (devicectl)
           return createMockCommandResponse({
             success: false,
             output: '',
             error: 'devicectl failed',
           });
         } else {
-          // Second call succeeds (xctrace)
           return createMockCommandResponse({
             success: true,
             output: 'iPhone 15 (12345678-1234-1234-1234-123456789012)',
@@ -261,13 +264,11 @@ describe('list_devices plugin (device-shared)', () => {
         }
       };
 
-      // Create mock path dependencies
       const mockPathDeps = {
         tmpdir: () => '/tmp',
         join: (...paths: string[]) => paths.join('/'),
       };
 
-      // Create mock filesystem that throws for readFile
       const mockFsDeps = {
         readFile: async () => {
           throw new Error('File not found');
@@ -277,14 +278,12 @@ describe('list_devices plugin (device-shared)', () => {
 
       const result = await list_devicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Device listing (xctrace output):\n\niPhone 15 (12345678-1234-1234-1234-123456789012)\n\nNote: For better device information, please upgrade to Xcode 15 or later which supports the modern devicectl command.',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('List Devices');
+      expect(text).toContain('xctrace output');
+      expect(text).toContain('iPhone 15 (12345678-1234-1234-1234-123456789012)');
+      expect(text).toContain('Xcode 15');
     });
 
     it('should return successful no devices found response', async () => {
@@ -294,7 +293,6 @@ describe('list_devices plugin (device-shared)', () => {
         },
       };
 
-      // Create executor with call count behavior
       let callCount = 0;
       const mockExecutor = async (
         _command: string[],
@@ -305,14 +303,12 @@ describe('list_devices plugin (device-shared)', () => {
       ) => {
         callCount++;
         if (callCount === 1) {
-          // First call succeeds (devicectl)
           return createMockCommandResponse({
             success: true,
             output: '',
             error: undefined,
           });
         } else {
-          // Second call succeeds (xctrace) with empty output
           return createMockCommandResponse({
             success: true,
             output: '',
@@ -321,13 +317,11 @@ describe('list_devices plugin (device-shared)', () => {
         }
       };
 
-      // Create mock path dependencies
       const mockPathDeps = {
         tmpdir: () => '/tmp',
         join: (...paths: string[]) => paths.join('/'),
       };
 
-      // Create mock filesystem with empty devices response
       const mockFsDeps = {
         readFile: async (_path: string, _encoding?: string) => JSON.stringify(devicectlJson),
         unlink: async () => {},
@@ -335,14 +329,11 @@ describe('list_devices plugin (device-shared)', () => {
 
       const result = await list_devicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Device listing (xctrace output):\n\n\n\nNote: For better device information, please upgrade to Xcode 15 or later which supports the modern devicectl command.',
-          },
-        ],
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('List Devices');
+      expect(text).toContain('xctrace output');
+      expect(text).toContain('Xcode 15');
     });
   });
 

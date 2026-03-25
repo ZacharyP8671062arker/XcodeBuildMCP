@@ -16,11 +16,8 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { mapDevicePlatform, resolveAppPathFromBuildSettings } from './build-settings.ts';
-import { formatToolPreflight } from '../../../utils/build-preflight.ts';
-import {
-  formatQueryError,
-  formatQueryFailureSummary,
-} from '../../../utils/xcodebuild-error-utils.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
 // Unified schema: XOR between projectPath and workspacePath, sharing common options
 const baseOptions = {
@@ -46,7 +43,6 @@ const getDeviceAppPathSchema = z.preprocess(
     }),
 );
 
-// Use z.infer for type safety
 type GetDeviceAppPathParams = z.infer<typeof getDeviceAppPathSchema>;
 
 const publicSchemaObject = baseSchemaObject.omit({
@@ -57,21 +53,31 @@ const publicSchemaObject = baseSchemaObject.omit({
   platform: true,
 } as const);
 
+function buildHeaderParams(
+  params: GetDeviceAppPathParams,
+  configuration: string,
+  platform: string,
+) {
+  const headerParams: Array<{ label: string; value: string }> = [
+    { label: 'Scheme', value: params.scheme },
+  ];
+  if (params.workspacePath) {
+    headerParams.push({ label: 'Workspace', value: params.workspacePath });
+  } else if (params.projectPath) {
+    headerParams.push({ label: 'Project', value: params.projectPath });
+  }
+  headerParams.push({ label: 'Configuration', value: configuration });
+  headerParams.push({ label: 'Platform', value: platform });
+  return headerParams;
+}
+
 export async function get_device_app_pathLogic(
   params: GetDeviceAppPathParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
   const platform = mapDevicePlatform(params.platform);
   const configuration = params.configuration ?? 'Debug';
-
-  const preflight = formatToolPreflight({
-    operation: 'Get App Path',
-    scheme: params.scheme,
-    workspacePath: params.workspacePath,
-    projectPath: params.projectPath,
-    configuration,
-    platform,
-  });
+  const headerParams = buildHeaderParams(params, configuration, platform);
 
   log('info', `Getting app path for scheme ${params.scheme} on platform ${platform}`);
 
@@ -87,32 +93,25 @@ export async function get_device_app_pathLogic(
       executor,
     );
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `${preflight}\n  \u{2514} App Path: ${appPath}`,
-        },
+    return toolResponse(
+      [
+        header('Get App Path', headerParams),
+        detailTree([{ label: 'App Path', value: appPath }]),
+        statusLine('success', 'App path resolved.'),
       ],
-      nextStepParams: {
-        get_app_bundle_id: { appPath },
-        install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
+      {
+        nextStepParams: {
+          get_app_bundle_id: { appPath },
+          install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+          launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
+        },
       },
-    };
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error retrieving app path: ${errorMessage}`);
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `${preflight}\n${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([header('Get App Path', headerParams), statusLine('error', errorMessage)]);
   }
 }
 

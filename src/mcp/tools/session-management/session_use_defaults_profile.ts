@@ -4,6 +4,9 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { persistActiveSessionDefaultsProfile } from '../../../utils/config-store.ts';
 import { sessionStore } from '../../../utils/session-store.ts';
 import type { ToolResponse } from '../../../types/common.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
 const schemaObj = z.object({
   profile: z
@@ -20,53 +23,37 @@ const schemaObj = z.object({
 
 type Params = z.input<typeof schemaObj>;
 
-function normalizeProfileName(profile: string): string {
-  return profile.trim();
-}
-
-function errorResponse(text: string): ToolResponse {
-  return {
-    content: [{ type: 'text', text }],
-    isError: true,
-  };
-}
-
 function resolveProfileToActivate(params: Params): string | null | undefined {
   if (params.global === true) return null;
   if (params.profile === undefined) return undefined;
-  return normalizeProfileName(params.profile);
-}
-
-function validateProfileActivation(
-  profileToActivate: string | null | undefined,
-): ToolResponse | null {
-  if (profileToActivate === undefined || profileToActivate === null) {
-    return null;
-  }
-
-  if (profileToActivate.length === 0) {
-    return errorResponse('Profile name cannot be empty.');
-  }
-
-  const profileExists = sessionStore.listProfiles().includes(profileToActivate);
-  if (!profileExists) {
-    return errorResponse(`Profile "${profileToActivate}" does not exist.`);
-  }
-
-  return null;
+  return params.profile.trim();
 }
 
 export async function sessionUseDefaultsProfileLogic(params: Params): Promise<ToolResponse> {
   const notices: string[] = [];
 
   if (params.global === true && params.profile !== undefined) {
-    return errorResponse('Provide either global=true or profile, not both.');
+    return toolResponse([
+      header('Use Defaults Profile'),
+      statusLine('error', 'Provide either global=true or profile, not both.'),
+    ]);
   }
 
   const profileToActivate = resolveProfileToActivate(params);
-  const validationError = validateProfileActivation(profileToActivate);
-  if (validationError) {
-    return validationError;
+
+  if (typeof profileToActivate === 'string') {
+    if (profileToActivate.length === 0) {
+      return toolResponse([
+        header('Use Defaults Profile'),
+        statusLine('error', 'Profile name cannot be empty.'),
+      ]);
+    }
+    if (!sessionStore.listProfiles().includes(profileToActivate)) {
+      return toolResponse([
+        header('Use Defaults Profile'),
+        statusLine('error', `Profile "${profileToActivate}" does not exist.`),
+      ]);
+    }
   }
 
   if (profileToActivate !== undefined) {
@@ -83,20 +70,27 @@ export async function sessionUseDefaultsProfileLogic(params: Params): Promise<To
   const profiles = sessionStore.listProfiles();
   const current = sessionStore.getAll();
 
-  return {
-    content: [
-      {
-        type: 'text',
-        text: [
-          `Active defaults profile: ${activeLabel}`,
-          `Known profiles: ${profiles.length > 0 ? profiles.join(', ') : '(none)'}`,
-          `Current defaults: ${JSON.stringify(current, null, 2)}`,
-          ...(notices.length > 0 ? [`Notices:`, ...notices.map((notice) => `- ${notice}`)] : []),
-        ].join('\n'),
-      },
-    ],
-    isError: false,
-  };
+  const events: PipelineEvent[] = [
+    header('Use Defaults Profile', [
+      { label: 'Active Profile', value: activeLabel },
+      { label: 'Known Profiles', value: profiles.length > 0 ? profiles.join(', ') : '(none)' },
+    ]),
+  ];
+
+  const items = Object.entries(current)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => ({ label: k, value: String(v) }));
+  if (items.length > 0) {
+    events.push(detailTree(items));
+  }
+
+  if (notices.length > 0) {
+    events.push(section('Notices', notices));
+  }
+
+  events.push(statusLine('success', `Active profile: ${activeLabel}`));
+
+  return toolResponse(events);
 }
 
 export const schema = schemaObj.shape;

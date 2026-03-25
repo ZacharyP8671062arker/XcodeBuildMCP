@@ -15,3 +15,4 @@ nextSteps:
   - label: Get built app path in simulator derived data
     toolId: get_sim_app_path
     priority: 1
+    when: success

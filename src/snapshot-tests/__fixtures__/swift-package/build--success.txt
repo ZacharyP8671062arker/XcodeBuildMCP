@@ -1,0 +1,10 @@
+
+📦 Swift Package Build
+
+  Package: <ROOT>/example_projects/spm
+
+Output
+  [0/1] Planning build
+Build complete! (<DURATION>)
+
+✅ Swift package build succeeded

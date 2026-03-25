@@ -208,7 +208,7 @@ final class AppTests: XCTestCase {
         const responseText = finalizeAndGetText(result);
         const allOutput = stdoutOutput + responseText;
         expect(allOutput).toContain('Scheme: App');
-        expect(allOutput).toContain('Resolved to 1 test(s):');
+        expect(allOutput).toContain('Discovered 1 test(s):');
         expect(allOutput).toContain('AppTests/AppTests/testLaunch');
       } finally {
         stdoutWrite.mockRestore();

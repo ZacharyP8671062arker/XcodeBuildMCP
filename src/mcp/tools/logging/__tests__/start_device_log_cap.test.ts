@@ -19,12 +19,20 @@ import {
   initConfigStore,
   type RuntimeConfigOverrides,
 } from '../../../../utils/config-store.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
 
 const cwd = '/repo';
 
 async function initConfigStoreForTest(overrides?: RuntimeConfigOverrides): Promise<void> {
   __resetConfigStoreForTests();
   await initConfigStore({ cwd, fs: createMockFileSystemExecutor(), overrides });
+}
+
+function allText(response: ToolResponse): string {
+  return response.content
+    .filter((item) => item.type === 'text')
+    .map((item) => item.text)
+    .join('\n');
 }
 
 type Mutable<T> = {
@@ -80,8 +88,9 @@ describe('start_device_log_cap plugin', () => {
       const result = await handler({});
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Missing required session defaults');
-      expect(result.content[0].text).toContain('Provide deviceId and bundleId');
+      const text = allText(result);
+      expect(text).toContain('Missing required session defaults');
+      expect(text).toContain('Provide deviceId and bundleId');
     });
   });
 
@@ -111,8 +120,9 @@ describe('start_device_log_cap plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result.content[0].text).toMatch(/✅ Device log capture started successfully/);
-      expect(result.content[0].text).toMatch(/Session ID: [a-f0-9-]{36}/);
+      const text = allText(result);
+      expect(text).toContain('Log capture started');
+      expect(text).toMatch(/Session ID: [a-f0-9-]{36}/);
       expect(result.isError ?? false).toBe(false);
     });
 
@@ -141,12 +151,10 @@ describe('start_device_log_cap plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result.content[0].text).toContain(
-        'Do not call launch_app_device during this capture session',
-      );
-      expect(result.content[0].text).toContain('Interact with your app');
-      const responseText = String(result.content[0].text);
-      const sessionIdMatch = responseText.match(/Session ID: ([a-f0-9-]{36})/);
+      const text = allText(result);
+      expect(text).toContain('Do not call launch_app_device during this capture session');
+      expect(text).toContain('Interact with your app');
+      const sessionIdMatch = text.match(/Session ID: ([a-f0-9-]{36})/);
       expect(sessionIdMatch).not.toBeNull();
       const sessionId = sessionIdMatch?.[1];
       expect(typeof sessionId).toBe('string');
@@ -214,7 +222,8 @@ describe('start_device_log_cap plugin', () => {
       const result = await resultPromise;
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Provide a valid bundle identifier');
+      const text = allText(result);
+      expect(text).toContain('Provide a valid bundle identifier');
       expect(activeDeviceLogSessions.size).toBe(0);
       expect(createdLogPath).not.toBe('');
     });
@@ -299,7 +308,8 @@ describe('start_device_log_cap plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Provide a valid bundle identifier');
+      const text = allText(result);
+      expect(text).toContain('Provide a valid bundle identifier');
       expect(jsonPathSeen).not.toBe('');
       expect(removedJsonPath).toBe(jsonPathSeen);
       expect(activeDeviceLogSessions.size).toBe(0);
@@ -382,7 +392,8 @@ describe('start_device_log_cap plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result.content[0].text).toContain('Device log capture started successfully');
+      const text = allText(result);
+      expect(text).toContain('Log capture started');
       expect(result.isError ?? false).toBe(false);
       expect(jsonPathSeen).not.toBe('');
       expect(removedJsonPath).toBe(jsonPathSeen);
@@ -413,15 +424,10 @@ describe('start_device_log_cap plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to start device log capture: Permission denied',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain('Failed to start device log capture');
+      expect(text).toContain('Permission denied');
     });
 
     it('should handle file write failure', async () => {
@@ -451,15 +457,10 @@ describe('start_device_log_cap plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to start device log capture: Disk full',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain('Failed to start device log capture');
+      expect(text).toContain('Disk full');
     });
 
     it('should handle spawn process error', async () => {
@@ -484,15 +485,10 @@ describe('start_device_log_cap plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to start device log capture: Command not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain('Failed to start device log capture');
+      expect(text).toContain('Command not found');
     });
 
     it('should handle string error objects', async () => {
@@ -517,15 +513,10 @@ describe('start_device_log_cap plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to start device log capture: String error message',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = allText(result);
+      expect(text).toContain('Failed to start device log capture');
+      expect(text).toContain('String error message');
     });
   });
 });

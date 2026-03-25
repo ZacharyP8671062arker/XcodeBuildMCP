@@ -7,7 +7,6 @@
 
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
-import { createTextResponse } from '../../../utils/responses/index.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import { XcodePlatform } from '../../../types/common.ts';
@@ -18,9 +17,12 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 import {
+  createBuildRunResultEvents,
   createPendingXcodebuildResponse,
   emitPipelineError,
   emitPipelineNotice,
@@ -178,29 +180,22 @@ export async function buildRunMacOSLogic(
         isError: false,
       },
       {
-        tailEvents: [
-          {
-            type: 'notice',
-            timestamp: new Date().toISOString(),
-            operation: 'BUILD',
-            level: 'success',
-            message: 'Build & Run complete',
-            code: 'build-run-result',
-            data: {
-              scheme: params.scheme,
-              platform: 'macOS',
-              target: 'macOS',
-              appPath,
-              launchState: 'requested',
-            },
-          },
-        ],
+        tailEvents: createBuildRunResultEvents({
+          scheme: params.scheme,
+          platform: 'macOS',
+          target: 'macOS',
+          appPath,
+          launchState: 'requested',
+        }),
       },
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during macOS build & run logic: ${errorMessage}`);
-    return createTextResponse(`Error during macOS build and run: ${errorMessage}`, true);
+    return toolResponse([
+      header('Build & Run macOS'),
+      statusLine('error', `Error during macOS build and run: ${errorMessage}`),
+    ]);
   }
 }
 

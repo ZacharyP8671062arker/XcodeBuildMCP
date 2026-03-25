@@ -3,45 +3,44 @@ import { describe, expect, it } from 'vitest';
 import {
   extractGroupedCompilerError,
   formatGroupedCompilerErrors,
-  formatHumanErrorEvent,
-  formatHumanWarningEvent,
-  formatNoticeEvent,
-  formatStartEvent,
-  formatStatusEvent,
-  formatTransientNoticeEvent,
-  formatTransientStatusEvent,
+  formatHumanCompilerErrorEvent,
+  formatHumanCompilerWarningEvent,
+  formatHeaderEvent,
+  formatBuildStageEvent,
+  formatTransientBuildStageEvent,
+  formatStatusLineEvent,
+  formatDetailTreeEvent,
+  formatTransientStatusLineEvent,
 } from '../event-formatting.ts';
 
 describe('event formatting', () => {
-  it('formats start events as the provided preflight block', () => {
+  it('formats header events with emoji, operation, and params', () => {
     expect(
-      formatStartEvent({
-        type: 'start',
+      formatHeaderEvent({
+        type: 'header',
         timestamp: '2026-03-20T12:00:00.000Z',
-        operation: 'BUILD',
-        toolName: 'build_run_macos',
-        params: {},
-        message: '🚀 Build & Run\n\n  Scheme: MyApp',
+        operation: 'Build & Run',
+        params: [{ label: 'Scheme', value: 'MyApp' }],
       }),
-    ).toBe('🚀 Build & Run\n\n  Scheme: MyApp');
+    ).toBe('\u{1F680} Build & Run\n\n  Scheme: MyApp\n');
   });
 
-  it('formats status events as durable phase lines', () => {
+  it('formats build-stage events as durable phase lines', () => {
     expect(
-      formatStatusEvent({
-        type: 'status',
+      formatBuildStageEvent({
+        type: 'build-stage',
         timestamp: '2026-03-20T12:00:00.000Z',
         operation: 'BUILD',
         stage: 'COMPILING',
         message: 'Compiling',
       }),
-    ).toBe('› Compiling');
+    ).toBe('\u203A Compiling');
   });
 
-  it('formats transient status events for interactive runtime updates', () => {
+  it('formats transient build-stage events for interactive runtime updates', () => {
     expect(
-      formatTransientStatusEvent({
-        type: 'status',
+      formatTransientBuildStageEvent({
+        type: 'build-stage',
         timestamp: '2026-03-20T12:00:00.000Z',
         operation: 'BUILD',
         stage: 'COMPILING',
@@ -54,9 +53,9 @@ describe('event formatting', () => {
     const projectBaseDir = join(process.cwd(), 'example_projects/macOS');
 
     expect(
-      formatHumanErrorEvent(
+      formatHumanCompilerErrorEvent(
         {
-          type: 'error',
+          type: 'compiler-error',
           timestamp: '2026-03-20T12:00:00.000Z',
           operation: 'BUILD',
           message: 'unterminated string literal',
@@ -74,8 +73,8 @@ describe('event formatting', () => {
 
   it('keeps compiler-style error paths absolute when they are outside cwd', () => {
     expect(
-      formatHumanErrorEvent({
-        type: 'error',
+      formatHumanCompilerErrorEvent({
+        type: 'compiler-error',
         timestamp: '2026-03-20T12:00:00.000Z',
         operation: 'BUILD',
         message: 'unterminated string literal',
@@ -88,8 +87,8 @@ describe('event formatting', () => {
 
   it('formats tool-originated errors in xcodebuild-style form', () => {
     expect(
-      formatHumanErrorEvent({
-        type: 'error',
+      formatHumanCompilerErrorEvent({
+        type: 'compiler-error',
         timestamp: '2026-03-20T12:00:00.000Z',
         operation: 'BUILD',
         message: 'No available simulator matched: INVALID-SIM-ID-123',
@@ -102,7 +101,7 @@ describe('event formatting', () => {
     expect(
       extractGroupedCompilerError(
         {
-          type: 'error',
+          type: 'compiler-error',
           timestamp: '2026-03-20T12:00:00.000Z',
           operation: 'BUILD',
           message: 'unterminated string literal',
@@ -121,7 +120,7 @@ describe('event formatting', () => {
       formatGroupedCompilerErrors(
         [
           {
-            type: 'error',
+            type: 'compiler-error',
             timestamp: '2026-03-20T12:00:00.000Z',
             operation: 'BUILD',
             message: 'unterminated string literal',
@@ -134,7 +133,7 @@ describe('event formatting', () => {
       [
         'Compiler Errors (1):',
         '',
-        '  ✗ unterminated string literal',
+        '  \u2717 unterminated string literal',
         '    example_projects/macOS/MCPTest/ContentView.swift:16:18',
       ].join('\n'),
     );
@@ -142,8 +141,8 @@ describe('event formatting', () => {
 
   it('formats tool-originated warnings with warning emoji', () => {
     expect(
-      formatHumanWarningEvent({
-        type: 'warning',
+      formatHumanCompilerWarningEvent({
+        type: 'compiler-warning',
         timestamp: '2026-03-20T12:00:00.000Z',
         operation: 'BUILD',
         message: 'Using cached build products',
@@ -152,123 +151,73 @@ describe('event formatting', () => {
     ).toBe('  \u{26A0} Using cached build products');
   });
 
-  it('formats structured build-run step notices', () => {
+  it('formats status-line events with level emojis', () => {
     expect(
-      formatNoticeEvent({
-        type: 'notice',
+      formatStatusLineEvent({
+        type: 'status-line',
         timestamp: '2026-03-20T12:00:00.000Z',
-        operation: 'BUILD',
         level: 'info',
         message: 'Resolving app path',
-        code: 'build-run-step',
-        data: { step: 'resolve-app-path', status: 'started' },
       }),
-    ).toBe('› Resolving app path');
+    ).toBe('\u{2139}\u{FE0F} Resolving app path');
+
+    expect(
+      formatStatusLineEvent({
+        type: 'status-line',
+        timestamp: '2026-03-20T12:00:00.000Z',
+        level: 'success',
+        message: 'Build & Run complete',
+      }),
+    ).toBe('\u{2705} Build & Run complete');
   });
 
-  it('formats transient build-run step notices only for started steps', () => {
+  it('formats transient status-line events for info level', () => {
     expect(
-      formatTransientNoticeEvent({
-        type: 'notice',
+      formatTransientStatusLineEvent({
+        type: 'status-line',
         timestamp: '2026-03-20T12:00:00.000Z',
-        operation: 'BUILD',
         level: 'info',
         message: 'Resolving app path',
-        code: 'build-run-step',
-        data: { step: 'resolve-app-path', status: 'started' },
       }),
     ).toBe('Resolving app path...');
 
     expect(
-      formatTransientNoticeEvent({
-        type: 'notice',
+      formatTransientStatusLineEvent({
+        type: 'status-line',
         timestamp: '2026-03-20T12:00:00.000Z',
-        operation: 'BUILD',
         level: 'success',
         message: 'App path resolved',
-        code: 'build-run-step',
-        data: { step: 'resolve-app-path', status: 'succeeded', appPath: '/tmp/build/MyApp.app' },
       }),
     ).toBeNull();
   });
 
-  it('formats structured build-run result notices as a summary block', () => {
+  it('formats detail-tree events as a tree section', () => {
+    const rendered = formatDetailTreeEvent({
+      type: 'detail-tree',
+      timestamp: '2026-03-20T12:00:00.000Z',
+      items: [
+        { label: 'App Path', value: '/tmp/build/MyApp.app' },
+        { label: 'Bundle ID', value: 'com.example.myapp' },
+        { label: 'App ID', value: 'A1B2C3D4' },
+        { label: 'Process ID', value: '12345' },
+        { label: 'Launch', value: 'Running' },
+      ],
+    });
+
+    expect(rendered).toContain('  \u251C App Path: /tmp/build/MyApp.app');
+    expect(rendered).toContain('  \u251C Bundle ID: com.example.myapp');
+    expect(rendered).toContain('  \u251C App ID: A1B2C3D4');
+    expect(rendered).toContain('  \u251C Process ID: 12345');
+    expect(rendered).toContain('  \u2514 Launch: Running');
+  });
+
+  it('formats detail-tree with single item using end branch', () => {
     expect(
-      formatNoticeEvent({
-        type: 'notice',
+      formatDetailTreeEvent({
+        type: 'detail-tree',
         timestamp: '2026-03-20T12:00:00.000Z',
-        operation: 'BUILD',
-        level: 'success',
-        message: 'Build & Run complete',
-        code: 'build-run-result',
-        data: {
-          scheme: 'MyApp',
-          platform: 'macOS',
-          target: 'macOS',
-          appPath: '/tmp/build/MyApp.app',
-          launchState: 'requested',
-        },
+        items: [{ label: 'App Path', value: '/tmp/build/MyApp.app' }],
       }),
-    ).toBe(['✅ Build & Run complete', '', '  └ App Path: /tmp/build/MyApp.app'].join('\n'));
-  });
-
-  it('does not duplicate front-matter fields in the final build-run footer', () => {
-    const rendered = formatNoticeEvent({
-      type: 'notice',
-      timestamp: '2026-03-20T12:00:00.000Z',
-      operation: 'BUILD',
-      level: 'success',
-      message: 'Build & Run complete',
-      code: 'build-run-result',
-      data: {
-        scheme: 'MyApp',
-        platform: 'macOS',
-        target: 'macOS',
-        appPath: '/tmp/build/MyApp.app',
-        launchState: 'requested',
-      },
-    });
-
-    expect(rendered).toContain('\n\n  └ App Path: /tmp/build/MyApp.app');
-    expect(rendered).not.toContain('Scheme:');
-    expect(rendered).not.toContain('Platform:');
-    expect(rendered).not.toContain('Target:');
-    expect(rendered).not.toContain('Configuration:');
-    expect(rendered).not.toContain('Project:');
-    expect(rendered).not.toContain('Workspace:');
-  });
-
-  it('renders all execution-derived footer values as a tree section', () => {
-    const rendered = formatNoticeEvent({
-      type: 'notice',
-      timestamp: '2026-03-20T12:00:00.000Z',
-      operation: 'BUILD',
-      level: 'success',
-      message: 'Build & Run complete',
-      code: 'build-run-result',
-      data: {
-        scheme: 'MyApp',
-        platform: 'macOS',
-        target: 'macOS',
-        appPath: '/tmp/build/MyApp.app',
-        bundleId: 'com.example.myapp',
-        appId: 'A1B2C3D4',
-        processId: 12345,
-        launchState: 'running',
-      },
-    });
-
-    expect(rendered).toContain('✅ Build & Run complete\n\n');
-    expect(rendered).toContain('  ├ App Path: /tmp/build/MyApp.app');
-    expect(rendered).toContain('  ├ Bundle ID: com.example.myapp');
-    expect(rendered).toContain('  ├ App ID: A1B2C3D4');
-    expect(rendered).toContain('  ├ Process ID: 12345');
-    expect(rendered).toContain('  └ Launch: Running');
-    expect(rendered).not.toContain('Scheme:');
-    expect(rendered).not.toContain('Platform:');
-    expect(rendered).not.toContain('Target:');
-    expect(rendered).not.toContain('Configuration:');
-    expect(rendered).not.toContain('Project:');
-    expect(rendered).not.toContain('Workspace:');
+    ).toBe('  \u2514 App Path: /tmp/build/MyApp.app');
   });
 });

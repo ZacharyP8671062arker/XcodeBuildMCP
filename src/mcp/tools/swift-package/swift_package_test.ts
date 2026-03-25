@@ -2,15 +2,15 @@ import * as z from 'zod';
 import path from 'node:path';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { createTextResponse, createErrorResponse } from '../../../utils/responses/index.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const baseSchemaObject = z.object({
   packagePath: z.string(),
   testProduct: z.string().optional(),
@@ -27,7 +27,6 @@ const publicSchemaObject = baseSchemaObject.omit({
 
 const swiftPackageTestSchema = baseSchemaObject;
 
-// Use z.infer for type safety
 type SwiftPackageTestParams = z.infer<typeof swiftPackageTestSchema>;
 
 export async function swift_package_testLogic(
@@ -37,10 +36,19 @@ export async function swift_package_testLogic(
   const resolvedPath = path.resolve(params.packagePath);
   const swiftArgs = ['test', '--package-path', resolvedPath];
 
+  const headerEvent = header('Swift Package Test', [
+    { label: 'Package', value: resolvedPath },
+    ...(params.testProduct ? [{ label: 'Test Product', value: params.testProduct }] : []),
+    ...(params.configuration ? [{ label: 'Configuration', value: params.configuration }] : []),
+  ]);
+
   if (params.configuration?.toLowerCase() === 'release') {
     swiftArgs.push('-c', 'release');
   } else if (params.configuration && params.configuration.toLowerCase() !== 'debug') {
-    return createTextResponse("Invalid configuration. Use 'debug' or 'release'.", true);
+    return toolResponse([
+      headerEvent,
+      statusLine('error', "Invalid configuration. Use 'debug' or 'release'."),
+    ]);
   }
 
   if (params.testProduct) {
@@ -65,27 +73,27 @@ export async function swift_package_testLogic(
 
   log('info', `Running swift ${swiftArgs.join(' ')}`);
   try {
-    const result = await executor(['swift', ...swiftArgs], 'Swift Package Test', false, undefined);
+    const result = await executor(['swift', ...swiftArgs], 'Swift Package Test', false);
     if (!result.success) {
       const errorMessage = result.error || result.output || 'Unknown error';
-      return createErrorResponse('Swift package tests failed', errorMessage);
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Swift package tests failed: ${errorMessage}`),
+      ]);
     }
 
-    return {
-      content: [
-        { type: 'text', text: '✅ Swift package tests completed.' },
-        {
-          type: 'text',
-          text: '💡 Next: Execute your app with swift_package_run if tests passed',
-        },
-        { type: 'text', text: result.output },
-      ],
-      isError: false,
-    };
+    return toolResponse([
+      headerEvent,
+      ...(result.output ? [section('Output', [result.output])] : []),
+      statusLine('success', 'Swift package tests completed'),
+    ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log('error', `Swift package test failed: ${message}`);
-    return createErrorResponse('Failed to execute swift test', message);
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to execute swift test: ${message}`),
+    ]);
   }
 }
 

@@ -14,11 +14,12 @@ import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section, detailTree } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject (empty schema since this tool takes no parameters)
 const listDevicesSchema = z.object({});
 
-// Use z.infer for type safety
 type ListDevicesParams = z.infer<typeof listDevicesSchema>;
 
 function isAvailableState(state: string): boolean {
@@ -87,27 +88,14 @@ export async function list_devicesLogic(
           : await fs.readFile(tempJsonPath, 'utf8');
         const deviceCtlData: unknown = JSON.parse(jsonContent);
 
-        // Type guard to validate the device data structure
-        const isValidDeviceData = (data: unknown): data is { result?: { devices?: unknown[] } } => {
-          return (
-            typeof data === 'object' &&
-            data !== null &&
-            'result' in data &&
-            typeof (data as { result?: unknown }).result === 'object' &&
-            (data as { result?: unknown }).result !== null &&
-            'devices' in ((data as { result?: unknown }).result as { devices?: unknown }) &&
-            Array.isArray(
-              ((data as { result?: unknown }).result as { devices?: unknown[] }).devices,
-            )
-          );
-        };
+        const deviceCtlResult = deviceCtlData as { result?: { devices?: unknown[] } };
+        const deviceList = deviceCtlResult?.result?.devices;
 
-        if (isValidDeviceData(deviceCtlData) && deviceCtlData.result?.devices) {
-          for (const deviceRaw of deviceCtlData.result.devices) {
-            // Type guard for device object
-            const isValidDevice = (
-              device: unknown,
-            ): device is {
+        if (Array.isArray(deviceList)) {
+          for (const deviceRaw of deviceList) {
+            if (typeof deviceRaw !== 'object' || deviceRaw === null) continue;
+
+            const device = deviceRaw as {
               visibilityClass?: string;
               connectionProperties?: {
                 pairingState?: string;
@@ -126,113 +114,7 @@ export async function list_devicesLogic(
                 cpuType?: { name?: string };
               };
               identifier?: string;
-            } => {
-              if (typeof device !== 'object' || device === null) {
-                return false;
-              }
-
-              const dev = device as Record<string, unknown>;
-
-              // Check if identifier exists and is a string (most critical property)
-              if (typeof dev.identifier !== 'string' && dev.identifier !== undefined) {
-                return false;
-              }
-
-              // Check visibilityClass if present
-              if (dev.visibilityClass !== undefined && typeof dev.visibilityClass !== 'string') {
-                return false;
-              }
-
-              // Check connectionProperties structure if present
-              if (dev.connectionProperties !== undefined) {
-                if (
-                  typeof dev.connectionProperties !== 'object' ||
-                  dev.connectionProperties === null
-                ) {
-                  return false;
-                }
-                const connProps = dev.connectionProperties as Record<string, unknown>;
-                if (
-                  connProps.pairingState !== undefined &&
-                  typeof connProps.pairingState !== 'string'
-                ) {
-                  return false;
-                }
-                if (
-                  connProps.tunnelState !== undefined &&
-                  typeof connProps.tunnelState !== 'string'
-                ) {
-                  return false;
-                }
-                if (
-                  connProps.transportType !== undefined &&
-                  typeof connProps.transportType !== 'string'
-                ) {
-                  return false;
-                }
-              }
-
-              // Check deviceProperties structure if present
-              if (dev.deviceProperties !== undefined) {
-                if (typeof dev.deviceProperties !== 'object' || dev.deviceProperties === null) {
-                  return false;
-                }
-                const devProps = dev.deviceProperties as Record<string, unknown>;
-                if (
-                  devProps.platformIdentifier !== undefined &&
-                  typeof devProps.platformIdentifier !== 'string'
-                ) {
-                  return false;
-                }
-                if (devProps.name !== undefined && typeof devProps.name !== 'string') {
-                  return false;
-                }
-                if (
-                  devProps.osVersionNumber !== undefined &&
-                  typeof devProps.osVersionNumber !== 'string'
-                ) {
-                  return false;
-                }
-                if (
-                  devProps.developerModeStatus !== undefined &&
-                  typeof devProps.developerModeStatus !== 'string'
-                ) {
-                  return false;
-                }
-                if (
-                  devProps.marketingName !== undefined &&
-                  typeof devProps.marketingName !== 'string'
-                ) {
-                  return false;
-                }
-              }
-
-              // Check hardwareProperties structure if present
-              if (dev.hardwareProperties !== undefined) {
-                if (typeof dev.hardwareProperties !== 'object' || dev.hardwareProperties === null) {
-                  return false;
-                }
-                const hwProps = dev.hardwareProperties as Record<string, unknown>;
-                if (hwProps.productType !== undefined && typeof hwProps.productType !== 'string') {
-                  return false;
-                }
-                if (hwProps.cpuType !== undefined) {
-                  if (typeof hwProps.cpuType !== 'object' || hwProps.cpuType === null) {
-                    return false;
-                  }
-                  const cpuType = hwProps.cpuType as Record<string, unknown>;
-                  if (cpuType.name !== undefined && typeof cpuType.name !== 'string') {
-                    return false;
-                  }
-                }
-              }
-
-              return true;
             };
-
-            if (!isValidDevice(deviceRaw)) continue;
-
-            const device = deviceRaw;
 
             // Skip simulators or unavailable devices
             if (
@@ -300,103 +182,112 @@ export async function list_devicesLogic(
       );
 
       if (!result.success) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Failed to list devices: ${result.error}\n\nMake sure Xcode is installed and devices are connected and trusted.`,
-            },
-          ],
-          isError: true,
-        };
+        return toolResponse([
+          header('List Devices'),
+          statusLine('error', `Failed to list devices: ${result.error}`),
+          section('Troubleshooting', [
+            'Make sure Xcode is installed and devices are connected and trusted.',
+          ]),
+        ]);
       }
 
-      // Return raw xctrace output without parsing
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Device listing (xctrace output):\n\n${result.output}\n\nNote: For better device information, please upgrade to Xcode 15 or later which supports the modern devicectl command.`,
-          },
-        ],
-      };
+      return toolResponse([
+        header('List Devices'),
+        section('Device listing (xctrace output)', [result.output]),
+        statusLine(
+          'info',
+          'For better device information, please upgrade to Xcode 15 or later which supports the modern devicectl command.',
+        ),
+      ]);
     }
 
-    // Format the response
-    let responseText = 'Connected Devices:\n\n';
-
-    // Filter out duplicates
     const uniqueDevices = devices.filter(
       (device, index, self) => index === self.findIndex((d) => d.identifier === device.identifier),
     );
 
+    const events: PipelineEvent[] = [header('List Devices')];
+
     if (uniqueDevices.length === 0) {
-      responseText += 'No physical Apple devices found.\n\n';
-      responseText += 'Make sure:\n';
-      responseText += '1. Devices are connected via USB or WiFi\n';
-      responseText += '2. Devices are unlocked and trusted\n';
-      responseText += '3. "Trust this computer" has been accepted on the device\n';
-      responseText += '4. Developer mode is enabled on the device (iOS 16+)\n';
-      responseText += '5. Xcode is properly installed\n\n';
-      responseText += 'For simulators, use the list_sims tool instead.\n';
-    } else {
-      // Group devices by availability status
-      const availableDevices = uniqueDevices.filter((d) => isAvailableState(d.state));
-      const pairedDevices = uniqueDevices.filter((d) => d.state === 'Paired (not connected)');
-      const unpairedDevices = uniqueDevices.filter((d) => d.state === 'Unpaired');
+      events.push(
+        statusLine('warning', 'No physical Apple devices found.'),
+        section('Troubleshooting', [
+          'Make sure:',
+          '1. Devices are connected via USB or WiFi',
+          '2. Devices are unlocked and trusted',
+          '3. "Trust this computer" has been accepted on the device',
+          '4. Developer mode is enabled on the device (iOS 16+)',
+          '5. Xcode is properly installed',
+          '',
+          'For simulators, use the list_sims tool instead.',
+        ]),
+      );
+      return toolResponse(events);
+    }
 
-      if (availableDevices.length > 0) {
-        responseText += '✅ Available Devices:\n';
-        for (const device of availableDevices) {
-          responseText += `\n📱 ${device.name}\n`;
-          responseText += `   UDID: ${device.identifier}\n`;
-          responseText += `   Model: ${device.model ?? 'Unknown'}\n`;
-          if (device.productType) {
-            responseText += `   Product Type: ${device.productType}\n`;
-          }
-          responseText += `   Platform: ${device.platform} ${device.osVersion ?? ''}\n`;
-          if (device.cpuArchitecture) {
-            responseText += `   CPU Architecture: ${device.cpuArchitecture}\n`;
-          }
-          responseText += `   Connection: ${device.connectionType ?? 'Unknown'}\n`;
-          if (device.developerModeStatus) {
-            responseText += `   Developer Mode: ${device.developerModeStatus}\n`;
-          }
-        }
-        responseText += '\n';
-      }
+    const availableDevices = uniqueDevices.filter((d) => isAvailableState(d.state));
+    const pairedDevices = uniqueDevices.filter((d) => d.state === 'Paired (not connected)');
+    const unpairedDevices = uniqueDevices.filter((d) => d.state === 'Unpaired');
 
-      if (pairedDevices.length > 0) {
-        responseText += '🔗 Paired but Not Connected:\n';
-        for (const device of pairedDevices) {
-          responseText += `\n📱 ${device.name}\n`;
-          responseText += `   UDID: ${device.identifier}\n`;
-          responseText += `   Model: ${device.model ?? 'Unknown'}\n`;
-          responseText += `   Platform: ${device.platform} ${device.osVersion ?? ''}\n`;
+    if (availableDevices.length > 0) {
+      for (const device of availableDevices) {
+        const items: Array<{ label: string; value: string }> = [
+          { label: 'UDID', value: device.identifier },
+          { label: 'Model', value: device.model ?? 'Unknown' },
+        ];
+        if (device.productType) {
+          items.push({ label: 'Product Type', value: device.productType });
         }
-        responseText += '\n';
-      }
-
-      if (unpairedDevices.length > 0) {
-        responseText += '❌ Unpaired Devices:\n';
-        for (const device of unpairedDevices) {
-          responseText += `- ${device.name} (${device.identifier})\n`;
+        items.push({
+          label: 'Platform',
+          value: `${device.platform} ${device.osVersion ?? ''}`.trim(),
+        });
+        if (device.cpuArchitecture) {
+          items.push({ label: 'CPU Architecture', value: device.cpuArchitecture });
         }
-        responseText += '\n';
+        items.push({ label: 'Connection', value: device.connectionType ?? 'Unknown' });
+        if (device.developerModeStatus) {
+          items.push({ label: 'Developer Mode', value: device.developerModeStatus });
+        }
+        events.push(section(device.name, [], { icon: 'green-circle' }), detailTree(items));
       }
     }
 
-    // Add next steps
+    if (pairedDevices.length > 0) {
+      for (const device of pairedDevices) {
+        events.push(
+          section(device.name, [], { icon: 'yellow-circle' }),
+          detailTree([
+            { label: 'UDID', value: device.identifier },
+            { label: 'Model', value: device.model ?? 'Unknown' },
+            { label: 'Platform', value: `${device.platform} ${device.osVersion ?? ''}`.trim() },
+          ]),
+        );
+      }
+    }
+
+    if (unpairedDevices.length > 0) {
+      events.push(
+        section(
+          'Unpaired Devices',
+          unpairedDevices.map((d) => `${d.name} (${d.identifier})`),
+          { icon: 'red-circle' },
+        ),
+      );
+    }
+
     const availableDevicesExist = uniqueDevices.some((d) => isAvailableState(d.state));
 
     let nextStepParams: Record<string, Record<string, string | number | boolean>> | undefined;
 
     if (availableDevicesExist) {
-      responseText += 'Note: Use the device ID/UDID from above when required by other tools.\n';
-      responseText +=
-        "Hint: Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.\n";
-      responseText +=
-        'Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.\n';
+      events.push(
+        statusLine('success', 'Devices discovered.'),
+        section('Hints', [
+          'Use the device ID/UDID from above when required by other tools.',
+          "Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.",
+          'Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.',
+        ]),
+      );
 
       nextStepParams = {
         build_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
@@ -405,34 +296,25 @@ export async function list_devicesLogic(
         get_device_app_path: { scheme: 'SCHEME' },
       };
     } else if (uniqueDevices.length > 0) {
-      responseText +=
-        'Note: No devices are currently available for testing. Make sure devices are:\n';
-      responseText += '- Connected via USB\n';
-      responseText += '- Unlocked and trusted\n';
-      responseText += '- Have developer mode enabled (iOS 16+)\n';
+      events.push(
+        statusLine('warning', 'No devices are currently available for testing.'),
+        section('Troubleshooting', [
+          'Make sure devices are:',
+          '- Connected via USB',
+          '- Unlocked and trusted',
+          '- Have developer mode enabled (iOS 16+)',
+        ]),
+      );
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: responseText,
-        },
-      ],
-      ...(nextStepParams ? { nextStepParams } : {}),
-    };
+    return toolResponse(events, nextStepParams ? { nextStepParams } : undefined);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error listing devices: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Failed to list devices: ${errorMessage}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('List Devices'),
+      statusLine('error', `Failed to list devices: ${errorMessage}`),
+    ]);
   }
 }
 

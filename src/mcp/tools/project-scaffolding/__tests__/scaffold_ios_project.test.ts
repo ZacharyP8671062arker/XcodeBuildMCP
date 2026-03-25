@@ -345,6 +345,13 @@ describe('scaffold_ios_project plugin', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return success response for valid scaffold iOS project request', async () => {
       const result = await scaffold_ios_projectLogic(
         {
@@ -357,33 +364,22 @@ describe('scaffold_ios_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: true,
-                projectPath: '/tmp/test-projects',
-                platform: 'iOS',
-                message: 'Successfully scaffolded iOS project "TestIOSApp" in /tmp/test-projects',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        nextStepParams: {
-          build_sim: {
-            workspacePath: '/tmp/test-projects/TestIOSApp.xcworkspace',
-            scheme: 'TestIOSApp',
-            simulatorName: 'iPhone 17',
-          },
-          build_run_sim: {
-            workspacePath: '/tmp/test-projects/TestIOSApp.xcworkspace',
-            scheme: 'TestIOSApp',
-            simulatorName: 'iPhone 17',
-          },
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Scaffold iOS Project');
+      expect(text).toContain('TestIOSApp');
+      expect(text).toContain('/tmp/test-projects');
+      expect(text).toContain('Project scaffolded successfully');
+      expect(result.nextStepParams).toEqual({
+        build_sim: {
+          workspacePath: '/tmp/test-projects/TestIOSApp.xcworkspace',
+          scheme: 'TestIOSApp',
+          simulatorName: 'iPhone 17',
+        },
+        build_run_sim: {
+          workspacePath: '/tmp/test-projects/TestIOSApp.xcworkspace',
+          scheme: 'TestIOSApp',
+          simulatorName: 'iPhone 17',
         },
       });
     });
@@ -407,33 +403,19 @@ describe('scaffold_ios_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: true,
-                projectPath: '/tmp/test-projects',
-                platform: 'iOS',
-                message: 'Successfully scaffolded iOS project "TestIOSApp" in /tmp/test-projects',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        nextStepParams: {
-          build_sim: {
-            workspacePath: '/tmp/test-projects/TestIOSApp.xcworkspace',
-            scheme: 'TestIOSApp',
-            simulatorName: 'iPhone 17',
-          },
-          build_run_sim: {
-            workspacePath: '/tmp/test-projects/TestIOSApp.xcworkspace',
-            scheme: 'TestIOSApp',
-            simulatorName: 'iPhone 17',
-          },
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Project scaffolded successfully');
+      expect(result.nextStepParams).toEqual({
+        build_sim: {
+          workspacePath: '/tmp/test-projects/TestIOSApp.xcworkspace',
+          scheme: 'TestIOSApp',
+          simulatorName: 'iPhone 17',
+        },
+        build_run_sim: {
+          workspacePath: '/tmp/test-projects/TestIOSApp.xcworkspace',
+          scheme: 'TestIOSApp',
+          simulatorName: 'iPhone 17',
         },
       });
     });
@@ -449,33 +431,19 @@ describe('scaffold_ios_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: true,
-                projectPath: '/tmp/test-projects',
-                platform: 'iOS',
-                message: 'Successfully scaffolded iOS project "TestIOSApp" in /tmp/test-projects',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        nextStepParams: {
-          build_sim: {
-            workspacePath: '/tmp/test-projects/MyProject.xcworkspace',
-            scheme: 'MyProject',
-            simulatorName: 'iPhone 17',
-          },
-          build_run_sim: {
-            workspacePath: '/tmp/test-projects/MyProject.xcworkspace',
-            scheme: 'MyProject',
-            simulatorName: 'iPhone 17',
-          },
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Project scaffolded successfully');
+      expect(result.nextStepParams).toEqual({
+        build_sim: {
+          workspacePath: '/tmp/test-projects/MyProject.xcworkspace',
+          scheme: 'MyProject',
+          simulatorName: 'iPhone 17',
+        },
+        build_run_sim: {
+          workspacePath: '/tmp/test-projects/MyProject.xcworkspace',
+          scheme: 'MyProject',
+          simulatorName: 'iPhone 17',
         },
       });
     });
@@ -491,23 +459,9 @@ describe('scaffold_ios_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: false,
-                error:
-                  'Project name must start with a letter and contain only letters, numbers, and underscores',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Project name must start with a letter');
     });
 
     it('should return error response for existing project files', async () => {
@@ -531,22 +485,9 @@ describe('scaffold_ios_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: false,
-                error: 'Xcode project files already exist in /tmp/test-projects',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Xcode project files already exist in /tmp/test-projects');
     });
 
     it('should return error response for template download failure', async () => {
@@ -569,23 +510,10 @@ describe('scaffold_ios_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: false,
-                error:
-                  'Failed to get template for iOS: Failed to download template: Template download failed',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to get template for iOS');
+      expect(text).toContain('Template download failed');
 
       await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
     });
@@ -632,23 +560,10 @@ describe('scaffold_ios_project plugin', () => {
         downloadMockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                success: false,
-                error:
-                  'Failed to get template for iOS: Failed to extract template: Extraction failed',
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to get template for iOS');
+      expect(text).toContain('Extraction failed');
 
       await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
     });

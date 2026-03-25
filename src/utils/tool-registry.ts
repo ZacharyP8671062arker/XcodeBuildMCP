@@ -3,7 +3,6 @@ import { server } from '../server/server-state.ts';
 import type { ToolResponse } from '../types/common.ts';
 import type { ToolCatalog, ToolDefinition } from '../runtime/types.ts';
 import { log } from './logger.ts';
-import { processToolResponse } from './responses/index.ts';
 import { loadManifest, type ResolvedManifest } from '../core/manifest/load-manifest.ts';
 import { importToolModule } from '../core/manifest/import-tool-module.ts';
 import { getEffectiveCliName, type WorkflowManifestEntry } from '../core/manifest/schema.ts';
@@ -22,9 +21,7 @@ export interface RuntimeToolInfo {
 const registryState: {
   tools: Map<string, RegisteredTool>;
   enabledWorkflows: Set<string>;
-  /** Current MCP predicate context (stored for use by manage_workflows) */
   currentContext: PredicateContext | null;
-  /** Catalog of currently registered MCP tools for next-step template resolution */
   catalog: ToolCatalog | null;
 } = {
   tools: new Map<string, RegisteredTool>(),
@@ -151,18 +148,10 @@ function defaultPredicateContext(): PredicateContext {
   };
 }
 
-/**
- * Get the current MCP predicate context.
- * Returns the context used for the most recent workflow registration,
- * or a default context if not yet initialized.
- */
 export function getMcpPredicateContext(): PredicateContext {
   return registryState.currentContext ?? defaultPredicateContext();
 }
 
-/**
- * Apply workflow selection using the manifest system.
- */
 export async function applyWorkflowSelectionFromManifest(
   requestedWorkflows: string[] | undefined,
   ctx: PredicateContext,
@@ -171,7 +160,6 @@ export async function applyWorkflowSelectionFromManifest(
     throw new Error('Tool registry has not been initialized.');
   }
 
-  // Store the context for later use (e.g., by manage_workflows)
   registryState.currentContext = ctx;
 
   const manifest = loadManifest();
@@ -182,12 +170,10 @@ export async function applyWorkflowSelectionFromManifest(
   }
   const allWorkflows = [...manifest.workflows.values(), ...customSelection.workflows];
 
-  // Normalize requested workflows for consistent matching
   const normalizedRequestedWorkflows = requestedWorkflows
     ?.map(normalizeName)
     .filter((name) => name.length > 0);
 
-  // Select workflows using manifest-driven rules
   const selectedWorkflows = selectWorkflowsForMcp(allWorkflows, normalizedRequestedWorkflows, ctx);
   const knownWorkflowIds = new Set(allWorkflows.map((workflow) => workflow.id));
   const unknownRequestedWorkflows = (normalizedRequestedWorkflows ?? []).filter(
@@ -214,7 +200,6 @@ export async function applyWorkflowSelectionFromManifest(
       const toolManifest = manifest.tools.get(toolId);
       if (!toolManifest) continue;
 
-      // Check tool visibility using predicates
       if (!isToolExposedForRuntime(toolManifest, ctx)) {
         continue;
       }
@@ -279,7 +264,7 @@ export async function applyWorkflowSelectionFromManifest(
                 durationMs: Date.now() - startedAt,
               });
 
-              return processToolResponse(postProcessedResponse, 'mcp', 'normal');
+              return postProcessedResponse;
             } catch (error) {
               recordInternalErrorMetric({
                 component: 'mcp-tool-registry',
@@ -304,7 +289,6 @@ export async function applyWorkflowSelectionFromManifest(
 
   registryState.catalog = createToolCatalog(catalogTools);
 
-  // Unregister tools no longer in selection
   for (const [toolName, registeredTool] of registryState.tools.entries()) {
     if (!desiredToolNames.has(toolName)) {
       registeredTool.remove();
@@ -323,24 +307,11 @@ export async function applyWorkflowSelectionFromManifest(
   };
 }
 
-/**
- * Register workflows using manifest system.
- */
 export async function registerWorkflowsFromManifest(
   workflowNames?: string[],
   ctx?: PredicateContext,
 ): Promise<void> {
   await applyWorkflowSelectionFromManifest(workflowNames, ctx ?? defaultPredicateContext());
-}
-
-/**
- * Update workflows using manifest system.
- */
-export async function updateWorkflowsFromManifest(
-  workflowNames?: string[],
-  ctx?: PredicateContext,
-): Promise<void> {
-  await registerWorkflowsFromManifest(workflowNames, ctx);
 }
 
 export function __resetToolRegistryForTests(): void {

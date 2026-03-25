@@ -17,7 +17,13 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 
 describe('get_app_bundle_id plugin', () => {
-  // Helper function to create mock executor for command matching
+  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+    return result.content
+      .filter((i) => i.type === 'text')
+      .map((i) => i.text)
+      .join('\n');
+  }
+
   const createMockExecutorForCommands = (results: Record<string, string | Error>) => {
     return createCommandMatchingMockExecutor(
       Object.fromEntries(
@@ -53,18 +59,11 @@ describe('get_app_bundle_id plugin', () => {
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
     it('should return error when appPath validation fails', async () => {
-      // Test validation through the handler which uses Zod validation
       const result = await handler({});
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Parameter validation failed\nDetails: Invalid parameters:\nappPath: Invalid input: expected string, received undefined',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Parameter validation failed');
+      expect(result.content[0].text).toContain('appPath');
     });
 
     it('should return error when file exists validation fails', async () => {
@@ -79,15 +78,10 @@ describe('get_app_bundle_id plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: "File not found: '/path/to/MyApp.app'. Please check the path and try again.",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Get Bundle ID');
+      expect(text).toContain("File not found: '/path/to/MyApp.app'");
     });
 
     it('should return success with bundle ID using defaults read', async () => {
@@ -104,20 +98,15 @@ describe('get_app_bundle_id plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ Bundle ID: io.sentry.MyApp',
-          },
-        ],
-        nextStepParams: {
-          install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath: '/path/to/MyApp.app' },
-          launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'io.sentry.MyApp' },
-          install_app_device: { deviceId: 'DEVICE_UDID', appPath: '/path/to/MyApp.app' },
-          launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'io.sentry.MyApp' },
-        },
-        isError: false,
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Get Bundle ID');
+      expect(text).toContain('Bundle ID: io.sentry.MyApp');
+      expect(result.nextStepParams).toEqual({
+        install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath: '/path/to/MyApp.app' },
+        launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'io.sentry.MyApp' },
+        install_app_device: { deviceId: 'DEVICE_UDID', appPath: '/path/to/MyApp.app' },
+        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'io.sentry.MyApp' },
       });
     });
 
@@ -139,20 +128,14 @@ describe('get_app_bundle_id plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ Bundle ID: io.sentry.MyApp',
-          },
-        ],
-        nextStepParams: {
-          install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath: '/path/to/MyApp.app' },
-          launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'io.sentry.MyApp' },
-          install_app_device: { deviceId: 'DEVICE_UDID', appPath: '/path/to/MyApp.app' },
-          launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'io.sentry.MyApp' },
-        },
-        isError: false,
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Bundle ID: io.sentry.MyApp');
+      expect(result.nextStepParams).toEqual({
+        install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath: '/path/to/MyApp.app' },
+        launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'io.sentry.MyApp' },
+        install_app_device: { deviceId: 'DEVICE_UDID', appPath: '/path/to/MyApp.app' },
+        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'io.sentry.MyApp' },
       });
     });
 
@@ -174,19 +157,10 @@ describe('get_app_bundle_id plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error extracting app bundle ID: Could not extract bundle ID from Info.plist: Command failed',
-          },
-          {
-            type: 'text',
-            text: 'Make sure the path points to a valid app bundle (.app directory).',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Could not extract bundle ID from Info.plist: Command failed');
+      expect(text).toContain('Make sure the path points to a valid app bundle (.app directory).');
     });
 
     it('should handle Error objects in catch blocks', async () => {
@@ -207,19 +181,10 @@ describe('get_app_bundle_id plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error extracting app bundle ID: Could not extract bundle ID from Info.plist: Custom error message',
-          },
-          {
-            type: 'text',
-            text: 'Make sure the path points to a valid app bundle (.app directory).',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Could not extract bundle ID from Info.plist: Custom error message');
+      expect(text).toContain('Make sure the path points to a valid app bundle (.app directory).');
     });
 
     it('should handle string errors in catch blocks', async () => {
@@ -240,79 +205,44 @@ describe('get_app_bundle_id plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error extracting app bundle ID: Could not extract bundle ID from Info.plist: String error',
-          },
-          {
-            type: 'text',
-            text: 'Make sure the path points to a valid app bundle (.app directory).',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Could not extract bundle ID from Info.plist: String error');
+      expect(text).toContain('Make sure the path points to a valid app bundle (.app directory).');
     });
 
     it('should handle schema validation error when appPath is null', async () => {
-      // Test validation through the handler which uses Zod validation
       const result = await handler({ appPath: null });
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Parameter validation failed\nDetails: Invalid parameters:\nappPath: Invalid input: expected string, received null',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Parameter validation failed');
+      expect(result.content[0].text).toContain('appPath');
+      expect(result.content[0].text).toContain('null');
     });
 
     it('should handle schema validation with missing appPath', async () => {
-      // Test validation through the handler which uses Zod validation
       const result = await handler({});
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Parameter validation failed\nDetails: Invalid parameters:\nappPath: Invalid input: expected string, received undefined',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Parameter validation failed');
+      expect(result.content[0].text).toContain('appPath');
     });
 
     it('should handle schema validation with undefined appPath', async () => {
-      // Test validation through the handler which uses Zod validation
       const result = await handler({ appPath: undefined });
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Parameter validation failed\nDetails: Invalid parameters:\nappPath: Invalid input: expected string, received undefined',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Parameter validation failed');
+      expect(result.content[0].text).toContain('appPath');
     });
 
     it('should handle schema validation with number type appPath', async () => {
-      // Test validation through the handler which uses Zod validation
       const result = await handler({ appPath: 123 });
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Parameter validation failed\nDetails: Invalid parameters:\nappPath: Invalid input: expected string, received number',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toContain('Parameter validation failed');
+      expect(result.content[0].text).toContain('appPath');
+      expect(result.content[0].text).toContain('number');
     });
   });
 });

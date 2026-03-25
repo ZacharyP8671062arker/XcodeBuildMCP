@@ -32,24 +32,24 @@ describe('doctor resource', () => {
       });
 
       const result = await doctorResourceLogic(mockExecutor);
+      const text = result.contents.map((c) => c.text).join('\n');
 
       expect(result.contents).toHaveLength(1);
-      expect(result.contents[0].text).toContain('XcodeBuildMCP Doctor');
-      expect(result.contents[0].text).toContain('## System Information');
-      expect(result.contents[0].text).toContain('## Node.js Information');
-      expect(result.contents[0].text).toContain('## Dependencies');
-      expect(result.contents[0].text).toContain('## Environment Variables');
-      expect(result.contents[0].text).toContain('## Feature Status');
+      expect(text).toContain('Doctor');
+      expect(text).toContain('Node.js Information');
+      expect(text).toContain('Dependencies');
+      expect(text).toContain('Environment Variables');
     });
 
     it('should handle spawn errors by showing doctor info', async () => {
       const mockExecutor = createMockExecutor(new Error('spawn xcrun ENOENT'));
 
       const result = await doctorResourceLogic(mockExecutor);
+      const text = result.contents.map((c) => c.text).join('\n');
 
       expect(result.contents).toHaveLength(1);
-      expect(result.contents[0].text).toContain('XcodeBuildMCP Doctor');
-      expect(result.contents[0].text).toContain('Error: spawn xcrun ENOENT');
+      expect(text).toContain('Doctor');
+      expect(text).toContain('spawn xcrun ENOENT');
     });
 
     it('should include required doctor sections', async () => {
@@ -59,10 +59,11 @@ describe('doctor resource', () => {
       });
 
       const result = await doctorResourceLogic(mockExecutor);
+      const text = result.contents.map((c) => c.text).join('\n');
 
-      expect(result.contents[0].text).toContain('## Troubleshooting Tips');
-      expect(result.contents[0].text).toContain('brew tap cameroncooke/axe');
-      expect(result.contents[0].text).toContain('INCREMENTAL_BUILDS_ENABLED=1');
+      expect(text).toContain('Troubleshooting Tips');
+      expect(text).toContain('brew tap cameroncooke/axe');
+      expect(text).toContain('INCREMENTAL_BUILDS_ENABLED=1');
     });
 
     it('should provide feature status information', async () => {
@@ -72,11 +73,12 @@ describe('doctor resource', () => {
       });
 
       const result = await doctorResourceLogic(mockExecutor);
+      const text = result.contents.map((c) => c.text).join('\n');
 
-      expect(result.contents[0].text).toContain('### UI Automation (axe)');
-      expect(result.contents[0].text).toContain('### Incremental Builds');
-      expect(result.contents[0].text).toContain('### Mise Integration');
-      expect(result.contents[0].text).toContain('## Tool Availability Summary');
+      expect(text).toContain('UI Automation (axe)');
+      expect(text).toContain('Incremental Builds');
+      expect(text).toContain('Mise Integration');
+      expect(text).toContain('Tool Availability Summary');
     });
 
     it('should handle error conditions gracefully', async () => {
@@ -87,9 +89,10 @@ describe('doctor resource', () => {
       });
 
       const result = await doctorResourceLogic(mockExecutor);
+      const text = result.contents.map((c) => c.text).join('\n');
 
       expect(result.contents).toHaveLength(1);
-      expect(result.contents[0].text).toContain('XcodeBuildMCP Doctor');
+      expect(text).toContain('Doctor');
     });
   });
 });

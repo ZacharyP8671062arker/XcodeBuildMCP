@@ -158,16 +158,15 @@ describe('get_sim_app_path tool', () => {
         'platform=iOS Simulator,name=iPhone 17,OS=latest',
       ]);
 
-      expect(result.isError).toBe(false);
-      const text = result.content[0].text;
-      expect(text).toContain('\u{1F50D} Get App Path');
-      expect(text).toContain('Scheme: MyScheme');
-      expect(text).toContain('Workspace: /path/to/workspace.xcworkspace');
-      expect(text).toContain('Configuration: Debug');
-      expect(text).toContain('Platform: iOS Simulator');
-      expect(text).toContain('Simulator: iPhone 17');
-      expect(text).toContain('\u{2514} App Path: /tmp/DerivedData/Build/MyApp.app');
-      expect(text).not.toContain('\u{2705}');
+      expect(result.isError).not.toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('MyScheme');
+      expect(text).toContain('/path/to/workspace.xcworkspace');
+      expect(text).toContain('Debug');
+      expect(text).toContain('iOS Simulator');
+      expect(text).toContain('iPhone 17');
+      expect(text).toContain('/tmp/DerivedData/Build/MyApp.app');
       expect(result.nextStepParams).toBeDefined();
     });
 
@@ -188,12 +187,10 @@ describe('get_sim_app_path tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content[0].text;
-      expect(text).toContain('\u{1F50D} Get App Path');
-      expect(text).toContain('Scheme: MyScheme');
-      expect(text).toContain('Errors (');
-      expect(text).toContain('\u{2717}');
-      expect(text).toContain('\u{274C} Query failed.');
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('MyScheme');
+      expect(text).toContain('Failed to get build settings');
       expect(result.nextStepParams).toBeUndefined();
     });
   });

@@ -7,6 +7,8 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
   simulatorId: z
@@ -23,7 +25,6 @@ const baseSchemaObject = z.object({
     ),
 });
 
-// Internal schema requires simulatorId (factory resolves simulatorName → simulatorId)
 const internalSchemaObject = z.object({
   simulatorId: z.string(),
   simulatorName: z.string().optional(),
@@ -44,45 +45,33 @@ export async function boot_simLogic(
 ): Promise<ToolResponse> {
   log('info', `Starting xcrun simctl boot request for simulator ${params.simulatorId}`);
 
+  const headerEvent = header('Boot Simulator', [{ label: 'Simulator', value: params.simulatorId }]);
+
   try {
     const command = ['xcrun', 'simctl', 'boot', params.simulatorId];
     const result = await executor(command, 'Boot Simulator', false);
 
     if (!result.success) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Boot simulator operation failed: ${result.error}`,
-          },
-        ],
-      };
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Boot simulator operation failed: ${result.error}`),
+      ]);
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Simulator booted successfully.`,
-        },
-      ],
+    return toolResponse([headerEvent, statusLine('success', 'Simulator booted successfully')], {
       nextStepParams: {
         open_sim: {},
         install_app_sim: { simulatorId: params.simulatorId, appPath: 'PATH_TO_YOUR_APP' },
         launch_app_sim: { simulatorId: params.simulatorId, bundleId: 'YOUR_APP_BUNDLE_ID' },
       },
-    };
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during boot simulator operation: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Boot simulator operation failed: ${errorMessage}`,
-        },
-      ],
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Boot simulator operation failed: ${errorMessage}`),
+    ]);
   }
 }
 

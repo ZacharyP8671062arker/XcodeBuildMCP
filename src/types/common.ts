@@ -104,8 +104,7 @@ export function createImageContent(
  */
 export interface ValidationResult {
   isValid: boolean;
-  errorResponse?: ToolResponse;
-  warningResponse?: ToolResponse;
+  errorMessage?: string;
 }
 
 /**

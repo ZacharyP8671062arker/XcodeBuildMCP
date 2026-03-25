@@ -27,15 +27,9 @@ describe('swift_package_stop plugin', () => {
         }),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '⚠️ No running process found with PID 99999. Use swift_package_run to check active processes.',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('No running process found with PID 99999');
     });
 
     it('returns success response when termination succeeds', async () => {
@@ -61,18 +55,9 @@ describe('swift_package_stop plugin', () => {
       );
 
       expect(terminateTrackedProcess).toHaveBeenCalledWith(12345, 5000);
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: '✅ Stopped executable (was running since 2023-01-01T10:00:00.000Z)',
-          },
-          {
-            type: 'text',
-            text: '💡 Process terminated. You can now run swift_package_run again if needed.',
-          },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Stopped executable (was running since 2023-01-01T10:00:00.000Z)');
     });
 
     it('returns error response when termination reports an error', async () => {
@@ -95,15 +80,10 @@ describe('swift_package_stop plugin', () => {
         }),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Failed to stop process\nDetails: ESRCH: No such process',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Failed to stop process');
+      expect(text).toContain('ESRCH: No such process');
     });
 
     it('uses custom timeout when provided', async () => {
@@ -136,7 +116,8 @@ describe('swift_package_stop plugin', () => {
       const result = await handler({ pid: 'bad' });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0]?.text).toContain('Parameter validation failed');
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Parameter validation failed');
     });
   });
 });

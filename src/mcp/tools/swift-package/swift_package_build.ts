@@ -1,6 +1,5 @@
 import * as z from 'zod';
 import path from 'node:path';
-import { createErrorResponse } from '../../../utils/responses/index.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -9,8 +8,9 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const baseSchemaObject = z.object({
   packagePath: z.string(),
   targetName: z.string().optional(),
@@ -25,7 +25,6 @@ const publicSchemaObject = baseSchemaObject.omit({
 
 const swiftPackageBuildSchema = baseSchemaObject;
 
-// Use z.infer for type safety
 type SwiftPackageBuildParams = z.infer<typeof swiftPackageBuildSchema>;
 
 export async function swift_package_buildLogic(
@@ -54,28 +53,35 @@ export async function swift_package_buildLogic(
   }
 
   log('info', `Running swift ${swiftArgs.join(' ')}`);
+
+  const headerEvent = header('Swift Package Build', [
+    { label: 'Package', value: resolvedPath },
+    ...(params.targetName ? [{ label: 'Target', value: params.targetName }] : []),
+    ...(params.configuration ? [{ label: 'Configuration', value: params.configuration }] : []),
+  ]);
+
   try {
-    const result = await executor(['swift', ...swiftArgs], 'Swift Package Build', false, undefined);
+    const result = await executor(['swift', ...swiftArgs], 'Swift Package Build', false);
     if (!result.success) {
       const errorMessage = result.error || result.output || 'Unknown error';
-      return createErrorResponse('Swift package build failed', errorMessage);
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Swift package build failed: ${errorMessage}`),
+      ]);
     }
 
-    return {
-      content: [
-        { type: 'text', text: '✅ Swift package build succeeded.' },
-        {
-          type: 'text',
-          text: '💡 Next: Run tests with swift_package_test or execute with swift_package_run',
-        },
-        { type: 'text', text: result.output },
-      ],
-      isError: false,
-    };
+    return toolResponse([
+      headerEvent,
+      ...(result.output ? [section('Output', [result.output])] : []),
+      statusLine('success', 'Swift package build succeeded'),
+    ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log('error', `Swift package build failed: ${message}`);
-    return createErrorResponse('Failed to execute swift build', message);
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to execute swift build: ${message}`),
+    ]);
   }
 }
 

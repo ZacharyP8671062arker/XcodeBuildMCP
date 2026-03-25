@@ -1,0 +1,11 @@
+🔨 Build
+
+  Scheme: CalculatorApp
+  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  Configuration: Debug
+  Platform: iOS
+
+Errors (1):
+  ✗ CalculatorApp/CompileError.swift:3: Cannot convert value of type 'String' to specified type 'Int'
+
+❌ Build failed. (⏱️ <DURATION>)

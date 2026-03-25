@@ -9,10 +9,11 @@ import * as z from 'zod';
 import * as path from 'node:path';
 import { log } from '../../../utils/logging/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createTextContent } from '../../../types/common.ts';
 import { getDefaultFileSystemExecutor, getDefaultCommandExecutor } from '../../../utils/command.ts';
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 // Constants
 const DEFAULT_MAX_DEPTH = 5;
@@ -136,7 +137,6 @@ async function _findProjectsRecursive(
   }
 }
 
-// Define schema as ZodObject
 const discoverProjsSchema = z.object({
   workspaceRoot: z.string(),
   scanPath: z.string().optional(),
@@ -154,7 +154,6 @@ export interface DiscoverProjectsResult {
   workspaces: string[];
 }
 
-// Use z.infer for type safety
 type DiscoverProjsParams = z.infer<typeof discoverProjsSchema>;
 
 async function discoverProjectsOrError(
@@ -231,10 +230,7 @@ export async function discover_projsLogic(
 ): Promise<ToolResponse> {
   const results = await discoverProjectsOrError(params, fileSystemExecutor);
   if ('error' in results) {
-    return {
-      content: [createTextContent(results.error)],
-      isError: true,
-    };
+    return toolResponse([header('Discover Projects'), statusLine('error', results.error)]);
   }
 
   log(
@@ -242,36 +238,32 @@ export async function discover_projsLogic(
     `Discovery finished. Found ${results.projects.length} projects and ${results.workspaces.length} workspaces.`,
   );
 
-  const responseContent = [
-    createTextContent(
-      `Discovery finished. Found ${results.projects.length} projects and ${results.workspaces.length} workspaces.`,
+  const events = [
+    header('Discover Projects'),
+    statusLine(
+      'success',
+      `Found ${results.projects.length} project(s) and ${results.workspaces.length} workspace(s).`,
     ),
   ];
 
   if (results.projects.length > 0) {
-    responseContent.push(
-      createTextContent(`Projects found:\n - ${results.projects.join('\n - ')}`),
-    );
+    events.push(section('Projects', results.projects));
   }
 
   if (results.workspaces.length > 0) {
-    responseContent.push(
-      createTextContent(`Workspaces found:\n - ${results.workspaces.join('\n - ')}`),
-    );
+    events.push(section('Workspaces', results.workspaces));
   }
 
   if (results.projects.length > 0 || results.workspaces.length > 0) {
-    responseContent.push(
-      createTextContent(
-        "Hint: Save a default with session-set-defaults { projectPath: '...' } or { workspacePath: '...' }.",
+    events.push(
+      statusLine(
+        'info',
+        "Save a default with session-set-defaults { projectPath: '...' } or { workspacePath: '...' }.",
       ),
     );
   }
 
-  return {
-    content: responseContent,
-    isError: false,
-  };
+  return toolResponse(events);
 }
 
 export const schema = discoverProjsSchema.shape;

@@ -2,6 +2,14 @@ import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { schema, reset_sim_locationLogic } from '../reset_sim_location.ts';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
+
+function allText(result: ToolResponse): string {
+  return result.content
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
 
 describe('reset_sim_location plugin', () => {
   describe('Schema Validation', () => {
@@ -30,14 +38,10 @@ describe('reset_sim_location plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Successfully reset simulator test-uuid-123 location.',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Reset Location');
+      expect(text).toContain('Location reset to default');
+      expect(result.isError).toBeFalsy();
     });
 
     it('should handle command failure', async () => {
@@ -53,14 +57,9 @@ describe('reset_sim_location plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to reset simulator location: Command failed',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to reset simulator location: Command failed');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle exception during execution', async () => {
@@ -73,14 +72,9 @@ describe('reset_sim_location plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to reset simulator location: Network error',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to reset simulator location: Network error');
+      expect(result.isError).toBe(true);
     });
 
     it('should call correct command', async () => {
@@ -92,7 +86,6 @@ describe('reset_sim_location plugin', () => {
         output: 'Location reset successfully',
       });
 
-      // Create a wrapper to capture the command arguments
       const capturingExecutor = async (command: string[], logPrefix?: string) => {
         capturedCommand = command;
         capturedLogPrefix = logPrefix;

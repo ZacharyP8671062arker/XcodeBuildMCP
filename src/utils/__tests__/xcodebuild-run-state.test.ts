@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createXcodebuildRunState } from '../xcodebuild-run-state.ts';
-import type { XcodebuildEvent } from '../../types/xcodebuild-events.ts';
-import { STAGE_RANK } from '../../types/xcodebuild-events.ts';
+import type { PipelineEvent } from '../../types/pipeline-events.ts';
+import { STAGE_RANK } from '../../types/pipeline-events.ts';
 
 function ts(): string {
   return '2025-01-01T00:00:00.000Z';
@@ -9,28 +9,28 @@ function ts(): string {
 
 describe('xcodebuild-run-state', () => {
   it('accepts status events and tracks milestones in order', () => {
-    const forwarded: XcodebuildEvent[] = [];
+    const forwarded: PipelineEvent[] = [];
     const state = createXcodebuildRunState({
       operation: 'TEST',
       onEvent: (e) => forwarded.push(e),
     });
 
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'TEST',
       stage: 'RESOLVING_PACKAGES',
       message: 'Resolving packages',
     });
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'TEST',
       stage: 'COMPILING',
       message: 'Compiling',
     });
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'TEST',
       stage: 'RUN_TESTS',
@@ -52,14 +52,14 @@ describe('xcodebuild-run-state', () => {
     const state = createXcodebuildRunState({ operation: 'BUILD' });
 
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'BUILD',
       stage: 'RESOLVING_PACKAGES',
       message: 'Resolving packages',
     });
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'BUILD',
       stage: 'COMPILING',
@@ -67,14 +67,14 @@ describe('xcodebuild-run-state', () => {
     });
     // Duplicate: should be ignored
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'BUILD',
       stage: 'RESOLVING_PACKAGES',
       message: 'Resolving packages',
     });
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'BUILD',
       stage: 'COMPILING',
@@ -93,14 +93,14 @@ describe('xcodebuild-run-state', () => {
 
     // These should be suppressed because they're at or below COMPILING rank
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'TEST',
       stage: 'RESOLVING_PACKAGES',
       message: 'Resolving packages',
     });
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'TEST',
       stage: 'COMPILING',
@@ -108,7 +108,7 @@ describe('xcodebuild-run-state', () => {
     });
     // This should be accepted
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'TEST',
       stage: 'RUN_TESTS',
@@ -123,8 +123,8 @@ describe('xcodebuild-run-state', () => {
   it('deduplicates error diagnostics by location+message', () => {
     const state = createXcodebuildRunState({ operation: 'BUILD' });
 
-    const error: XcodebuildEvent = {
-      type: 'error',
+    const error: PipelineEvent = {
+      type: 'compiler-error',
       timestamp: ts(),
       operation: 'BUILD',
       message: 'type mismatch',
@@ -142,7 +142,7 @@ describe('xcodebuild-run-state', () => {
   it('deduplicates test failures by location+message', () => {
     const state = createXcodebuildRunState({ operation: 'TEST' });
 
-    const failure: XcodebuildEvent = {
+    const failure: PipelineEvent = {
       type: 'test-failure',
       timestamp: ts(),
       operation: 'TEST',
@@ -162,8 +162,8 @@ describe('xcodebuild-run-state', () => {
   it('deduplicates warnings by location+message', () => {
     const state = createXcodebuildRunState({ operation: 'BUILD' });
 
-    const warning: XcodebuildEvent = {
-      type: 'warning',
+    const warning: PipelineEvent = {
+      type: 'compiler-warning',
       timestamp: ts(),
       operation: 'BUILD',
       message: 'unused variable',
@@ -213,7 +213,7 @@ describe('xcodebuild-run-state', () => {
   });
 
   it('auto-inserts RUN_TESTS milestone on first test-progress', () => {
-    const forwarded: XcodebuildEvent[] = [];
+    const forwarded: PipelineEvent[] = [];
     const state = createXcodebuildRunState({
       operation: 'TEST',
       onEvent: (e) => forwarded.push(e),
@@ -236,7 +236,7 @@ describe('xcodebuild-run-state', () => {
   });
 
   it('finalize emits summary event and sets final status', () => {
-    const forwarded: XcodebuildEvent[] = [];
+    const forwarded: PipelineEvent[] = [];
     const state = createXcodebuildRunState({
       operation: 'TEST',
       onEvent: (e) => forwarded.push(e),
@@ -273,14 +273,14 @@ describe('xcodebuild-run-state', () => {
     const state = createXcodebuildRunState({ operation: 'TEST' });
 
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'TEST',
       stage: 'RESOLVING_PACKAGES',
       message: 'Resolving packages',
     });
     state.push({
-      type: 'status',
+      type: 'build-stage',
       timestamp: ts(),
       operation: 'TEST',
       stage: 'COMPILING',
@@ -290,20 +290,18 @@ describe('xcodebuild-run-state', () => {
     expect(state.highestStageRank()).toBe(STAGE_RANK.COMPILING);
   });
 
-  it('passes through start and next-steps events', () => {
-    const forwarded: XcodebuildEvent[] = [];
+  it('passes through header and next-steps events', () => {
+    const forwarded: PipelineEvent[] = [];
     const state = createXcodebuildRunState({
       operation: 'TEST',
       onEvent: (e) => forwarded.push(e),
     });
 
     state.push({
-      type: 'start',
+      type: 'header',
       timestamp: ts(),
-      operation: 'TEST',
-      toolName: 'test_sim',
-      params: {},
-      message: 'Starting test run',
+      operation: 'Test',
+      params: [],
     });
     state.push({
       type: 'next-steps',
@@ -312,7 +310,7 @@ describe('xcodebuild-run-state', () => {
     });
 
     expect(forwarded).toHaveLength(2);
-    expect(forwarded[0].type).toBe('start');
+    expect(forwarded[0].type).toBe('header');
     expect(forwarded[1].type).toBe('next-steps');
   });
 });

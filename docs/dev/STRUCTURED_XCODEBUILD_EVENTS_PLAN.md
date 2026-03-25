@@ -1,458 +1,540 @@
-# Structured xcodebuild events plan
+# Unified tool output pipeline
 
 ## Goal
 
-Move every xcodebuild-backed tool in XcodeBuildMCP to a single structured streaming pipeline.
+Every tool in XcodeBuildMCP must produce its output through a single structured pipeline. No tool may construct its own formatted text. The pipeline owns all rendering, spacing, path formatting, and section structure.
 
-That pipeline must:
+This applies to:
 
-- parse xcodebuild output into structured events in real time
-- stream those events immediately instead of waiting for command completion
-- drive human-readable streaming output for MCP and CLI text mode
-- drive streamed JSONL output for CLI JSON mode
-- support manifest-driven next steps at the end of the stream
+- xcodebuild-backed tools (build, test, build & run, clean)
+- query tools (list simulators, list schemes, discover projects, show build settings)
+- action tools (set appearance, set location, boot simulator, install app)
+- coverage tools (coverage report, file coverage)
+- scaffolding tools (scaffold iOS project, scaffold macOS project)
+- logging tools (start/stop log capture)
+- debugging tools (attach, breakpoints, variables)
+- UI automation tools (tap, swipe, type text, screenshot, snapshot UI)
+- session tools (set defaults, show defaults, clear defaults)
 
-The source of truth is the structured event stream, not formatted text.
-
-## Current status
-
-As of March 20, 2026:
-
-- shared xcodebuild event types, parser, run-state layer, and renderer set exist
-- simulator, device, and macOS pure build tools use the pending pipeline model
-- `build_run_macos` and `build_run_sim` are fully migrated to the canonical single-pipeline pattern
-- CLI JSONL streaming exists for pipeline-backed tools
-- MCP human-readable output is buffered from the same renderer family
-- all error events (file-located and non-file) are grouped and rendered consistently
-
-The remaining migration work is `build_run_device` and any test tool cleanup.
+No exceptions. If a tool produces user-visible output, it goes through the pipeline.
 
 ## Architecture principle
 
-One model, one pipeline. Tools do not own rendering or formatting. They emit structured events into a shared pipeline, and the shared renderer family produces all user-visible output.
+One renderer, two sinks.
 
-- CLI is a pure stream consumer
-- MCP buffers the same streamed human-readable output and returns it in one final chunk
-- there is no second presentation path that re-renders or replays final text after the stream
+There is exactly one rendering path that converts structured events into formatted text. The only difference between CLI and MCP is where that text goes:
 
-The only runtime difference is the output sink:
+- CLI sink: writes formatted text to stdout as events arrive (streaming)
+- MCP sink: buffers the same formatted text and returns it in `ToolResponse.content`
 
-- CLI sink: stdout/stderr
-- MCP sink: in-memory buffer returned as `ToolResponse.content`
+There is no separate MCP renderer. There is no separate CLI renderer. There is one renderer with one output format. The sinks are dumb pipes.
 
-Not the rendering logic.
+The only sink-level concerns are:
 
-## Requirements
+- CLI interactive mode: a Clack spinner for transient status updates (the rendered durable text is identical)
+- Next steps syntax: CLI renders `xcodebuildmcp workflow tool --flag "value"`, MCP renders `tool_name({ param: "value" })`. This is a single parameterised formatting function, not a separate renderer.
+- Warning suppression: a session-level filter applied before rendering, not a rendering concern.
 
-These are requirements, not nice-to-haves.
+## Why this matters
 
-### 1. All xcodebuild-derived tools use the same model
+Without a unified pipeline, every tool re-invents:
 
-This applies to all tools whose primary execution path is xcodebuild-derived, including:
+- spacing between sections (some add blank lines, some don't)
+- file path formatting (some call `displayPath`, some don't)
+- header/preflight structure (some use `formatToolPreflight`, some build strings manually)
+- error formatting (some use icons, some use `[NOT COVERED]`, some use bare text)
+- next steps rendering (some hardcode strings, some use the manifest)
 
-- simulator build tools
-- simulator test tools
-- device build tools
-- device test tools
-- macOS build tools
-- macOS test tools
-- any other tool that surfaces xcodebuild phases, warnings, errors, or summaries
+Every new tool or refactor re-introduces the same bugs. The pipeline makes these bugs structurally impossible.
 
-### 2. Streaming is required
+## Event model
 
-Tools must emit output as soon as they have meaningful state to report.
+All tools emit structured events. The renderer converts events to formatted text. Tools never produce formatted text directly.
 
-They should also emit an immediate startup event/output block before xcodebuild produces its first meaningful line. In most cases that startup output should echo the important input parameters so the caller can immediately see what is being attempted.
+### Generic tool events
 
-We do not want to wait until the end of execution and then dump a final result.
+These events cover all non-xcodebuild tools:
 
-This matters for:
-
-- agent responsiveness
-- long-running builds
-- package resolution visibility
-- compile phase visibility
-- test execution visibility
-- reducing timeouts and dead-air during execution
-
-### 3. MCP output changes too
-
-The plan does require changing the output shape used by xcodebuild-backed MCP tools.
-
-We do not need to preserve the current human-readable MCP output contract for these tools.
-
-The MCP API contract is still the same:
-
-- same tools
-- same arguments
-- same MCP transport
-
-But the streamed output content from xcodebuild-backed tools can and should change.
-
-### 4. CLI JSON output is streamed JSONL
-
-CLI JSON output should be one mode only:
-
-- streamed JSONL
-
-We do not need multiple JSON modes like:
-
-- final JSON blob
-- JSON events
-- NDJSON as a separate concept
-
-For this plan, CLI JSON output means line-delimited streamed JSON events.
-
-### 5. MCP remains human-readable
-
-MCP should keep receiving human-readable streamed output.
-
-It does not need a JSON mode.
-
-The important point is that the human-readable MCP output must now be rendered from the same structured event stream that powers CLI JSONL and CLI text mode.
-
-### 6. We are not building a full-screen UI
-
-We are not building a full-screen terminal application.
-
-The target is the hybrid streaming approach we already used successfully for the simulator test tool:
-
-- live transient status updates where appropriate
-- durable streamed lines for warnings, errors, failures, and summaries
-- clear final summary output
-
-Visual parity with Flowdeck matters less than data-model parity and responsiveness.
-
-## Desired behavior
-
-All xcodebuild-backed tools should expose the same kind of live milestones and diagnostics.
-
-Examples:
-
-- tool starts -> stream an immediate scoped start event with the key input params
-- package resolution starts -> stream a structured status event
-- compiling starts -> stream a structured status event
-- warning found -> stream a structured warning event
-- compiler error found -> stream a structured error event
-- tests begin -> stream a structured status event
-- test progress changes -> stream a structured progress event
-- test failure found -> stream a structured failure event
-- run completes -> stream a structured summary event
-- next steps available -> stream a final next-steps event or final rendered next-steps block
-
-## Output modes
-
-## MCP mode
-
-MCP mode should receive streamed human-readable output rendered from the structured event stream.
-
-That includes:
-
-- milestones
-- warnings
-- errors
-- test progress
-- summaries
-- final next steps
-
-## CLI text mode
-
-CLI text mode should render the same stream into terminal-friendly output.
-
-That includes:
-
-- Clack-driven transient progress updates where useful
-- durable diagnostics and summaries
-- final next steps
-
-## CLI JSON mode
-
-CLI JSON mode should emit structured JSONL.
-
-Each line is one event.
-
-Example:
-
-```json
-{"type":"status","operation":"TEST","stage":"RESOLVING_PACKAGES","message":"Resolving Package Graph...","timestamp":"2026-03-17T08:27:34.175Z"}
-{"type":"status","operation":"TEST","stage":"COMPILING","message":"Compiling...","timestamp":"2026-03-17T08:27:39.834Z"}
-{"type":"status","operation":"TEST","stage":"RUN_TESTS","message":"Running tests...","timestamp":"2026-03-17T08:28:41.875Z"}
-{"type":"test-progress","operation":"TEST","completed":7,"failed":0,"skipped":0,"timestamp":"2026-03-17T08:28:50.101Z"}
-{"type":"summary","operation":"TEST","status":"FAILED","totalTests":21,"passedTests":20,"failedTests":1,"skippedTests":0,"durationMs":28080,"timestamp":"2026-03-17T08:28:59.000Z"}
+```ts
+type ToolEvent =
+  | HeaderEvent        // preflight block: operation name + params
+  | SectionEvent       // titled group of content lines
+  | DetailTreeEvent    // key/value pairs with tree connectors
+  | StatusLineEvent    // single status message (success, error, info)
+  | FileRefEvent       // a file path (always normalised)
+  | TableEvent         // rows of structured data
+  | SummaryEvent       // final outcome line
+  | NextStepsEvent     // suggested follow-up actions
+  | XcodebuildEvent;   // existing xcodebuild events (unchanged)
 ```
 
-## Architecture design
+#### HeaderEvent
 
-The architecture should be explicitly layered.
+Replaces `formatToolPreflight`. Every tool starts with a header.
 
-## Concrete architecture flow
+```ts
+interface HeaderEvent {
+  type: 'header';
+  operation: string;      // e.g. 'File Coverage', 'List Simulators', 'Set Appearance'
+  params: Array<{         // rendered as indented key: value lines
+    label: string;
+    value: string;
+  }>;
+  timestamp: string;
+}
+```
 
-This section describes the architecture using the actual components that exist in the codebase today.
+The renderer owns:
 
-The important shape is:
+- the emoji (looked up from the operation name)
+- the blank line after the heading
+- the indentation of params
+- the trailing blank line after the params block
 
-- one ordered event stream
-- one run-state / aggregation layer
-- one renderer family
-- different sinks only at the end
+Tools cannot get the spacing wrong because they never produce it.
 
-The flow is linear until rendering:
+#### SectionEvent
+
+A titled group of content lines with an optional icon.
+
+```ts
+interface SectionEvent {
+  type: 'section';
+  title: string;          // e.g. 'Not Covered (7 functions, 22 lines)'
+  icon?: 'red-circle' | 'yellow-circle' | 'green-circle' | 'checkmark' | 'cross' | 'info';
+  lines: string[];        // indented content lines
+  timestamp: string;
+}
+```
+
+The renderer owns:
+
+- the icon-to-emoji mapping
+- the blank line before and after each section
+- the indentation of content lines
+
+#### DetailTreeEvent
+
+Key/value pairs rendered with tree connectors.
+
+```ts
+interface DetailTreeEvent {
+  type: 'detail-tree';
+  items: Array<{ label: string; value: string }>;
+  timestamp: string;
+}
+```
+
+Rendered as:
+
+```text
+  ├ App Path: /path/to/app
+  └ Bundle ID: com.example.app
+```
+
+The renderer owns the connector characters and indentation.
+
+#### StatusLineEvent
+
+A single status message.
+
+```ts
+interface StatusLineEvent {
+  type: 'status-line';
+  level: 'success' | 'error' | 'info' | 'warning';
+  message: string;
+  timestamp: string;
+}
+```
+
+The renderer owns the emoji prefix based on level.
+
+#### FileRefEvent
+
+A file path that must be normalised.
+
+```ts
+interface FileRefEvent {
+  type: 'file-ref';
+  label?: string;         // e.g. 'File' — rendered as "File: <path>"
+  path: string;           // raw absolute path from the tool
+  timestamp: string;
+}
+```
+
+The renderer always runs the path through `displayPath()` (relative if under cwd, absolute otherwise). Tools cannot bypass this.
+
+#### TableEvent
+
+Rows of structured data grouped under an optional heading.
+
+```ts
+interface TableEvent {
+  type: 'table';
+  heading?: string;       // e.g. 'iOS 18.5'
+  columns: string[];      // column names for alignment
+  rows: Array<Record<string, string>>;
+  timestamp: string;
+}
+```
+
+The renderer owns column alignment and indentation.
+
+#### SummaryEvent (generic)
+
+A final outcome line for non-xcodebuild tools. Different from the xcodebuild `SummaryEvent` which includes test counts and duration.
+
+```ts
+interface GenericSummaryEvent {
+  type: 'generic-summary';
+  level: 'success' | 'error';
+  message: string;
+  timestamp: string;
+}
+```
+
+#### NextStepsEvent
+
+Unchanged from the existing model. Parameterised rendering for CLI vs MCP syntax.
+
+### Xcodebuild events
+
+The existing `XcodebuildEvent` union type is unchanged. Xcodebuild-backed tools continue to use:
+
+- `start` (replaces `HeaderEvent` for xcodebuild tools — the start event already contains the preflight)
+- `status`, `warning`, `error`, `notice`
+- `test-discovery`, `test-progress`, `test-failure`
+- `summary`
+- `next-steps`
+
+The xcodebuild event parser feeds these into the same pipeline. The renderer handles both generic tool events and xcodebuild events.
+
+## Pipeline architecture
+
+### For xcodebuild-backed tools (existing, unchanged)
 
 ```text
 tool logic
--> startBuildPipeline(...)
--> XcodebuildPipeline
--> parser + run-state
--> ordered structured events
--> renderer fork
--> MCP buffer or CLI stdout
+  -> startBuildPipeline(...)
+  -> XcodebuildPipeline
+  -> parser + run-state
+  -> ordered XcodebuildEvent stream
+  -> renderer -> sink (stdout or buffer)
 ```
 
-More concretely:
+This path remains as-is. The xcodebuild parser, run-state layer, and event types do not change.
 
-1. tool logic creates the pipeline with `startBuildPipeline(...)` from `src/utils/xcodebuild-pipeline.ts`
-2. `startBuildPipeline(...)` creates an `XcodebuildPipeline` and emits the initial `start` event
-3. raw `xcodebuild` stdout/stderr chunks are sent into `createXcodebuildEventParser(...)` from `src/utils/xcodebuild-event-parser.ts`
-4. the parser emits structured events into `createXcodebuildRunState(...)` from `src/utils/xcodebuild-run-state.ts`
-5. tool-owned events such as preflight, app-path, install, launch, and post-build errors also enter that same run-state through `pipeline.emitEvent(...)`
-6. run-state dedupes, orders, aggregates, and forwards each accepted event to the configured renderers
-7. renderers consume the same event stream:
-   - `src/utils/renderers/mcp-renderer.ts`
-   - `src/utils/renderers/cli-text-renderer.ts`
-   - `src/utils/renderers/cli-jsonl-renderer.ts`
-8. at finalize time, the pipeline emits the final summary and final next-steps event in the same stream order
+### For all other tools (new)
+
+```text
+tool logic
+  -> emits ToolEvent[] (or streams them)
+  -> renderer -> sink (stdout or buffer)
+```
+
+Simple tools emit events synchronously and return them. The pipeline renders them and routes to the appropriate sink.
+
+There is no parser or run-state layer for non-xcodebuild tools. They don't need one — they already have structured data. The pipeline is just: structured events -> renderer -> sink.
 
 ### Mermaid diagram
 
 ```mermaid
 flowchart LR
-    A[Tool logic<br/>build_sim / build_run_sim / test_sim / etc.] --> B[startBuildPipeline<br/>src/utils/xcodebuild-pipeline.ts]
+    subgraph "Xcodebuild tools"
+        A[Tool logic] --> B[XcodebuildPipeline]
+        B --> C[Event parser]
+        B --> D[Run-state]
+        C --> D
+        D --> E[XcodebuildEvent stream]
+    end
 
-    B --> C[XcodebuildPipeline<br/>src/utils/xcodebuild-pipeline.ts]
+    subgraph "All other tools"
+        F[Tool logic] --> G[ToolEvent stream]
+    end
 
-    C --> D[createXcodebuildEventParser<br/>src/utils/xcodebuild-event-parser.ts]
-    C --> E[createXcodebuildRunState<br/>src/utils/xcodebuild-run-state.ts]
+    E --> H[Unified renderer]
+    G --> H
 
-    F[xcodebuild stdout/stderr] --> D
-    G[tool-emitted events<br/>pipeline.emitEvent(...)] --> E
+    H --> I{Runtime?}
+    I -->|CLI| J[stdout sink]
+    I -->|MCP / Daemon| K[Buffer sink]
 
-    D --> E
+    J --> L[Streaming text to terminal]
+    K --> M[ToolResponse.content]
 
-    E --> H[ordered structured event stream]
-
-    H --> I[MCP renderer<br/>src/utils/renderers/mcp-renderer.ts]
-    H --> J[CLI text renderer<br/>src/utils/renderers/cli-text-renderer.ts]
-    H --> K[CLI JSONL renderer<br/>src/utils/renderers/cli-jsonl-renderer.ts]
-
-    I --> L[mcpRenderer.getContent()]
-    L --> M[ToolResponse.content]
-
-    J --> N[process.stdout text stream]
-    K --> O[process.stdout JSONL stream]
+    H --> N{CLI JSON mode?}
+    N -->|Yes| O[JSONL sink]
+    O --> P[Streaming JSON to stdout]
 ```
 
-### Event order within one run
+### Sink behaviour
 
-Within a single xcodebuild-backed tool run, the desired event order is:
+#### CLI stdout sink
+
+- Writes each rendered line to stdout immediately
+- In interactive TTY mode: uses Clack spinner for transient status events, replaces in place
+- In non-interactive mode: writes all events as durable lines
+- Formatting is identical to MCP — the only difference is transient spinner behaviour
+
+#### MCP buffer sink
+
+- Buffers all rendered text
+- Returns as `ToolResponse.content` when the tool completes
+- Identical formatting to CLI non-interactive mode
+
+#### CLI JSONL sink
+
+- Serialises each event as one JSON line to stdout
+- Does not go through the text renderer
+- Only available for xcodebuild-backed tools (they have a rich event model)
+- Non-xcodebuild tools do not need JSONL — their output is simple enough that text suffices
+
+## Renderer contract
+
+One renderer. One set of formatting rules. All tools.
+
+```ts
+interface ToolOutputRenderer {
+  onEvent(event: ToolEvent | XcodebuildEvent): void;
+  finalize(): string[];  // returns buffered lines (used by MCP sink)
+}
+```
+
+The renderer is the single source of truth for:
+
+- emoji selection per operation/level/icon
+- spacing between sections (always one blank line)
+- file path normalisation (always `displayPath()`)
+- indentation depth (always 2 spaces for params, content lines)
+- tree connector characters
+- next steps formatting (parameterised by runtime)
+- section ordering enforcement
+
+### Formatting rules enforced by the renderer
+
+These rules are not guidelines. They are enforced structurally because tools cannot produce formatted text.
+
+1. **Header always has a trailing blank line.** The renderer emits: blank line, emoji + operation, blank line, indented params, blank line. Every tool. No exceptions.
+
+2. **File paths are always normalised.** `FileRefEvent` paths always go through `displayPath()`. Xcodebuild diagnostic paths go through `formatDiagnosticFilePath()`. There is no code path where a raw absolute path reaches the output.
+
+3. **Sections are always separated by blank lines.** The renderer adds one blank line before each section. Tools cannot omit or double this.
+
+4. **Icons are always consistent.** The renderer maps `icon` enum values to emoji. Tools do not contain emoji characters.
+
+5. **Next steps are always last.** The renderer enforces ordering. Nothing renders after next steps.
+
+6. **Error messages follow the convention.** `Failed to <action>: <detail>`. The renderer does not enforce this (it's a content concern), but the pipeline API makes it easy to follow.
+
+## How tools emit events
+
+### Simple action tools (e.g. set appearance)
+
+```ts
+return toolResponse([
+  header('Set Appearance', [
+    { label: 'Simulator', value: simulatorId },
+  ]),
+  statusLine('success', `Appearance set to ${mode} mode`),
+]);
+```
+
+### Query tools (e.g. list simulators)
+
+```ts
+return toolResponse([
+  header('List Simulators'),
+  ...grouped.map(([runtime, devices]) =>
+    table(runtime, ['Name', 'UUID', 'State'],
+      devices.map(d => ({ Name: d.name, UUID: d.udid, State: d.state }))
+    )
+  ),
+  nextSteps([...]),
+]);
+```
+
+### Coverage tools (e.g. file coverage)
+
+```ts
+return toolResponse([
+  header('File Coverage', [
+    { label: 'xcresult', value: xcresultPath },
+    { label: 'File', value: file },
+  ]),
+  fileRef('File', entry.filePath),
+  statusLine('info', `Coverage: ${pct}% (${covered}/${total} lines)`),
+  section('Not Covered', notCoveredLines, { icon: 'red-circle',
+    title: `Not Covered (${count} functions, ${missedLines} lines)` }),
+  section('Partial Coverage', partialLines, { icon: 'yellow-circle',
+    title: `Partial Coverage (${count} functions)` }),
+  section('Full Coverage', [`${fullCount} functions — all at 100%`], { icon: 'green-circle',
+    title: `Full Coverage (${fullCount} functions) — all at 100%` }),
+  nextSteps([...]),
+]);
+```
+
+### Xcodebuild tools
+
+These keep the existing parser and run-state layers (`startBuildPipeline()`, `executeXcodeBuildCommand()`, `createPendingXcodebuildResponse()`), but the run-state output gets mapped to `ToolEvent` types before reaching the renderer. The xcodebuild parser remains an ingestion layer — it just feeds into the unified event model instead of having its own rendering path. Streaming and Clack progress are preserved as CLI sink concerns.
+
+## Locked human-readable output contract
+
+The output structure for all tools follows the same rhythm:
 
 ```text
-start
--> parsed xcodebuild milestones / diagnostics / progress
--> tool-emitted post-build notices or errors
--> summary
--> next-steps
+<emoji> <Operation Name>
+
+  <Param>: <value>
+  <Param>: <value>
+
+<body sections — varies by tool>
+
+<summary or status line>
+
+<execution-derived footer — if applicable>
+
+Next steps:
+1. <step>
+2. <step>
 ```
 
-That ordering matters because:
+### For xcodebuild-backed tools
 
-- summaries must describe the final known run state
-- next steps must be rendered from the same shared stream
-- MCP and CLI should differ only in sink behavior, not in event order or formatting ownership
+The canonical examples are `build_run_macos` and `build_run_sim`. Their output contract is locked:
 
-## 1. xcodebuild execution layer
+Successful runs:
 
-Responsibility:
+1. front matter (header event / start event)
+2. runtime state and durable diagnostics
+3. summary
+4. execution-derived footer (detail tree)
+5. next steps
 
-- launch xcodebuild
-- stream stdout/stderr chunks as they arrive
-- support single-phase and multi-phase execution
-- attach command context such as operation type and phase
+Failed runs:
 
-Examples:
+1. front matter
+2. runtime state and/or grouped diagnostics
+3. summary
 
-- `build`
-- `test`
-- `build-for-testing`
-- `test-without-building`
+Failed runs do not render next steps.
 
-This layer should not format user-facing output.
+### For non-xcodebuild tools
 
-It should only execute commands and feed chunks into the parser pipeline.
+Successful runs:
 
-## 2. structured event parser layer
+1. header
+2. body (sections, tables, file refs, status lines — tool-specific)
+3. next steps (if applicable)
 
-Responsibility:
+Failed runs:
 
-- consume stdout/stderr incrementally
-- parse lines into semantic events
-- emit events immediately when they are recognized
-- combine parser-derived events with tool-emitted startup/context events
+1. header
+2. error status line
+3. no next steps
 
-This is the core of the system.
+### Example outputs
 
-It should understand:
+#### Build (xcodebuild pipeline — existing)
 
-- package resolution milestones
-- compile/link milestones
-- build warnings/errors
-- test start
-- test case progress
-- test failures
-- totals and summaries
-- multi-phase continuation rules
+```text
+🔨 Build
 
-This is where phase-aware behavior belongs.
+  Scheme: CalculatorApp
+  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  Configuration: Debug
+  Platform: iOS Simulator
+  Simulator: iPhone 17
 
-For example, in a two-phase simulator test run:
+✅ Build succeeded. (⏱️ 12.3s)
 
-- phase 1 may emit `RESOLVING_PACKAGES` and `COMPILING`
-- phase 2 may continue directly into `RUN_TESTS`
-- the parser/state model should avoid regressing the visible timeline back to an earlier stage unless the new run genuinely restarted
+Next steps:
+1. Get built app path: xcodebuildmcp simulator get-app-path --scheme "CalculatorApp"
+```
 
-## 3. shared run-state / aggregation layer
+#### File Coverage (generic pipeline — new)
 
-Responsibility:
+```text
+📊 File Coverage
 
-- maintain the current known state of the run
-- dedupe and order milestones
-- aggregate progress counts
-- group failures and diagnostics
-- compute final summary information
-- retain enough state for end-of-run rendering
+  xcresult: /tmp/TestResults.xcresult
+  File: CalculatorService.swift
 
-This layer exists so that renderers do not need to reconstruct state themselves.
+File: example_projects/.../CalculatorService.swift
+Coverage: 83.1% (157/189 lines)
 
-Examples of tracked state:
+🔴 Not Covered (7 functions, 22 lines)
+  L159  CalculatorService.deleteLastDigit() — 0/16 lines
+  L58  implicit closure #2 in inputNumber(_:) — 0/1 lines
 
-- current operation
-- echoed input params / initial tool context
-- latest stage
-- seen milestones
-- warnings/errors
-- discovered tests
-- completed/failed/skipped counts
-- failure details by target/test
-- wall-clock duration
-- final success/failure state
+🟡 Partial Coverage (4 functions)
+  L184  updateExpressionDisplay() — 80.0% (8/10 lines)
+  L195  formatNumber(_:) — 85.7% (18/21 lines)
 
-## 4. renderer layer
+🟢 Full Coverage (28 functions) — all at 100%
 
-Responsibility:
+Next steps:
+1. View overall coverage: xcodebuildmcp coverage get-coverage-report --xcresult-path "/tmp/TestResults.xcresult"
+```
 
-- consume structured events plus shared run-state
-- produce mode-specific output
+#### List Simulators (generic pipeline — new)
 
-Renderers required:
+```text
+📱 List Simulators
 
-### MCP human-readable renderer
+iOS 18.5:
+  iPhone 16 Pro    A1B2C3D4-...  Booted
+  iPhone 16        E5F6G7H8-...  Shutdown
+  iPad Pro 13"     I9J0K1L2-...  Shutdown
 
-- turns events into streamed text blocks/items for MCP responses
-- remains human-readable
-- appends manifest-driven next steps at the end
-- buffers the rendered stream so the final `ToolResponse.content` is just the captured stream output
-- does not maintain a separate final formatting path
+iOS 17.5:
+  iPhone 15        M3N4O5P6-...  Shutdown
 
-### CLI text renderer
+Next steps:
+1. Boot simulator: xcodebuildmcp simulator-management boot --simulator-id "UUID"
+```
 
-- turns events into streamed terminal output
-- uses Clack where transient updates help
-- writes durable diagnostics as normal lines
-- appends next steps at the end
-- is the only text presentation path for CLI xcodebuild-backed tools
-- does not rely on final `ToolResponse.content` replay
+#### Set Appearance (generic pipeline — new)
 
-### CLI JSONL renderer
+```text
+🎨 Set Appearance
 
-- serializes each structured event as one JSON line
-- does not invent a separate event model
-- appends next steps as structured final events or final rendered line events, depending on the chosen schema
+  Simulator: A1B2C3D4-E5F6-...
 
-## 5. tool integration layer
+✅ Appearance set to dark mode
+```
 
-Responsibility:
+#### Discover Projects (generic pipeline — new)
 
-- tool decides what command(s) to run
-- tool provides context such as platform, build vs test, selectors, preflight data
-- tool selects the shared xcodebuild execution pipeline
-- tool does not own custom raw parsing logic
+```text
+🔍 Discover Projects
 
-This is the layer where simulator/device/macOS differences belong.
+  Search Path: .
 
-## Canonical reference pattern to copy
+Workspaces:
+  example_projects/iOS_Calculator/CalculatorApp.xcworkspace
 
-The canonical reference implementations are:
+Projects:
+  example_projects/iOS_Calculator/CalculatorApp.xcodeproj
 
-- `src/mcp/tools/macos/build_run_macos.ts` — simplest build-and-run (no simulator/device steps)
-- `src/mcp/tools/simulator/build_run_sim.ts` — build-and-run with simulator post-build steps (boot, install, launch)
+Next steps:
+1. List schemes: xcodebuildmcp project-discovery list-schemes --workspace-path "example_projects/iOS_Calculator/CalculatorApp.xcworkspace"
+```
 
-Use these files as templates for remaining build-and-run migrations. Do not invent new patterns.
+## Xcodebuild pipeline specifics
 
-### Concrete API reference
+The existing xcodebuild pipeline architecture is preserved. This section documents it for reference.
 
-#### Functions to use
+### Execution flow
 
-| Function | Module | Purpose |
-|---|---|---|
-| `startBuildPipeline` | `src/utils/xcodebuild-pipeline.ts` | Create pipeline, emit start event |
-| `executeXcodeBuildCommand` | `src/utils/build/index.ts` | Run xcodebuild with pipeline attached |
-| `createPendingXcodebuildResponse` | `src/utils/xcodebuild-output.ts` | Return a pending response (ALL return paths) |
-| `emitPipelineNotice` | `src/utils/xcodebuild-output.ts` | Emit post-build progress into pipeline |
-| `emitPipelineError` | `src/utils/xcodebuild-output.ts` | Emit post-build failure into pipeline |
-| `formatToolPreflight` | `src/utils/build-preflight.ts` | Format the front-matter preflight block |
+1. Tool calls `startBuildPipeline(...)` from `src/utils/xcodebuild-pipeline.ts`
+2. Pipeline creates parser and run-state, emits initial `start` event
+3. Raw stdout/stderr chunks feed into `createXcodebuildEventParser(...)`
+4. Parser emits structured events into `createXcodebuildRunState(...)`
+5. Tool-emitted events (post-build notices, errors) enter run-state through `pipeline.emitEvent(...)`
+6. Run-state dedupes, orders, aggregates, forwards to the unified renderer
+7. On finalize: summary + tail events + next-steps emitted in order
 
-#### Functions NOT to use in migrated tools
-
-These are transitional helpers from the old architecture. Do not use them in newly migrated tools:
-
-| Function | Why not |
-|---|---|
-| `finalizeBuildPhase` | Finalizes pipeline too early; build-and-run tools must keep the pipeline open through post-build steps |
-| `createPostBuildError` | Appends content after pipeline finalization; use `emitPipelineError` + `createPendingXcodebuildResponse` instead |
-| `appendStructuredEvents` | Appends events after finalization; emit events into the pipeline before finalization instead |
-| `createCompletionStatusEvent` | Creates a status event outside the pipeline; use `tailEvents` in `createPendingXcodebuildResponse` instead |
-| `finalizeBuildPipelineResult` | Old finalization path; use `createPendingXcodebuildResponse` which defers finalization to `postProcessToolResponse` |
-
-### Canonical shape
-
-For a normal build-and-run tool, the pattern to copy is:
-
-1. call `startBuildPipeline(...)`
-2. run `executeXcodeBuildCommand(..., started.pipeline)`
-3. if build fails, return `createPendingXcodebuildResponse(started, buildResult, { errorFallbackPolicy: 'if-no-structured-diagnostics' })`
-4. keep the same pipeline open for post-build steps
-5. emit post-build progress with `emitPipelineNotice(...)` using `code: 'build-run-step'`
-6. emit post-build failures with `emitPipelineError(...)` using `Failed to <action>: <detail>` message format
-7. do not append success/error text after pipeline finalization
-8. do not create a second status/completion event path outside the pipeline
-9. return one `createPendingXcodebuildResponse(...)` with `tailEvents` for the success footer
-10. let the shared finalization path own summary and final next-steps ordering
-
-### Pending response lifecycle
-
-The tool never finalizes the pipeline directly. Instead:
-
-1. tool returns `createPendingXcodebuildResponse(started, response, options)` — this stores the pipeline in `_meta.pendingXcodebuild`
-2. `postProcessToolResponse` in `src/runtime/tool-invoker.ts` detects the pending state via `isPendingXcodebuildResponse`
-3. it resolves manifest-driven next-step templates against the response's `nextStepParams`
-4. it calls `finalizePendingXcodebuildResponse` which finalizes the pipeline, emitting summary + tail events + next-steps in correct order
-5. the finalized pipeline content becomes the final `ToolResponse.content`
-
-Key options on `createPendingXcodebuildResponse`:
-
-- `errorFallbackPolicy: 'if-no-structured-diagnostics'` — for build failures, only include raw xcodebuild output if the parser found no structured errors (avoids duplicating errors that are already in the grouped block)
-- `tailEvents` — events emitted after the summary but before next-steps (used for the `build-run-result` footer notice)
-
-### Minimal pseudocode pattern
+### Canonical pattern
 
 ```ts
 const started = startBuildPipeline({
@@ -474,22 +556,8 @@ emitPipelineNotice(started, 'BUILD', 'Resolving app path', 'info', {
   code: 'build-run-step',
   data: { step: 'resolve-app-path', status: 'started' },
 });
-// ... resolve ...
-emitPipelineNotice(started, 'BUILD', 'App path resolved', 'success', {
-  code: 'build-run-step',
-  data: { step: 'resolve-app-path', status: 'succeeded', appPath },
-});
 
-emitPipelineNotice(started, 'BUILD', 'Launching app', 'info', {
-  code: 'build-run-step',
-  data: { step: 'launch-app', status: 'started', appPath },
-});
-// ... launch ...
-
-if (!launchResult.success) {
-  emitPipelineError(started, 'BUILD', `Failed to launch app ${appPath}: ${launchResult.error}`);
-  return createPendingXcodebuildResponse(started, { content: [], isError: true });
-}
+// ... resolve, boot, install, launch ...
 
 return createPendingXcodebuildResponse(
   started,
@@ -508,658 +576,92 @@ return createPendingXcodebuildResponse(
 );
 ```
 
+### Pending response lifecycle
+
+1. Tool returns `createPendingXcodebuildResponse(started, response, options)`
+2. `postProcessToolResponse` in `src/runtime/tool-invoker.ts` detects the pending state
+3. Resolves manifest-driven next-step templates against `nextStepParams`
+4. Calls `finalizePendingXcodebuildResponse` which finalizes the pipeline
+5. Finalized content becomes `ToolResponse.content`
+
 ### Post-build step notices
 
-Post-build workflow steps use structured `notice` events with specific codes:
+Post-build steps use `notice` events with `code: 'build-run-step'`:
 
-**`build-run-step` notices** — drive transient CLI progress and durable MCP output:
+Available step names (defined in `BuildRunStepName` in `src/types/xcodebuild-events.ts`):
 
-```ts
-emitPipelineNotice(started, 'BUILD', 'Resolving app path', 'info', {
-  code: 'build-run-step',
-  data: { step: 'resolve-app-path', status: 'started' },
-});
-```
+- `resolve-app-path`
+- `resolve-simulator`
+- `boot-simulator`
+- `install-app`
+- `extract-bundle-id`
+- `launch-app`
 
-Available step names are defined in `BuildRunStepName` in `src/types/xcodebuild-events.ts`:
+To add new steps: extend `BuildRunStepName` and add the label in `formatBuildRunStepLabel` in `src/utils/renderers/event-formatting.ts`.
 
-- `resolve-app-path` — resolving the built app bundle path
-- `resolve-simulator` — resolving simulator UUID from name
-- `boot-simulator` — booting the simulator
-- `install-app` — installing the app on simulator/device
-- `extract-bundle-id` — extracting the bundle ID from the app
-- `launch-app` — launching the app
+### Error message convention
 
-To add new step names: extend `BuildRunStepName` in `src/types/xcodebuild-events.ts` and add the label in `formatBuildRunStepLabel` in `src/utils/renderers/event-formatting.ts`.
+All post-build errors via `emitPipelineError` use: `Failed to <action>: <detail>`
 
-**`build-run-result` notice** — drives the execution-derived footer:
+### All errors get grouped rendering
 
-```ts
-{
-  type: 'notice',
-  code: 'build-run-result',
-  data: { scheme, platform, target, appPath, bundleId, launchState: 'requested' },
-}
-```
+All error events are batched and rendered as a single grouped section before the summary:
 
-This renders as the tree-formatted footer after the summary. Only include execution-derived values (appPath, bundleId, processId). Do not repeat front-matter values (scheme, platform, configuration).
-
-### Error message format convention
-
-All post-build error messages emitted via `emitPipelineError` must use the format:
-
-```
-Failed to <action>: <detail>
-```
-
-Examples:
-
-- `Failed to get app path to launch: Could not extract app path from build settings.`
-- `Failed to boot simulator: Device not found`
-- `Failed to install app on simulator: Permission denied`
-- `Failed to launch app /path/to/MyApp.app: App crashed on launch`
-
-Do not use `Error <doing thing>:` or other ad-hoc formats.
-
-### Rules to preserve when copying this pattern
-
-- keep the pipeline open until the tool genuinely knows the final state
-- all user-visible post-build progress must become structured events
-- use the pipeline as the only user-visible output path
-- do not preserve legacy append/replay helpers “just in case”
-- if a tool needs extra context, emit it as an event instead of formatting text later
-- the tool function signature is `(params, executor) => Promise<ToolResponse>` — no `executeXcodeBuildCommandFn` injection parameter
-
-## Locked human-readable output contract
-
-The current `build_run_macos` CLI/MCP presentation is now the formatting contract to preserve.
-
-This is not a suggestion. Future xcodebuild-backed build-and-run tools should copy this output structure unless there is a clear, user-approved reason to differ.
-
-### Canonical success and failure flows
-
-For xcodebuild-backed tools that follow the canonical human-readable contract, the output order is now locked.
-
-Successful runs must render:
-
-1. front matter
-2. runtime state and durable diagnostics
-3. summary
-4. execution-derived footer
-5. next steps
-
-Failed runs must render:
-
-1. front matter
-2. runtime state and/or grouped diagnostics
-3. summary
-
-Failed structured xcodebuild runs must not render next steps.
-
-### Canonical `build_run_macos` example
-
-Happy path shape:
-
-```text
-🚀 Build & Run
-
-  Scheme: MCPTest
-  Project: example_projects/macOS/MCPTest.xcodeproj
-  Configuration: Debug
-  Platform: macOS
-
-› Linking
-
-✅ Build succeeded. (⏱️ 6.8s)
-✅ Build & Run complete
-
-  └ App Path: /tmp/xcodebuildmcp-macos-cli/Build/Products/Debug/MCPTest.app
-
-Next steps:
-1. Interact with the launched app in the foreground
-```
-
-Sad path — compiler error:
-
-```text
-🚀 Build & Run
-
-  Scheme: MCPTest
-  Project: example_projects/macOS/MCPTest.xcodeproj
-  Configuration: Debug
-  Platform: macOS
-
-› Linking
-
-Compiler Errors (1):
-
-  ✗ unterminated string literal
-    example_projects/macOS/MCPTest/ContentView.swift:16:18
-
-❌ Build failed. (⏱️ 4.0s)
-```
-
-Sad path — non-file error (e.g. wrong scheme name, destination not found):
-
-```text
-🚀 Build & Run
-
-  Scheme: CalculatorAPp
-  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
-  Configuration: Debug
-  Platform: iOS Simulator
-  Simulator: iPhone 17
-
-Errors (1):
-
-  ✗ The workspace named "CalculatorApp" does not contain a scheme named "CalculatorAPp".
-
-❌ Build failed. (⏱️ 2.7s)
-```
-
-Sad path — multi-line error (e.g. destination specifier not found):
-
-```text
-🚀 Build & Run
-
-  Scheme: CalculatorApp
-  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
-  Configuration: Debug
-  Platform: iOS Simulator
-  Simulator: iPhone 22
-
-Errors (1):
-
-  ✗ Unable to find a device matching the provided destination specifier:
-    { platform:iOS Simulator, name:iPhone 22, OS:latest }
-
-❌ Build failed. (⏱️ 60.7s)
-```
-
-These examples are the template for future xcodebuild-backed tool UX.
-
-### 1. Front matter is a durable section
-
-The start/preflight block is durable and emitted once at the beginning of the run.
-
-Its shape is:
-
-1. one blank line before the heading
-2. a heading line such as `🚀 Build & Run`
-3. one blank line after the heading
-4. indented detail lines such as scheme, project/workspace, configuration, platform
-
-Those values are request/preflight values.
-
-They belong in front matter, not in the final footer.
-
-### 2. There is one visual boundary before runtime state
-
-After front matter, there is one blank-line boundary before the runtime state begins.
-
-For CLI text mode, that means the first active phase update must not be butted directly against the last front-matter detail line.
-
-For MCP, the same sections are buffered in the same order. MCP does not get a different formatting model; it just buffers the rendered sections instead of streaming them live to stdout.
-
-### 3. Interactive CLI runtime state is transient
-
-In interactive CLI text mode:
-
-- active phases use Clack-driven replace-in-place updates
-- active build/test steps should not be emitted as a sequence of durable milestone lines while they are still in progress
-
-Examples:
-
-- `Compiling...`
-- `Linking...`
-- `Resolving app path...`
-- `Launching app...`
-
-This is the runtime-state area of the UI, not the durable log area.
-
-### 4. Durable lines are reserved for lasting information
-
-Durable streamed lines are appropriate for:
-
-- warnings
-- errors
-- test failures
-- completed workflow checkpoints when we want the final stream to retain them
-- final summary
-- final footer
-- next steps
-
-They are not the default for active phase updates in interactive CLI mode.
-
-### 5. The final footer is execution-derived only
-
-The footer after the summary should contain only values learned or confirmed during execution.
-
-Examples of acceptable footer fields:
-
-- app path
-- bundle ID
-- app ID
-- process ID
-- other runtime identifiers only if they were genuinely discovered during the run
-
-Examples of fields that must not be repeated in the footer if they were already shown in front matter:
-
-- scheme
-- project/workspace path
-- configuration
-- platform
-- target labels that are just restating the selected platform/context
-
-This also means we should prefer showing concrete derived values directly in the footer instead of relegating them to hints or next steps when the tool already knows them.
-
-For example:
-
-- if the tool resolved the built app path, show it in the footer
-- do not keep a redundant "get app path" next step just to restate a value we already computed
-
-In other words:
-
-- front matter = requested configuration
-- runtime state = currently active work
-- footer = execution-derived result data
-- next steps = remaining actions the user may want to take next
-
-### 6. Next steps are always last
-
-The human-readable order for a completed run is:
-
-1. front matter
-2. runtime state / diagnostics
-3. summary
-4. execution-derived footer
-5. next steps
-
-Nothing should render after next steps for that run.
-
-### 7. MCP uses the same semantics
-
-MCP does not get a different presentation contract.
-
-The only difference is the sink:
-
-- CLI text writes live to stdout
-- MCP buffers the same rendered sections into `ToolResponse.content`
-
-That means formatting decisions should still be made once in the shared formatter/renderer family.
-
-MCP is downstream of the same human-readable event stream contract. It does not justify different section ordering, different footer contents, or different sad-path formatting.
-
-### 8. All errors get the same grouped rendering
-
-ALL error events are grouped and rendered as a structured block before the summary, regardless of whether they are file-located compiler errors or non-file errors (toolchain, scheme-not-found, tool-emitted).
-
-The renderers batch ALL error events and flush them as a single grouped section when the summary event arrives. There is no separate "immediate render" path for non-file errors.
-
-Heading rules:
-
-- If any error in the group has a file location: `Compiler Errors (N):`
+- If any error has a file location: `Compiler Errors (N):`
 - Otherwise: `Errors (N):`
 
-Each error renders as:
-
-- `  ✗ <message>` (first line)
-- `    <location>` (if file-located)
-- `    <continuation>` (if multi-line message, each subsequent line indented)
-
-### 9. Error event `message` field must not include severity prefix
-
-The `message` field on error events must contain the diagnostic text only, without `error:` or `fatal error:` prefix. The renderer adds the appropriate prefix when needed.
-
-- Correct: `message: "unterminated string literal"`
-- Wrong: `message: "error: unterminated string literal"`
-
-The `rawLine` field preserves the original xcodebuild output verbatim. The parser (`parseBuildErrorDiagnostic` in `src/utils/xcodebuild-line-parsers.ts`) strips the severity prefix from `message` but keeps `rawLine` intact.
-
-The parser also accumulates indented continuation lines after a build error into the same error event's `message` (newline-separated). This handles multi-line xcodebuild errors like destination-not-found.
-
-### 10. JSON mode is not part of this contract
-
-CLI JSON mode remains streamed JSONL of the structured event stream.
-
-It should not be changed to mirror the human-readable section formatting.
-
-## Expected deviations for tools that do more than build-and-run
-
-Not every xcodebuild-backed tool is identical. Some tools need controlled deviations from the canonical build-and-run pattern.
-
-### Test tools
-
-Primary example:
-
-- `src/utils/test-common.ts`
-
-Test tools differ because they often need:
-
-- `operation: 'TEST'` instead of `BUILD`
-- test discovery events
-- test progress events
-- test failure events
-- multi-phase execution such as `build-for-testing` then `test-without-building`
-- minimum-stage continuation rules between phases
-
-Those are valid deviations, but they should still preserve the same architectural rules:
-
-- same parser layer
-- same run-state layer
-- same renderer family
-- same single finalization ownership
-- same summary -> next-steps ordering
-
-What should differ for tests is event content and execution shape, not presentation ownership.
-
-### Pure build tools
-
-Examples:
-
-- `src/mcp/tools/simulator/build_sim.ts`
-- `src/mcp/tools/device/build_device.ts`
-- `src/mcp/tools/macos/build_macos.ts`
-- `src/mcp/tools/utilities/clean.ts`
-
-These are simpler than the canonical build-and-run tool because they do not have install/launch steps.
-
-Their valid simplification is:
-
-- xcodebuild phase only
-- no post-build notices beyond what is needed
-- return pending response with manifest-driven next-step params
-
-They still follow the same finalization contract.
-
-### More complex build-and-run tools
-
-Migrated examples:
-
-- `src/mcp/tools/simulator/build_run_sim.ts` — simulator build-and-run (fully migrated)
-
-Remaining:
-
-- `build_run_device`
-
-These need extra steps compared with `build_run_macos`, such as:
-
-- simulator/device lookup
-- boot/install/launch sequencing
-- bundle ID extraction
-- platform-specific next-step params
-
-Those are valid workflow differences. They are handled by emitting more `build-run-step` notices into the same pipeline. They are not valid reasons to introduce a second output path, late content append logic, tool-specific final rendering, or replay of already-streamed output.
-
-The correct adaptation is:
-
-- keep the same pipeline structure
-- emit more `notice` events with `code: 'build-run-step'` for each post-build step
-- emit `error` events via `emitPipelineError` for post-build failures
-- include execution-derived values in the `build-run-result` tail event
-- finalize once at the end
-
-## Event model
-
-We need one shared event model that works for build and test tools.
-
-Example direction:
-
-```ts
-type XcodebuildEvent =
-  | {
-      type: 'start';
-      operation: 'BUILD' | 'TEST';
-      toolName: string;
-      params: Record<string, unknown>;
-      message: string;
-      timestamp: string;
-    }
-  | {
-      type: 'status';
-      operation: 'BUILD' | 'TEST';
-      stage:
-        | 'RESOLVING_PACKAGES'
-        | 'COMPILING'
-        | 'LINKING'
-        | 'RUN_TESTS'
-        | 'PREPARING_TESTS'
-        | 'ARCHIVING'
-        | 'COMPLETED'
-        | 'UNKNOWN';
-      message: string;
-      timestamp: string;
-    }
-  | {
-      type: 'warning';
-      operation: 'BUILD' | 'TEST';
-      message: string;
-      location?: string;
-      rawLine: string;
-      timestamp: string;
-    }
-  | {
-      type: 'error';
-      operation: 'BUILD' | 'TEST';
-      message: string;
-      location?: string;
-      rawLine: string;
-      timestamp: string;
-    }
-  | {
-      type: 'test-discovery';
-      operation: 'TEST';
-      total: number;
-      tests: string[];
-      truncated: boolean;
-      timestamp: string;
-    }
-  | {
-      type: 'test-progress';
-      operation: 'TEST';
-      completed: number;
-      failed: number;
-      skipped: number;
-      timestamp: string;
-    }
-  | {
-      type: 'test-failure';
-      operation: 'TEST';
-      target?: string;
-      suite?: string;
-      test?: string;
-      message: string;
-      location?: string;
-      durationMs?: number;
-      timestamp: string;
-    }
-  | {
-      type: 'summary';
-      operation: 'BUILD' | 'TEST';
-      status: 'SUCCEEDED' | 'FAILED';
-      totalTests?: number;
-      passedTests?: number;
-      failedTests?: number;
-      skippedTests?: number;
-      durationMs?: number;
-      timestamp: string;
-    }
-  | {
-      type: 'next-steps';
-      steps: Array<{
-        label?: string;
-        tool?: string;
-        workflow?: string;
-        cliTool?: string;
-        params?: Record<string, string | number | boolean>;
-      }>;
-      timestamp: string;
-    };
-```
-
-The exact names can change, but the model needs these properties:
-
-- shared across tools
-- streamable
-- usable by both human-readable and JSONL renderers
-- expressive enough for current simulator test behavior and future build behavior
-
-## Rollout plan
-
-## Phase 1: define the shared event and run-state model
-
-Deliverables:
-
-- shared event types
-- shared aggregated run-state/report types
-- shared emitter/collector interfaces
-
-Exit criteria:
-
-- build and test use cases both fit the model
-- multi-phase test execution fits the model cleanly
-
-## Phase 2: factor current simulator test parsing into the shared pipeline
-
-Deliverables:
-
-- simulator test path emits shared events
-- CLI text output is rendered from those events
-- CLI JSON output emits JSONL from those events
-- MCP human-readable output is rendered from those events
-
-Exit criteria:
-
-- simulator test no longer has a renderer-first architecture
-- current simulator test UX is preserved or improved
-
-## Phase 3: migrate xcodebuild-backed build tools
-
-Deliverables:
-
-- simulator build tools use the same event pipeline
-- macOS build tools use the same event pipeline
-- device build tools use the same event pipeline
-- warnings/errors/milestones are consistent across them
-
-Exit criteria:
-
-- build tools stream live milestones and diagnostics
-- CLI text and CLI JSONL stay in sync because they share the same source events
-
-## Phase 4: migrate remaining test tools
-
-Deliverables:
-
-- device test tools use the shared event pipeline
-- macOS test tools use the shared event pipeline
-- grouped summaries and failure rendering are shared where possible
-
-Exit criteria:
-
-- no xcodebuild-backed test tool maintains a separate raw parsing stack
-
-## Phase 5: remove legacy duplicated formatting paths
-
-Deliverables:
-
-- old ad hoc parser/formatter branches removed
-- output logic reduced to shared renderers
-- next steps still appended through manifest-driven logic at stream end
-
-Exit criteria:
-
-- xcodebuild-backed tools share one parsing model and one rendering model family
-
-## Testing strategy
-
-## Unit tests
-
-- raw line to event parsing
-- milestone ordering and dedupe
-- warning/error parsing
-- test-progress parsing
-- failure parsing
-- multi-phase continuation behavior
-
-## Integration tests
-
-- simulator build streams expected milestones
-- simulator test streams expected milestones and failures
-- CLI JSON mode emits valid JSONL in correct order
-- MCP mode renders the same underlying run semantics in human-readable form
-
-## Benchmark checks
-
-Keep using the simulator benchmark harness to compare:
-
-- wall-clock duration
-- time to first streamed milestone
-- time to first streamed test progress
-- parity of surfaced information vs Flowdeck
-
-## Design constraints
-
-To keep this practical:
-
-- no separate parser per tool unless the raw source is genuinely different
-- no renderer-specific parsing logic
-- no multiple JSON mode variants
-- no buffering until completion when meaningful events are already known
-- no attempt to preserve old MCP human-readable output shape for xcodebuild-backed tools
-
-## Status against rollout phases
-
-### Phase 1: define the shared event and run-state model
-
-Status: complete
-
-### Phase 2: factor current simulator test parsing into the shared pipeline
-
-Status: complete
-
-### Phase 3: migrate xcodebuild-backed build tools
-
-Status: mostly complete
-
-Notes:
-
-- pure build tools (simulator, device, macOS, clean) all use the pending pipeline model
-- `build_run_macos` and `build_run_sim` are fully migrated to the canonical single-pipeline pattern
-- `build_run_device` still needs migration
-
-### Phase 4: migrate remaining test tools
-
-Status: mostly complete
-
-Notes:
-
-- simulator, device, and macOS test flows are on the shared pipeline
-- the remaining work is mainly cleanup, consistency, and removing transitional replay behavior
-
-### Phase 5: remove legacy duplicated formatting paths
-
-Status: in progress
-
-Notes:
-
-- pure build, clean, and two build-and-run flows no longer depend on final replay/re-render formatting
-- CLI final printing no-ops for fully migrated xcodebuild responses
-- once `build_run_device` is migrated, the transitional helpers (`finalizeBuildPhase`, `createPostBuildError`, `appendStructuredEvents`, `createCompletionStatusEvent`) can be deleted
-
-## Recommended immediate next steps
-
-1. migrate `build_run_device` using the same canonical pattern as `build_run_sim`
-2. delete transitional helpers once no tools depend on them
-3. finish any remaining test tool cleanup
+Each error: `  ✗ <message>` with optional `    <location>` and continuation lines.
+
+### Error event message field
+
+The `message` field must not include severity prefix. Correct: `"unterminated string literal"`. Wrong: `"error: unterminated string literal"`. The `rawLine` field preserves the original verbatim.
+
+## Implementation steps
+
+One canonical list. Work top to bottom. Nothing is considered done until checked off.
+
+- [ ] Write snapshot test fixtures for all tools (TDD — fixtures define the target UX, code is updated to match)
+- [ ] Define `ToolEvent` union type in `src/types/tool-events.ts`
+- [ ] Define `toolResponse()` builder + helper functions: `header()`, `section()`, `statusLine()`, `fileRef()`, `table()`, `detailTree()`, `nextSteps()`
+- [ ] Build unified renderer that handles `ToolEvent` (single renderer, produces formatted text)
+- [ ] Build CLI stdout sink (streaming text + Clack spinner for transient events)
+- [ ] Build MCP buffer sink (buffers same formatted text, returns in `ToolResponse.content`)
+- [ ] Preserve CLI JSONL sink for xcodebuild events
+- [ ] Migrate xcodebuild pipeline run-state to emit `ToolEvent` instead of `XcodebuildEvent` directly to renderers (preserve parser, run-state, streaming, Clack)
+- [ ] Migrate simple action tools: `set_sim_appearance`, `set_sim_location`, `reset_sim_location`, `sim_statusbar`, `boot_sim`, `open_sim`, `stop_app_sim`, `stop_app_device`, `stop_mac_app`, `launch_app_sim`, `launch_app_device`, `launch_mac_app`, `install_app_sim`, `install_app_device`
+- [ ] Migrate query tools: `list_sims`, `list_devices`, `discover_projs`, `list_schemes`, `show_build_settings`, `get_sim_app_path`, `get_device_app_path`, `get_app_bundle_id`, `get_mac_bundle_id`
+- [ ] Migrate coverage tools: `get_coverage_report`, `get_file_coverage`
+- [ ] Migrate scaffolding tools: `scaffold_ios_project`, `scaffold_macos_project`
+- [ ] Migrate session tools: `session_set_defaults`, `session_show_defaults`, `session_clear_defaults`, `session_use_defaults_profile`
+- [ ] Migrate logging tools: `start_sim_log_cap`, `stop_sim_log_cap`, `start_device_log_cap`, `stop_device_log_cap`
+- [ ] Migrate debugging tools: `debug_attach_sim`, `debug_breakpoint_add`, `debug_breakpoint_remove`, `debug_continue`, `debug_detach`, `debug_lldb_command`, `debug_stack`, `debug_variables`
+- [ ] Migrate UI automation tools: `snapshot_ui`, `tap`, `type_text`, `screenshot`, `button`, `gesture`, `key_press`, `key_sequence`, `long_press`, `swipe`, `touch`
+- [ ] Migrate swift-package tools: `swift_package_build`, `swift_package_test`, `swift_package_clean`, `swift_package_run`, `swift_package_list`, `swift_package_stop`
+- [ ] Migrate xcode-ide tools: `xcode_ide_call_tool`, `xcode_ide_list_tools`, `xcode_tools_bridge_disconnect`, `xcode_tools_bridge_status`, `xcode_tools_bridge_sync`, `sync_xcode_defaults`
+- [ ] Migrate doctor tool
+- [ ] Delete legacy rendering code: `mcp-renderer.ts`, `cli-text-renderer.ts`, `formatToolPreflight`, per-tool ad-hoc formatting, transitional xcodebuild helpers (`finalizeBuildPhase`, `createPostBuildError`, `appendStructuredEvents`, `createCompletionStatusEvent`, `finalizeBuildPipelineResult`)
+- [ ] All snapshot tests pass
+- [ ] Manual verification of CLI output for representative tools
 
 ## Success criteria
 
 This work is successful when:
 
-- all xcodebuild-backed tools stream output as they learn new information
-- MCP human-readable output and CLI text output are both rendered from the same structured source events
-- CLI JSON mode streams JSONL from those same source events
-- package resolution, compiling, warnings, errors, test progress, failures, and summaries are consistently surfaced across tools
-- next steps are still appended at the end through manifest-driven logic
-- future Flowdeck parity work happens by improving one shared event pipeline, not many separate formatter paths
+- every tool emits structured events through the pipeline
+- one renderer produces all formatted output
+- CLI and MCP output are identical (differing only in sink: stdout vs buffer)
+- file paths are always normalised — no tool can produce a raw absolute path
+- spacing between sections is always correct — no tool can get it wrong
+- the only way to add a new tool's output is to emit events — there is no escape hatch
+- adding a new output format (e.g. markdown, HTML) requires only a new renderer, not touching any tool code
+
+## Design constraints
+
+- no separate renderer per output mode (one renderer, parameterised by runtime for next-steps syntax)
+- no formatted text construction inside tool logic
+- no emoji characters inside tool logic (renderer owns the mapping)
+- no `displayPath()` calls inside tool logic (renderer owns path normalisation)
+- no spacing/indentation decisions inside tool logic (renderer owns layout)
+- xcodebuild event parser and run-state layer are preserved — they work well and do not need to change
+- CLI JSONL mode is preserved for xcodebuild events only
+- no attempt to make non-xcodebuild tools streamable initially — they complete fast enough that buffered rendering is fine

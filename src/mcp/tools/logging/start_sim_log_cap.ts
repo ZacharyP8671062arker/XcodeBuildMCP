@@ -9,14 +9,14 @@ import { startLogCapture } from '../../../utils/log-capture/index.ts';
 import type { CommandExecutor } from '../../../utils/command.ts';
 import { getDefaultCommandExecutor } from '../../../utils/command.ts';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createTextContent } from '../../../types/common.ts';
 import type { SubsystemFilter } from '../../../utils/log_capture.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const startSimLogCapSchema = z.object({
   simulatorId: z
     .uuid()
@@ -29,7 +29,6 @@ const startSimLogCapSchema = z.object({
     .describe('app|all|swiftui|[subsystem]'),
 });
 
-// Use z.infer for type safety
 type StartSimLogCapParams = z.infer<typeof startSimLogCapSchema>;
 
 function buildSubsystemFilterDescription(subsystemFilter: SubsystemFilter): string {
@@ -64,24 +63,40 @@ export async function start_sim_log_capLogic(
   };
   const { sessionId, error } = await logCaptureFunction(logCaptureParams, _executor);
   if (error) {
-    return {
-      content: [createTextContent(`Error starting log capture: ${error}`)],
-      isError: true,
-    };
+    return toolResponse([
+      header('Start Log Capture', [
+        { label: 'Simulator', value: simulatorId },
+        { label: 'Bundle ID', value: bundleId },
+      ]),
+      statusLine('error', `Error starting log capture: ${error}`),
+    ]);
   }
 
   const filterDescription = buildSubsystemFilterDescription(subsystemFilter);
 
-  return {
-    content: [
-      createTextContent(
-        `Log capture started successfully. Session ID: ${sessionId}.\n\n${captureConsole ? 'Note: Your app was relaunched to capture console output.\n' : ''}${filterDescription}\n\nInteract with your simulator and app, then stop capture to retrieve logs.`,
-      ),
+  const lines: string[] = [];
+  lines.push(`Session ID: ${sessionId}`);
+  if (captureConsole) {
+    lines.push('Note: Your app was relaunched to capture console output.');
+  }
+  lines.push(filterDescription);
+  lines.push('Interact with your simulator and app, then stop capture to retrieve logs.');
+
+  return toolResponse(
+    [
+      header('Start Log Capture', [
+        { label: 'Simulator', value: simulatorId },
+        { label: 'Bundle ID', value: bundleId },
+      ]),
+      section('Details', lines),
+      statusLine('success', 'Log capture started.'),
     ],
-    nextStepParams: {
-      stop_sim_log_cap: { logSessionId: sessionId },
+    {
+      nextStepParams: {
+        stop_sim_log_cap: { logSessionId: sessionId },
+      },
     },
-  };
+  );
 }
 
 const publicSchemaObject = z.strictObject(

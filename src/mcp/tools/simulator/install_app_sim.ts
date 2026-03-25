@@ -8,6 +8,8 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
   simulatorId: z
@@ -25,7 +27,6 @@ const baseSchemaObject = z.object({
   appPath: z.string().describe('Path to the .app bundle to install'),
 });
 
-// Internal schema requires simulatorId (factory resolves simulatorName → simulatorId)
 const internalSchemaObject = z.object({
   simulatorId: z.string(),
   simulatorName: z.string().optional(),
@@ -46,26 +47,27 @@ export async function install_app_simLogic(
   executor: CommandExecutor,
   fileSystem?: FileSystemExecutor,
 ): Promise<ToolResponse> {
+  const headerEvent = header('Install App', [
+    { label: 'Simulator', value: params.simulatorId },
+    { label: 'App Path', value: params.appPath },
+  ]);
+
   const appPathExistsValidation = validateFileExists(params.appPath, fileSystem);
   if (!appPathExistsValidation.isValid) {
-    return appPathExistsValidation.errorResponse!;
+    return toolResponse([headerEvent, statusLine('error', appPathExistsValidation.errorMessage!)]);
   }
 
   log('info', `Starting xcrun simctl install request for simulator ${params.simulatorId}`);
 
   try {
     const command = ['xcrun', 'simctl', 'install', params.simulatorId, params.appPath];
-    const result = await executor(command, 'Install App in Simulator', false, undefined);
+    const result = await executor(command, 'Install App in Simulator', false);
 
     if (!result.success) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Install app in simulator operation failed: ${result.error}`,
-          },
-        ],
-      };
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Install app in simulator operation failed: ${result.error}`),
+      ]);
     }
 
     let bundleId = '';
@@ -74,7 +76,6 @@ export async function install_app_simLogic(
         ['defaults', 'read', `${params.appPath}/Info`, 'CFBundleIdentifier'],
         'Extract Bundle ID',
         false,
-        undefined,
       );
       if (bundleIdResult.success) {
         bundleId = bundleIdResult.output.trim();
@@ -83,32 +84,28 @@ export async function install_app_simLogic(
       log('warn', `Could not extract bundle ID from app: ${error}`);
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `App installed successfully in simulator ${params.simulatorId}.`,
-        },
+    return toolResponse(
+      [
+        headerEvent,
+        statusLine('success', `App installed successfully in simulator ${params.simulatorId}`),
       ],
-      nextStepParams: {
-        open_sim: {},
-        launch_app_sim: {
-          simulatorId: params.simulatorId,
-          bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
+      {
+        nextStepParams: {
+          open_sim: {},
+          launch_app_sim: {
+            simulatorId: params.simulatorId,
+            bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
+          },
         },
       },
-    };
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during install app in simulator operation: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Install app in simulator operation failed: ${errorMessage}`,
-        },
-      ],
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Install app in simulator operation failed: ${errorMessage}`),
+    ]);
   }
 }
 

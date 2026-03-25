@@ -15,11 +15,8 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { formatToolPreflight } from '../../../utils/build-preflight.ts';
-import {
-  formatQueryError,
-  formatQueryFailureSummary,
-} from '../../../utils/xcodebuild-error-utils.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, detailTree, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseOptions = {
   scheme: z.string().describe('The scheme to use'),
@@ -59,21 +56,29 @@ const getMacosAppPathSchema = z.preprocess(
 
 type GetMacosAppPathParams = z.infer<typeof getMacosAppPathSchema>;
 
+function buildHeaderParams(params: GetMacosAppPathParams, configuration: string) {
+  const headerParams: Array<{ label: string; value: string }> = [
+    { label: 'Scheme', value: params.scheme },
+  ];
+  if (params.workspacePath) {
+    headerParams.push({ label: 'Workspace', value: params.workspacePath });
+  } else if (params.projectPath) {
+    headerParams.push({ label: 'Project', value: params.projectPath });
+  }
+  headerParams.push({ label: 'Configuration', value: configuration });
+  headerParams.push({ label: 'Platform', value: 'macOS' });
+  if (params.arch) {
+    headerParams.push({ label: 'Architecture', value: params.arch });
+  }
+  return headerParams;
+}
+
 export async function get_mac_app_pathLogic(
   params: GetMacosAppPathParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
   const configuration = params.configuration ?? 'Debug';
-
-  const preflight = formatToolPreflight({
-    operation: 'Get App Path',
-    scheme: params.scheme,
-    workspacePath: params.workspacePath,
-    projectPath: params.projectPath,
-    configuration,
-    platform: 'macOS',
-    arch: params.arch,
-  });
+  const headerParams = buildHeaderParams(params, configuration);
 
   log('info', `Getting app path for scheme ${params.scheme} on platform macOS`);
 
@@ -105,78 +110,50 @@ export async function get_mac_app_pathLogic(
     const result = await executor(command, 'Get App Path', false);
 
     if (!result.success) {
-      const errorBlock = formatQueryError(result.error ?? 'Unknown error');
-      return {
-        content: [
-          {
-            type: 'text',
-            text: [preflight, errorBlock, '', formatQueryFailureSummary()].join('\n'),
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        header('Get App Path', headerParams),
+        statusLine('error', result.error ?? 'Unknown error'),
+      ]);
     }
 
     if (!result.output) {
-      const errorBlock = formatQueryError(
-        'Failed to extract build settings output from the result',
-      );
-      return {
-        content: [
-          {
-            type: 'text',
-            text: [preflight, errorBlock, '', formatQueryFailureSummary()].join('\n'),
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        header('Get App Path', headerParams),
+        statusLine('error', 'Failed to extract build settings output from the result'),
+      ]);
     }
 
     const builtProductsDirMatch = result.output.match(/^\s*BUILT_PRODUCTS_DIR\s*=\s*(.+)$/m);
     const fullProductNameMatch = result.output.match(/^\s*FULL_PRODUCT_NAME\s*=\s*(.+)$/m);
 
     if (!builtProductsDirMatch || !fullProductNameMatch) {
-      const errorBlock = formatQueryError('Could not extract app path from build settings');
-      return {
-        content: [
-          {
-            type: 'text',
-            text: [preflight, errorBlock, '', formatQueryFailureSummary()].join('\n'),
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        header('Get App Path', headerParams),
+        statusLine('error', 'Could not extract app path from build settings'),
+      ]);
     }
 
     const builtProductsDir = builtProductsDirMatch[1].trim();
     const fullProductName = fullProductNameMatch[1].trim();
     const appPath = `${builtProductsDir}/${fullProductName}`;
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: [preflight, `  \u{2514} App Path: ${appPath}`].join('\n'),
-        },
+    return toolResponse(
+      [
+        header('Get App Path', headerParams),
+        detailTree([{ label: 'App Path', value: appPath }]),
+        statusLine('success', 'App path resolved.'),
       ],
-      nextStepParams: {
-        get_mac_bundle_id: { appPath },
-        launch_mac_app: { appPath },
+      {
+        nextStepParams: {
+          get_mac_bundle_id: { appPath },
+          launch_mac_app: { appPath },
+        },
       },
-    };
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error retrieving app path: ${errorMessage}`);
-    const errorBlock = formatQueryError(errorMessage);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: [preflight, errorBlock, '', formatQueryFailureSummary()].join('\n'),
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([header('Get App Path', headerParams), statusLine('error', errorMessage)]);
   }
 }
 

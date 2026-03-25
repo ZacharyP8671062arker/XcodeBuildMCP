@@ -1,0 +1,11 @@
+
+🔨 Build
+
+  Scheme: CalculatorApp
+  Configuration: Debug
+  Platform: iOS
+
+✅ Build succeeded. (⏱️ <DURATION>)
+
+Next steps:
+1. Get built device app path: xcodebuildmcp device get-app-path --scheme "CalculatorApp"

@@ -15,12 +15,14 @@ nextSteps:
     params:
       simulatorId: UUID_FROM_LIST_SIMS
     priority: 1
+    when: success
   - label: Capture structured logs (app continues running)
     toolId: start_sim_log_cap
     params:
       simulatorId: UUID
       bundleId: YOUR_APP_BUNDLE_ID
     priority: 2
+    when: success
   - label: Capture console + structured logs (app restarts)
     toolId: start_sim_log_cap
     params:
@@ -28,9 +30,11 @@ nextSteps:
       bundleId: YOUR_APP_BUNDLE_ID
       captureConsole: true
     priority: 3
+    when: success
   - label: Launch app with logs in one step
     toolId: launch_app_logs_sim
     params:
       simulatorId: UUID
       bundleId: YOUR_APP_BUNDLE_ID
     priority: 4
+    when: success

@@ -1,0 +1,6 @@
+
+⚙️ Set Defaults
+
+  ├ workspacePath: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  └ scheme: CalculatorApp
+✅ Session defaults updated.

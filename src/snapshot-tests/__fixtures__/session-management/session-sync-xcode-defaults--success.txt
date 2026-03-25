@@ -1,0 +1,5 @@
+
+⚙️ Sync Xcode Defaults
+
+  └ scheme: CalculatorApp
+✅ Synced session defaults from Xcode IDE.

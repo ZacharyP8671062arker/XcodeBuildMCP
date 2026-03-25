@@ -8,7 +8,6 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
-import { createTextResponse, createErrorResponse } from '../../../utils/responses/index.ts';
 import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -16,24 +15,24 @@ import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
 import {
-  createAxeNotAvailableResponse,
   getAxePath,
   getBundledAxeEnvironment,
+  AXE_NOT_AVAILABLE_MESSAGE,
 } from '../../../utils/axe-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const LOG_PREFIX = '[AXe]';
 
-// Define schema as ZodObject
 const typeTextSchema = z.object({
   simulatorId: z.uuid({ message: 'Invalid Simulator UUID format' }),
   text: z.string().min(1, { message: 'Text cannot be empty' }),
 });
 
-// Use z.infer for type safety
 type TypeTextParams = z.infer<typeof typeTextSchema>;
 
 const publicSchemaObject = z.strictObject(
@@ -53,14 +52,16 @@ export async function type_textLogic(
 ): Promise<ToolResponse> {
   const toolName = 'type_text';
 
-  // Params are already validated by the factory, use directly
   const { simulatorId, text } = params;
+  const headerEvent = header('Type Text', [{ label: 'Simulator', value: simulatorId }]);
+
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedResponse) return guard.blockedResponse;
+  if (guard.blockedMessage)
+    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
 
   const commandArgs = ['type', text];
 
@@ -72,32 +73,41 @@ export async function type_textLogic(
   try {
     await executeAxeCommand(commandArgs, simulatorId, 'type', executor, axeHelpers);
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-    const message = 'Text typing simulated successfully.';
-    if (guard.warningText) {
-      return createTextResponse(`${message}\n\n${guard.warningText}`);
-    }
-    return createTextResponse(message);
+    const events = [
+      headerEvent,
+      statusLine('success', 'Text typing simulated successfully.'),
+      ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
+    ];
+    return toolResponse(events);
   } catch (error) {
     log(
       'error',
       `${LOG_PREFIX}/${toolName}: Failed - ${error instanceof Error ? error.message : String(error)}`,
     );
     if (error instanceof DependencyError) {
-      return createAxeNotAvailableResponse();
+      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
     } else if (error instanceof AxeError) {
-      return createErrorResponse(
-        `Failed to simulate text typing: ${error.message}`,
-        error.axeOutput,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Failed to simulate text typing: ${error.message}`),
+        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+      ]);
     } else if (error instanceof SystemError) {
-      return createErrorResponse(
-        `System error executing axe: ${error.message}`,
-        error.originalError?.stack,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `System error executing axe: ${error.message}`),
+        ...(error.originalError?.stack
+          ? [section('Stack Trace', [error.originalError.stack])]
+          : []),
+      ]);
     }
-    return createErrorResponse(
-      `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    ]);
   }
 }
 

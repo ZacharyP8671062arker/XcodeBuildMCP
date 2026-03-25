@@ -12,7 +12,8 @@
 import { log } from './logger.ts';
 import type { XcodePlatform } from './xcode.ts';
 import { executeXcodeBuildCommand } from './build/index.ts';
-import { createTextResponse } from './validation.ts';
+import { toolResponse } from './tool-response.ts';
+import { header, statusLine } from './tool-event-builders.ts';
 import { normalizeTestRunnerEnv } from './environment.ts';
 import type { ToolResponse } from '../types/common.ts';
 import type { CommandExecutor, CommandExecOptions } from './command.ts';
@@ -195,6 +196,12 @@ export async function handleTestLogic(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during test run: ${errorMessage}`);
-    return createTextResponse(`Error during test run: ${errorMessage}`, true);
+    return toolResponse([
+      header('Test Run', [
+        { label: 'Scheme', value: params.scheme },
+        { label: 'Platform', value: String(params.platform) },
+      ]),
+      statusLine('error', `Error during test run: ${errorMessage}`),
+    ]);
   }
 }

@@ -5,6 +5,14 @@ import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { schema, handler, start_sim_log_capLogic } from '../start_sim_log_cap.ts';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
+
+function allText(response: ToolResponse): string {
+  return response.content
+    .filter((item) => item.type === 'text')
+    .map((item) => item.text)
+    .join('\n');
+}
 
 describe('start_sim_log_cap plugin', () => {
   // Reset any test state if needed
@@ -80,7 +88,9 @@ describe('start_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toBe('Error starting log capture: Permission denied');
+      const text = allText(result);
+      expect(text).toContain('Error starting log capture');
+      expect(text).toContain('Permission denied');
     });
 
     it('should return success with session ID when log capture starts successfully', async () => {
@@ -105,9 +115,10 @@ describe('start_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toBe(
-        'Log capture started successfully. Session ID: test-uuid-123.\n\nOnly structured logs from the app subsystem are being captured.\n\nInteract with your simulator and app, then stop capture to retrieve logs.',
-      );
+      const text = allText(result);
+      expect(text).toContain('test-uuid-123');
+      expect(text).toContain('app subsystem');
+      expect(text).toContain('stop capture to retrieve logs');
       expect(result.nextStepParams?.stop_sim_log_cap).toBeDefined();
       expect(result.nextStepParams?.stop_sim_log_cap).toMatchObject({
         logSessionId: 'test-uuid-123',
@@ -136,8 +147,9 @@ describe('start_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('SwiftUI logs');
-      expect(result.content[0].text).toContain('Self._printChanges()');
+      const text = allText(result);
+      expect(text).toContain('SwiftUI logs');
+      expect(text).toContain('Self._printChanges()');
     });
 
     it('should indicate all logs capture when subsystemFilter is all', async () => {
@@ -162,7 +174,8 @@ describe('start_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('all system logs');
+      const text = allText(result);
+      expect(text).toContain('all system logs');
     });
 
     it('should indicate custom subsystems when array is provided', async () => {
@@ -187,8 +200,9 @@ describe('start_sim_log_cap plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('com.apple.UIKit');
-      expect(result.content[0].text).toContain('com.apple.CoreData');
+      const text = allText(result);
+      expect(text).toContain('com.apple.UIKit');
+      expect(text).toContain('com.apple.CoreData');
     });
 
     it('should indicate console capture when captureConsole is true', async () => {
@@ -213,8 +227,9 @@ describe('start_sim_log_cap plugin', () => {
         logCaptureStub,
       );
 
-      expect(result.content[0].text).toContain('Your app was relaunched to capture console output');
-      expect(result.content[0].text).toContain('test-uuid-123');
+      const text = allText(result);
+      expect(text).toContain('app was relaunched to capture console output');
+      expect(text).toContain('test-uuid-123');
     });
 
     it('should create correct spawn commands for console capture', async () => {

@@ -139,14 +139,15 @@ describe('build_run_macos', () => {
         expect.objectContaining({
           tailEvents: [
             expect.objectContaining({
-              type: 'notice',
-              code: 'build-run-result',
-              data: expect.objectContaining({
-                scheme: 'MyApp',
-                target: 'macOS',
-                appPath: '/path/to/build/MyApp.app',
-                launchState: 'requested',
-              }),
+              type: 'status-line',
+              level: 'success',
+              message: 'Build & Run complete',
+            }),
+            expect.objectContaining({
+              type: 'detail-tree',
+              items: expect.arrayContaining([
+                expect.objectContaining({ label: 'App Path', value: '/path/to/build/MyApp.app' }),
+              ]),
             }),
           ],
         }),

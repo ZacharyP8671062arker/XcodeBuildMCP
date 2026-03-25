@@ -18,16 +18,14 @@ function createDefaultMockAxeHelpers() {
   return {
     getAxePath: () => '/usr/local/bin/axe',
     getBundledAxeEnvironment: () => ({}),
-    createAxeNotAvailableResponse: () => ({
-      content: [
-        {
-          type: 'text' as const,
-          text: AXE_NOT_AVAILABLE_MESSAGE,
-        },
-      ],
-      isError: true,
-    }),
   };
+}
+
+function allText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
 }
 
 describe('Key Press Tool', () => {
@@ -198,15 +196,6 @@ describe('Key Press Tool', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/path/to/bundled/axe',
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       await key_pressLogic(
@@ -250,10 +239,8 @@ describe('Key Press Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text' as const, text: 'Key press (code: 40) simulated successfully.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Key press (code: 40) simulated successfully.');
     });
 
     it('should return success for key press with duration', async () => {
@@ -275,25 +262,14 @@ describe('Key Press Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text' as const, text: 'Key press (code: 42) simulated successfully.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Key press (code: 42) simulated successfully.');
     });
 
     it('should handle DependencyError when axe is not available', async () => {
       const mockAxeHelpers = {
         getAxePath: () => null,
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await key_pressLogic(
@@ -305,15 +281,8 @@ describe('Key Press Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle AxeError from failed command execution', async () => {
@@ -334,15 +303,10 @@ describe('Key Press Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: "Error: Failed to simulate key press (code: 40): axe command 'key' failed.\nDetails: axe command failed",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        "Failed to simulate key press (code: 40): axe command 'key' failed.",
+      );
     });
 
     it('should handle SystemError from command execution', async () => {
@@ -362,8 +326,8 @@ describe('Key Press Tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain(
-        'Error: System error executing axe: Failed to execute axe command: System error occurred',
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: System error occurred',
       );
     });
 
@@ -384,8 +348,8 @@ describe('Key Press Tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain(
-        'Error: System error executing axe: Failed to execute axe command: Unexpected error',
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: Unexpected error',
       );
     });
 
@@ -405,15 +369,10 @@ describe('Key Press Tool', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Error: System error executing axe: Failed to execute axe command: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: String error',
+      );
     });
   });
 });

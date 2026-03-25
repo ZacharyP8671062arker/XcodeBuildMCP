@@ -18,11 +18,11 @@ describe('xcodebuild-output', () => {
       operation: 'BUILD',
       toolName: 'build_run_macos',
       params: { scheme: 'MyApp' },
-      message: '🚀 Build & Run\n\n  Scheme: MyApp\n\n',
+      message: '\u{1F680} Build & Run\n\n  Scheme: MyApp\n\n',
     });
 
     started.pipeline.emitEvent({
-      type: 'error',
+      type: 'compiler-error',
       timestamp: '2026-03-20T12:00:00.500Z',
       operation: 'BUILD',
       message: 'unterminated string literal',
@@ -47,7 +47,7 @@ describe('xcodebuild-output', () => {
       .join('\n');
 
     expect(textContent).toContain('Compiler Errors (1):');
-    expect(textContent).toContain('  ✗ unterminated string literal');
+    expect(textContent).toContain('  \u2717 unterminated string literal');
     expect(textContent).toContain('    /tmp/MyApp.swift:10:1');
     expect(textContent).not.toContain('error: unterminated string literal');
     expect(textContent).not.toContain('Legacy fallback error block');
@@ -58,7 +58,7 @@ describe('xcodebuild-output', () => {
       operation: 'BUILD',
       toolName: 'build_run_macos',
       params: { scheme: 'MyApp' },
-      message: '🚀 Build & Run\n\n  Scheme: MyApp\n\n',
+      message: '\u{1F680} Build & Run\n\n  Scheme: MyApp\n\n',
     });
 
     const pending = createPendingXcodebuildResponse(
@@ -86,11 +86,11 @@ describe('xcodebuild-output', () => {
       operation: 'BUILD',
       toolName: 'build_run_macos',
       params: { scheme: 'MyApp' },
-      message: '🚀 Build & Run\n\n  Scheme: MyApp\n\n',
+      message: '\u{1F680} Build & Run\n\n  Scheme: MyApp\n\n',
     });
 
     started.pipeline.emitEvent({
-      type: 'error',
+      type: 'compiler-error',
       timestamp: '2026-03-20T12:00:00.500Z',
       operation: 'BUILD',
       message: 'unterminated string literal',
@@ -129,7 +129,7 @@ describe('xcodebuild-output', () => {
       operation: 'BUILD',
       toolName: 'build_run_macos',
       params: { scheme: 'MyApp' },
-      message: '🚀 Build & Run\n\n  Scheme: MyApp',
+      message: '\u{1F680} Build & Run\n\n  Scheme: MyApp',
     });
 
     const pending = createPendingXcodebuildResponse(
@@ -141,19 +141,15 @@ describe('xcodebuild-output', () => {
       {
         tailEvents: [
           {
-            type: 'notice',
+            type: 'status-line',
             timestamp: '2026-03-20T12:00:01.000Z',
-            operation: 'BUILD',
             level: 'success',
             message: 'Build & Run complete',
-            code: 'build-run-result',
-            data: {
-              scheme: 'MyApp',
-              platform: 'macOS',
-              target: 'macOS',
-              appPath: '/tmp/build/MyApp.app',
-              launchState: 'requested',
-            },
+          },
+          {
+            type: 'detail-tree',
+            timestamp: '2026-03-20T12:00:01.000Z',
+            items: [{ label: 'App Path', value: '/tmp/build/MyApp.app' }],
           },
         ],
       },
@@ -165,18 +161,18 @@ describe('xcodebuild-output', () => {
       ],
     });
 
-    const events = (finalized._meta?.events ?? []) as Array<{ type: string; code?: string }>;
-    expect(events.slice(-3)).toEqual([
-      expect.objectContaining({ type: 'summary' }),
-      expect.objectContaining({ type: 'notice', code: 'build-run-result' }),
-      expect.objectContaining({ type: 'next-steps' }),
-    ]);
+    const events = (finalized._meta?.events ?? []) as Array<{ type: string }>;
+    const lastThreeTypes = events.slice(-4).map((e) => e.type);
+    expect(lastThreeTypes).toContain('summary');
+    expect(lastThreeTypes).toContain('status-line');
+    expect(lastThreeTypes).toContain('detail-tree');
+    expect(lastThreeTypes).toContain('next-steps');
 
     const textContent = finalized.content
       .filter((item) => item.type === 'text')
       .map((item) => item.text);
 
     expect(textContent.at(-1)).toContain('Next steps:');
-    expect(textContent.at(-2)).toContain('✅ Build & Run complete');
+    expect(textContent.some((t) => t.includes('\u{2705} Build & Run complete'))).toBe(true);
   });
 });

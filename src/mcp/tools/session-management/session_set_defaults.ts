@@ -11,6 +11,9 @@ import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts
 import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
 const schemaObj = sessionDefaultsSchema.extend({
   profile: z
@@ -52,23 +55,21 @@ export async function sessionSetDefaultsLogic(
   if (rawProfile !== undefined) {
     const profile = rawProfile.trim();
     if (profile.length === 0) {
-      return {
-        content: [{ type: 'text', text: 'Profile name cannot be empty.' }],
-        isError: true,
-      };
+      return toolResponse([
+        header('Set Defaults'),
+        statusLine('error', 'Profile name cannot be empty.'),
+      ]);
     }
 
     const profileExists = sessionStore.listProfiles().includes(profile);
     if (!profileExists && !createIfNotExists) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Profile "${profile}" does not exist. Pass createIfNotExists=true to create it.`,
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        header('Set Defaults'),
+        statusLine(
+          'error',
+          `Profile "${profile}" does not exist. Pass createIfNotExists=true to create it.`,
+        ),
+      ]);
     }
 
     sessionStore.setActiveProfile(profile);
@@ -105,7 +106,6 @@ export async function sessionSetDefaultsLogic(
     );
   }
 
-  // Clear mutually exclusive counterparts before merging new defaults
   const toClear = new Set<keyof SessionDefaults>();
   if (
     Object.prototype.hasOwnProperty.call(nextParams, 'projectPath') &&
@@ -132,7 +132,6 @@ export async function sessionSetDefaultsLogic(
     hasSimulatorName && nextParams.simulatorName !== current.simulatorName;
 
   if (hasSimulatorId && hasSimulatorName) {
-    // Both provided - keep both, simulatorId takes precedence for tools
     notices.push(
       'Both simulatorId and simulatorName were provided; simulatorId will be used by tools.',
     );
@@ -212,16 +211,22 @@ export async function sessionSetDefaultsLogic(
   }
 
   const updated = sessionStore.getAll();
-  const noticeText = notices.length > 0 ? `\nNotices:\n- ${notices.join('\n- ')}` : '';
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `Defaults updated:\n${JSON.stringify(updated, null, 2)}${noticeText}`,
-      },
-    ],
-    isError: false,
-  };
+  const events: PipelineEvent[] = [header('Set Defaults')];
+
+  const items = Object.entries(updated)
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => ({ label: k, value: String(v) }));
+  if (items.length > 0) {
+    events.push(detailTree(items));
+  }
+
+  if (notices.length > 0) {
+    events.push(section('Notices', notices));
+  }
+
+  events.push(statusLine('success', 'Session defaults updated.'));
+
+  return toolResponse(events);
 }
 
 export const schema = schemaObj.shape;

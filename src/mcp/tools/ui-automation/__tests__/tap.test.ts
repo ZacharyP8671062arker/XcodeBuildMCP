@@ -15,15 +15,6 @@ function createMockAxeHelpers(): AxeHelpers {
   return {
     getAxePath: () => '/mocked/axe/path',
     getBundledAxeEnvironment: () => ({ SOME_ENV: 'value' }),
-    createAxeNotAvailableResponse: () => ({
-      content: [
-        {
-          type: 'text',
-          text: AXE_NOT_AVAILABLE_MESSAGE,
-        },
-      ],
-      isError: true,
-    }),
   };
 }
 
@@ -32,16 +23,14 @@ function createMockAxeHelpersWithNullPath(): AxeHelpers {
   return {
     getAxePath: () => null,
     getBundledAxeEnvironment: () => ({ SOME_ENV: 'value' }),
-    createAxeNotAvailableResponse: () => ({
-      content: [
-        {
-          type: 'text',
-          text: AXE_NOT_AVAILABLE_MESSAGE,
-        },
-      ],
-      isError: true,
-    }),
   };
+}
+
+function allText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
 }
 
 describe('Tap Plugin', () => {
@@ -479,15 +468,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Tap at (100, 200) simulated successfully.\n\nWarning: snapshot_ui has not been called yet. Consider using snapshot_ui for precise coordinates instead of guessing from screenshots.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Tap at (100, 200) simulated successfully.');
     });
 
     it('should return successful response with coordinate warning when snapshot_ui not called', async () => {
@@ -508,15 +490,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Tap at (150, 300) simulated successfully.\n\nWarning: snapshot_ui has not been called yet. Consider using snapshot_ui for precise coordinates instead of guessing from screenshots.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Tap at (150, 300) simulated successfully.');
     });
 
     it('should return successful response with delays', async () => {
@@ -539,15 +514,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Tap at (250, 400) simulated successfully.\n\nWarning: snapshot_ui has not been called yet. Consider using snapshot_ui for precise coordinates instead of guessing from screenshots.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Tap at (250, 400) simulated successfully.');
     });
 
     it('should return successful response with integer coordinates', async () => {
@@ -568,15 +536,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Tap at (0, 0) simulated successfully.\n\nWarning: snapshot_ui has not been called yet. Consider using snapshot_ui for precise coordinates instead of guessing from screenshots.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Tap at (0, 0) simulated successfully.');
     });
 
     it('should return successful response with large coordinates', async () => {
@@ -597,15 +558,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Tap at (1920, 1080) simulated successfully.\n\nWarning: snapshot_ui has not been called yet. Consider using snapshot_ui for precise coordinates instead of guessing from screenshots.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Tap at (1920, 1080) simulated successfully.');
     });
 
     it('should return successful response for element id target', async () => {
@@ -625,15 +579,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Tap on element id "loginButton" simulated successfully.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Tap on element id "loginButton" simulated successfully.');
     });
 
     it('should return successful response for element label target', async () => {
@@ -653,15 +600,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Tap on element label "Log in" simulated successfully.',
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('Tap on element label "Log in" simulated successfully.');
     });
   });
 
@@ -800,15 +740,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle DependencyError when axe binary not found (second test)', async () => {
@@ -830,15 +763,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle DependencyError when axe binary not found (third test)', async () => {
@@ -860,15 +786,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle DependencyError when axe binary not found (fourth test)', async () => {
@@ -888,15 +807,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle DependencyError when axe binary not found (fifth test)', async () => {
@@ -916,15 +828,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle DependencyError when axe binary not found (sixth test)', async () => {
@@ -944,15 +849,8 @@ describe('Tap Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
   });
 });

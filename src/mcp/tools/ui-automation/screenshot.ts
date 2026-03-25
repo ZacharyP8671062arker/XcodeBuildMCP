@@ -13,11 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { ToolResponse } from '../../../types/common.ts';
 import { createImageContent } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
-import {
-  createErrorResponse,
-  createTextResponse,
-  SystemError,
-} from '../../../utils/responses/index.ts';
+import { SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
 import {
   getDefaultFileSystemExecutor,
@@ -27,6 +23,8 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const LOG_PREFIX = '[Screenshot]';
 
@@ -175,7 +173,6 @@ export async function rotateImage(
   }
 }
 
-// Define schema as ZodObject
 const screenshotSchema = z.object({
   simulatorId: z.uuid({ message: 'Invalid Simulator UUID format' }),
   returnFormat: z
@@ -184,7 +181,6 @@ const screenshotSchema = z.object({
     .describe('Return image path or base64 data (path|base64)'),
 });
 
-// Use z.infer for type safety
 type ScreenshotParams = z.infer<typeof screenshotSchema>;
 
 const publicSchemaObject = z.strictObject(
@@ -199,6 +195,7 @@ export async function screenshotLogic(
   uuidUtils: { v4: () => string } = { v4: uuidv4 },
 ): Promise<ToolResponse> {
   const { simulatorId } = params;
+  const headerEvent = header('Screenshot', [{ label: 'Simulator', value: simulatorId }]);
   const runtime = process.env.XCODEBUILDMCP_RUNTIME;
   const defaultFormat = runtime === 'cli' || runtime === 'daemon' ? 'path' : 'base64';
   const returnFormat = params.returnFormat ?? defaultFormat;
@@ -207,7 +204,6 @@ export async function screenshotLogic(
   const screenshotPath = pathUtils.join(tempDir, screenshotFilename);
   const optimizedFilename = `screenshot_optimized_${uuidUtils.v4()}.jpg`;
   const optimizedPath = pathUtils.join(tempDir, optimizedFilename);
-  // Use xcrun simctl to take screenshot
   const commandArgs: string[] = [
     'xcrun',
     'simctl',
@@ -220,7 +216,6 @@ export async function screenshotLogic(
   log('info', `${LOG_PREFIX}/screenshot: Starting capture to ${screenshotPath} on ${simulatorId}`);
 
   try {
-    // Execute the screenshot command
     const result = await executor(commandArgs, `${LOG_PREFIX}: screenshot`, false);
 
     if (!result.success) {
@@ -230,30 +225,26 @@ export async function screenshotLogic(
     log('info', `${LOG_PREFIX}/screenshot: Success for ${simulatorId}`);
 
     try {
-      // Fix landscape orientation: simctl captures in portrait orientation regardless of device rotation
-      // Get device name to identify the correct simulator window when multiple are open
       const deviceName = await getDeviceNameForSimulatorId(simulatorId, executor);
-      // Detect if simulator window is landscape and rotate the image +90° to correct
       const isLandscape = await detectLandscapeMode(executor, deviceName ?? undefined);
       if (isLandscape) {
-        log('info', `${LOG_PREFIX}/screenshot: Landscape mode detected, rotating +90°`);
+        log('info', `${LOG_PREFIX}/screenshot: Landscape mode detected, rotating +90`);
         const rotated = await rotateImage(screenshotPath, 90, executor);
         if (!rotated) {
           log('warn', `${LOG_PREFIX}/screenshot: Rotation failed, continuing with original`);
         }
       }
 
-      // Optimize the image for LLM consumption: resize to max 800px width and convert to JPEG
       const optimizeArgs = [
         'sips',
         '-Z',
-        '800', // Resize to max 800px (maintains aspect ratio)
+        '800',
         '-s',
         'format',
-        'jpeg', // Convert to JPEG
+        'jpeg',
         '-s',
         'formatOptions',
-        '75', // 75% quality compression
+        '75',
         screenshotPath,
         '--out',
         optimizedPath,
@@ -264,10 +255,8 @@ export async function screenshotLogic(
       if (!optimizeResult.success) {
         log('warn', `${LOG_PREFIX}/screenshot: Image optimization failed, using original PNG`);
         if (returnFormat === 'base64') {
-          // Fallback to original PNG if optimization fails
           const base64Image = await fileSystemExecutor.readFile(screenshotPath, 'base64');
 
-          // Clean up
           try {
             await fileSystemExecutor.rm(screenshotPath);
           } catch (err) {
@@ -280,20 +269,23 @@ export async function screenshotLogic(
           };
         }
 
-        return createTextResponse(
-          `Screenshot captured: ${screenshotPath} (image/png, optimization failed)`,
-        );
+        const textResponse = toolResponse([
+          headerEvent,
+          statusLine(
+            'success',
+            `Screenshot captured: ${screenshotPath} (image/png, optimization failed)`,
+          ),
+        ]);
+        return textResponse;
       }
 
       log('info', `${LOG_PREFIX}/screenshot: Image optimized successfully`);
 
       if (returnFormat === 'base64') {
-        // Read the optimized image file as base64
         const base64Image = await fileSystemExecutor.readFile(optimizedPath, 'base64');
 
         log('info', `${LOG_PREFIX}/screenshot: Successfully encoded image as Base64`);
 
-        // Clean up both temporary files
         try {
           await fileSystemExecutor.rm(screenshotPath);
           await fileSystemExecutor.rm(optimizedPath);
@@ -301,38 +293,49 @@ export async function screenshotLogic(
           log('warn', `${LOG_PREFIX}/screenshot: Failed to delete temporary files: ${err}`);
         }
 
-        // Return the optimized image (JPEG format, smaller size)
-        return {
-          content: [createImageContent(base64Image, 'image/jpeg')],
-          isError: false,
-        };
+        const textResponse = toolResponse([
+          headerEvent,
+          statusLine('success', 'Screenshot captured.'),
+        ]);
+        textResponse.content.push(createImageContent(base64Image, 'image/jpeg'));
+        return textResponse;
       }
 
-      // Keep optimized file on disk for path-based return
       try {
         await fileSystemExecutor.rm(screenshotPath);
       } catch (err) {
         log('warn', `${LOG_PREFIX}/screenshot: Failed to delete temp file: ${err}`);
       }
 
-      return createTextResponse(`Screenshot captured: ${optimizedPath} (image/jpeg)`);
+      return toolResponse([
+        headerEvent,
+        statusLine('success', `Screenshot captured: ${optimizedPath} (image/jpeg)`),
+      ]);
     } catch (fileError) {
       log('error', `${LOG_PREFIX}/screenshot: Failed to process image file: ${fileError}`);
-      return createErrorResponse(
-        `Screenshot captured but failed to process image file: ${fileError instanceof Error ? fileError.message : String(fileError)}`,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine(
+          'error',
+          `Screenshot captured but failed to process image file: ${fileError instanceof Error ? fileError.message : String(fileError)}`,
+        ),
+      ]);
     }
   } catch (_error) {
     log('error', `${LOG_PREFIX}/screenshot: Failed - ${_error}`);
     if (_error instanceof SystemError) {
-      return createErrorResponse(
-        `System error executing screenshot: ${_error.message}`,
-        _error.originalError?.stack,
-      );
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `System error executing screenshot: ${_error.message}`),
+      ]);
     }
-    return createErrorResponse(
-      `An unexpected error occurred: ${_error instanceof Error ? _error.message : String(_error)}`,
-    );
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'error',
+        `An unexpected error occurred: ${_error instanceof Error ? _error.message : String(_error)}`,
+      ),
+    ]);
   }
 }
 

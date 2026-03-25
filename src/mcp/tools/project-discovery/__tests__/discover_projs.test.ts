@@ -58,6 +58,13 @@ describe('discover_projs plugin', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('returns structured discovery results for setup flows', async () => {
       mockFileSystemExecutor.stat = async () => ({ isDirectory: () => true, mtimeMs: 0 });
       mockFileSystemExecutor.readdir = async () => [
@@ -82,10 +89,10 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Discovery finished. Found 0 projects and 0 workspaces.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Discover Projects');
+      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
     it('should return error when scan path does not exist', async () => {
@@ -102,15 +109,12 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to access scan path: /workspace. Error: ENOENT: no such file or directory',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Discover Projects');
+      expect(text).toContain(
+        'Failed to access scan path: /workspace. Error: ENOENT: no such file or directory',
+      );
     });
 
     it('should return error when scan path is not a directory', async () => {
@@ -125,10 +129,9 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Scan path is not a directory: /workspace' }],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Scan path is not a directory: /workspace');
     });
 
     it('should return success with no projects found', async () => {
@@ -144,10 +147,9 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Discovery finished. Found 0 projects and 0 workspaces.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
     it('should return success with projects found', async () => {
@@ -166,18 +168,12 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: 'Discovery finished. Found 1 projects and 1 workspaces.' },
-          { type: 'text', text: 'Projects found:\n - /workspace/MyApp.xcodeproj' },
-          { type: 'text', text: 'Workspaces found:\n - /workspace/MyWorkspace.xcworkspace' },
-          {
-            type: 'text',
-            text: "Hint: Save a default with session-set-defaults { projectPath: '...' } or { workspacePath: '...' }.",
-          },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Found 1 project(s) and 1 workspace(s).');
+      expect(text).toContain('/workspace/MyApp.xcodeproj');
+      expect(text).toContain('/workspace/MyWorkspace.xcworkspace');
+      expect(text).toContain('session-set-defaults');
     });
 
     it('should handle fs error with code', async () => {
@@ -196,15 +192,9 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to access scan path: /workspace. Error: Permission denied',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to access scan path: /workspace. Error: Permission denied');
     });
 
     it('should handle string error', async () => {
@@ -221,12 +211,9 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: 'Failed to access scan path: /workspace. Error: String error' },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to access scan path: /workspace. Error: String error');
     });
 
     it('should handle workspaceRoot parameter correctly', async () => {
@@ -240,14 +227,12 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Discovery finished. Found 0 projects and 0 workspaces.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
     it('should handle scan path outside workspace root', async () => {
-      // Mock path normalization to simulate path outside workspace root
       mockFileSystemExecutor.stat = async () => ({ isDirectory: () => true, mtimeMs: 0 });
       mockFileSystemExecutor.readdir = async () => [];
 
@@ -260,10 +245,9 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Discovery finished. Found 0 projects and 0 workspaces.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
     it('should handle error with object containing message and code properties', async () => {
@@ -284,12 +268,9 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: 'Failed to access scan path: /workspace. Error: Access denied' },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = textOf(result);
+      expect(text).toContain('Failed to access scan path: /workspace. Error: Access denied');
     });
 
     it('should handle max depth reached during recursive scan', async () => {
@@ -319,10 +300,9 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Discovery finished. Found 0 projects and 0 workspaces.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
     it('should handle skipped directory types during scan', async () => {
@@ -343,11 +323,9 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      // Test that skipped directories and files are correctly filtered out
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Discovery finished. Found 0 projects and 0 workspaces.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
     it('should handle error during recursive directory reading', async () => {
@@ -367,11 +345,9 @@ describe('discover_projs plugin', () => {
         mockFileSystemExecutor,
       );
 
-      // The function should handle the error gracefully and continue
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'Discovery finished. Found 0 projects and 0 workspaces.' }],
-        isError: false,
-      });
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
   });
 });

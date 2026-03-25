@@ -8,7 +8,9 @@ export interface ToolPreflightParams {
     | 'Test'
     | 'List Schemes'
     | 'Show Build Settings'
-    | 'Get App Path';
+    | 'Get App Path'
+    | 'Coverage Report'
+    | 'File Coverage';
   scheme?: string;
   workspacePath?: string;
   projectPath?: string;
@@ -18,9 +20,12 @@ export interface ToolPreflightParams {
   simulatorId?: string;
   deviceId?: string;
   arch?: string;
+  xcresultPath?: string;
+  file?: string;
+  targetFilter?: string;
 }
 
-function displayPath(filePath: string): string {
+export function displayPath(filePath: string): string {
   const cwd = process.cwd();
   const relative = path.relative(cwd, filePath);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
@@ -37,6 +42,8 @@ const OPERATION_EMOJI: Record<ToolPreflightParams['operation'], string> = {
   'List Schemes': '\u{1F50D}',
   'Show Build Settings': '\u{1F50D}',
   'Get App Path': '\u{1F50D}',
+  'Coverage Report': '\u{1F4CA}',
+  'File Coverage': '\u{1F4CA}',
 };
 
 export function formatToolPreflight(params: ToolPreflightParams): string {
@@ -72,6 +79,18 @@ export function formatToolPreflight(params: ToolPreflightParams): string {
 
   if (params.arch) {
     lines.push(`  Architecture: ${params.arch}`);
+  }
+
+  if (params.xcresultPath) {
+    lines.push(`  xcresult: ${displayPath(params.xcresultPath)}`);
+  }
+
+  if (params.file) {
+    lines.push(`  File: ${params.file}`);
+  }
+
+  if (params.targetFilter) {
+    lines.push(`  Target Filter: ${params.targetFilter}`);
   }
 
   lines.push('');

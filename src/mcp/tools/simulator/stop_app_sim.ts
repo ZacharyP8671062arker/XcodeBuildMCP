@@ -7,6 +7,8 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
   simulatorId: z
@@ -24,7 +26,6 @@ const baseSchemaObject = z.object({
   bundleId: z.string().describe('Bundle identifier of the app to stop'),
 });
 
-// Internal schema requires simulatorId (factory resolves simulatorName → simulatorId)
 const internalSchemaObject = z.object({
   simulatorId: z.string(),
   simulatorName: z.string().optional(),
@@ -44,42 +45,36 @@ export async function stop_app_simLogic(
 
   log('info', `Stopping app ${params.bundleId} in simulator ${simulatorId}`);
 
+  const headerEvent = header('Stop App', [
+    { label: 'Simulator', value: simulatorDisplayName },
+    { label: 'Bundle ID', value: params.bundleId },
+  ]);
+
   try {
     const command = ['xcrun', 'simctl', 'terminate', simulatorId, params.bundleId];
-    const result = await executor(command, 'Stop App in Simulator', false, undefined);
+    const result = await executor(command, 'Stop App in Simulator', false);
 
     if (!result.success) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Stop app in simulator operation failed: ${result.error}`,
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Stop app in simulator operation failed: ${result.error}`),
+      ]);
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `App ${params.bundleId} stopped successfully in simulator ${simulatorDisplayName}`,
-        },
-      ],
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine(
+        'success',
+        `App ${params.bundleId} stopped successfully in simulator ${simulatorDisplayName}`,
+      ),
+    ]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error stopping app in simulator: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Stop app in simulator operation failed: ${errorMessage}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Stop app in simulator operation failed: ${errorMessage}`),
+    ]);
   }
 }
 

@@ -15,11 +15,8 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { formatToolPreflight } from '../../../utils/build-preflight.ts';
-import {
-  formatQueryError,
-  formatQueryFailureSummary,
-} from '../../../utils/xcodebuild-error-utils.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 // Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
@@ -87,10 +84,9 @@ export async function listSchemesLogic(
   const projectOrWorkspace = hasProjectPath ? 'project' : 'workspace';
   const pathValue = hasProjectPath ? params.projectPath : params.workspacePath;
 
-  const preflight = formatToolPreflight({
-    operation: 'List Schemes',
-    ...(hasProjectPath ? { projectPath: pathValue } : { workspacePath: pathValue }),
-  });
+  const headerParams = hasProjectPath
+    ? [{ label: 'Project', value: pathValue! }]
+    : [{ label: 'Workspace', value: pathValue! }];
 
   try {
     const schemes = await listSchemes(params, executor);
@@ -116,14 +112,16 @@ export async function listSchemesLogic(
       };
     }
 
-    const schemeLines = schemes.map((s) => `  - ${s}`).join('\n');
-    const resultText = schemes.length > 0 ? `Schemes:\n${schemeLines}` : 'Schemes:\n  (none)';
+    const schemeItems = schemes.length > 0 ? schemes : ['(none)'];
 
-    return {
-      content: [{ type: 'text' as const, text: `${preflight}\n${resultText}` }],
-      ...(nextStepParams ? { nextStepParams } : {}),
-      isError: false,
-    };
+    return toolResponse(
+      [
+        header('List Schemes', headerParams),
+        statusLine('success', `Found ${schemes.length} scheme(s).`),
+        section('Schemes', schemeItems),
+      ],
+      nextStepParams ? { nextStepParams } : undefined,
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error listing schemes: ${errorMessage}`);
@@ -132,15 +130,7 @@ export async function listSchemesLogic(
       ? errorMessage.slice('Failed to list schemes: '.length)
       : errorMessage;
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `${preflight}\n${formatQueryError(rawError)}\n\n${formatQueryFailureSummary()}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([header('List Schemes', headerParams), statusLine('error', rawError)]);
   }
 }
 

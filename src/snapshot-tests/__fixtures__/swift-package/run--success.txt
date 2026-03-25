@@ -1,0 +1,10 @@
+
+🚀 Swift Package Run
+
+  Package: <ROOT>/example_projects/spm
+  Executable: spm
+
+Output
+  Hello, world!
+
+✅ Swift executable completed successfully

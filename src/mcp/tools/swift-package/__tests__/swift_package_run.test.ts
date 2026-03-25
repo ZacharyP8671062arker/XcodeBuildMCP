@@ -267,7 +267,6 @@ describe('swift_package_run plugin', () => {
     });
 
     it('should not call executor for background mode', async () => {
-      // For background mode, no executor should be called since it uses direct spawn
       const mockExecutor = createNoopExecutor();
 
       const result = await swift_package_runLogic(
@@ -278,26 +277,19 @@ describe('swift_package_run plugin', () => {
         mockExecutor,
       );
 
-      // Should return success without calling executor
-      expect(result.content[0].text).toContain('🚀 Started executable in background');
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Started executable in background');
     });
   });
 
   describe('Response Logic Testing', () => {
     it('should return validation error for missing packagePath', async () => {
-      // Since the tool now uses createTypedTool, Zod validation happens at the handler level
-      // Test the handler directly to see Zod validation
       const result = await handler({});
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Parameter validation failed\nDetails: Invalid parameters:\npackagePath: Invalid input: expected string, received undefined',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Parameter validation failed');
+      expect(text).toContain('packagePath');
     });
 
     it('should return success response for background mode', async () => {
@@ -310,8 +302,8 @@ describe('swift_package_run plugin', () => {
         mockExecutor,
       );
 
-      expect(result.content[0].text).toContain('🚀 Started executable in background');
-      expect(result.content[0].text).toContain('💡 Process is running independently');
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Started executable in background');
     });
 
     it('should return success response for successful execution', async () => {
@@ -327,13 +319,11 @@ describe('swift_package_run plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '✅ Swift executable completed successfully.' },
-          { type: 'text', text: '💡 Process finished cleanly. Check output for results.' },
-          { type: 'text', text: 'Hello, World!' },
-        ],
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift Package Run');
+      expect(text).toContain('Swift executable completed successfully');
+      expect(text).toContain('Hello, World!');
     });
 
     it('should return error response for failed execution', async () => {
@@ -350,13 +340,10 @@ describe('swift_package_run plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '❌ Swift executable failed.' },
-          { type: 'text', text: '(no output)' },
-          { type: 'text', text: 'Errors:\nCompilation failed' },
-        ],
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift executable failed');
+      expect(text).toContain('Compilation failed');
     });
 
     it('should handle executor error', async () => {
@@ -369,15 +356,10 @@ describe('swift_package_run plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Failed to execute swift run\nDetails: Command not found',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Failed to execute swift run');
+      expect(text).toContain('Command not found');
     });
   });
 });

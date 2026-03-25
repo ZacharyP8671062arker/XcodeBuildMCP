@@ -1,9 +1,3 @@
-/**
- * Tests for set_sim_location tool
- * Following CLAUDE.md testing standards with literal validation
- * Using pure dependency injection for deterministic testing
- */
-
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import {
@@ -12,6 +6,14 @@ import {
   createNoopExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, set_sim_locationLogic } from '../set_sim_location.ts';
+import type { ToolResponse } from '../../../../types/common.ts';
+
+function allText(result: ToolResponse): string {
+  return result.content
+    .filter((c) => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
 
 describe('set_sim_location tool', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -148,14 +150,10 @@ describe('set_sim_location tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Successfully set simulator test-uuid-123 location to 37.7749,-122.4194',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Set Location');
+      expect(text).toContain('Location set to 37.7749,-122.4194');
+      expect(result.isError).toBeFalsy();
     });
 
     it('should handle latitude validation failure', async () => {
@@ -168,14 +166,9 @@ describe('set_sim_location tool', () => {
         createNoopExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Latitude must be between -90 and 90 degrees',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Latitude must be between -90 and 90 degrees');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle longitude validation failure', async () => {
@@ -188,14 +181,9 @@ describe('set_sim_location tool', () => {
         createNoopExecutor(),
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Longitude must be between -180 and 180 degrees',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Longitude must be between -180 and 180 degrees');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle command failure', async () => {
@@ -214,14 +202,9 @@ describe('set_sim_location tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to set simulator location: Simulator not found',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to set simulator location: Simulator not found');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle exception with Error object', async () => {
@@ -236,14 +219,9 @@ describe('set_sim_location tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to set simulator location: Connection failed',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to set simulator location: Connection failed');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle exception with string error', async () => {
@@ -258,14 +236,9 @@ describe('set_sim_location tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Failed to set simulator location: String error',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Failed to set simulator location: String error');
+      expect(result.isError).toBe(true);
     });
 
     it('should handle boundary values for coordinates', async () => {
@@ -284,14 +257,9 @@ describe('set_sim_location tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Successfully set simulator test-uuid-123 location to 90,180',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Location set to 90,180');
+      expect(result.isError).toBeFalsy();
     });
 
     it('should handle boundary values for negative coordinates', async () => {
@@ -310,14 +278,9 @@ describe('set_sim_location tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Successfully set simulator test-uuid-123 location to -90,-180',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Location set to -90,-180');
+      expect(result.isError).toBeFalsy();
     });
 
     it('should handle zero coordinates', async () => {
@@ -336,14 +299,9 @@ describe('set_sim_location tool', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Successfully set simulator test-uuid-123 location to 0,0',
-          },
-        ],
-      });
+      const text = allText(result);
+      expect(text).toContain('Location set to 0,0');
+      expect(result.isError).toBeFalsy();
     });
 
     it('should verify correct executor arguments', async () => {

@@ -25,6 +25,13 @@ describe('sync_xcode_defaults tool', () => {
   });
 
   describe('syncXcodeDefaultsLogic', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('returns error when no project found', async () => {
       const executor = createCommandMatchingMockExecutor({
         whoami: { output: 'testuser\n' },
@@ -34,7 +41,7 @@ describe('sync_xcode_defaults tool', () => {
       const result = await syncXcodeDefaultsLogic({}, { executor, cwd: '/test/project' });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Failed to read Xcode IDE state');
+      expect(textOf(result)).toContain('Failed to read Xcode IDE state');
     });
 
     it('returns error when xcuserstate file not found', async () => {
@@ -47,7 +54,7 @@ describe('sync_xcode_defaults tool', () => {
       const result = await syncXcodeDefaultsLogic({}, { executor, cwd: '/test/project' });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Failed to read Xcode IDE state');
+      expect(textOf(result)).toContain('Failed to read Xcode IDE state');
     });
   });
 
@@ -78,14 +85,16 @@ describe('sync_xcode_defaults tool', () => {
           { executor, cwd: join(process.cwd(), 'example_projects/iOS') },
         );
 
-        expect(result.isError).toBe(false);
-        expect(result.content[0].text).toContain('Synced session defaults from Xcode IDE');
-        expect(result.content[0].text).toContain('Scheme: MCPTest');
-        expect(result.content[0].text).toContain(
-          'Simulator ID: B38FE93D-578B-454B-BE9A-C6FA0CE5F096',
-        );
-        expect(result.content[0].text).toContain('Simulator Name: Apple Vision Pro');
-        expect(result.content[0].text).toContain('Bundle ID: io.sentry.MCPTest');
+        expect(result.isError).toBeFalsy();
+        const text = result.content
+          .filter((i: any) => i.type === 'text')
+          .map((i: any) => i.text)
+          .join('\n');
+        expect(text).toContain('Synced session defaults from Xcode IDE');
+        expect(text).toContain('scheme: MCPTest');
+        expect(text).toContain('simulatorId: B38FE93D-578B-454B-BE9A-C6FA0CE5F096');
+        expect(text).toContain('simulatorName: Apple Vision Pro');
+        expect(text).toContain('bundleId: io.sentry.MCPTest');
 
         const defaults = sessionStore.getAll();
         expect(defaults.scheme).toBe('MCPTest');
@@ -120,8 +129,12 @@ describe('sync_xcode_defaults tool', () => {
         },
       );
 
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toContain('Scheme: MCPTest');
+      expect(result.isError).toBeFalsy();
+      const text = result.content
+        .filter((i: any) => i.type === 'text')
+        .map((i: any) => i.text)
+        .join('\n');
+      expect(text).toContain('scheme: MCPTest');
 
       const defaults = sessionStore.getAll();
       expect(defaults.scheme).toBe('MCPTest');
@@ -158,7 +171,7 @@ describe('sync_xcode_defaults tool', () => {
         { executor, cwd: join(process.cwd(), 'example_projects/iOS') },
       );
 
-      expect(result.isError).toBe(false);
+      expect(result.isError).toBeFalsy();
 
       const defaults = sessionStore.getAll();
       expect(defaults.scheme).toBe('MCPTest');

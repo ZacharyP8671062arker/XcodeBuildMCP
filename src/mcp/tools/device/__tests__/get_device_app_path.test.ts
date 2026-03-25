@@ -259,15 +259,17 @@ describe('get_device_app_path plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeUndefined();
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Scheme: MyScheme');
-      expect(result.content[0].text).toContain('Project: /path/to/project.xcodeproj');
-      expect(result.content[0].text).toContain('Configuration: Debug');
-      expect(result.content[0].text).toContain('Platform: iOS');
-      expect(result.content[0].text).toContain(
-        '\u{2514} App Path: /path/to/build/Debug-iphoneos/MyApp.app',
-      );
+      expect(result.isError).toBeFalsy();
+      const text = result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('Scheme: MyScheme');
+      expect(text).toContain('Project: /path/to/project.xcodeproj');
+      expect(text).toContain('Configuration: Debug');
+      expect(text).toContain('Platform: iOS');
+      expect(text).toContain('App Path: /path/to/build/Debug-iphoneos/MyApp.app');
       expect(result.nextStepParams).toEqual({
         get_app_bundle_id: { appPath: '/path/to/build/Debug-iphoneos/MyApp.app' },
         install_app_device: {
@@ -293,12 +295,14 @@ describe('get_device_app_path plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Scheme: MyScheme');
-      expect(result.content[0].text).toContain('Project: /path/to/nonexistent.xcodeproj');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('\u{2717} The project does not exist.');
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('Scheme: MyScheme');
+      expect(text).toContain('Project: /path/to/nonexistent.xcodeproj');
+      expect(text).toContain('The project does not exist.');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -317,12 +321,12 @@ describe('get_device_app_path plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain(
-        '\u{2717} Could not extract app path from build settings.',
-      );
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('Could not extract app path from build settings');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -401,10 +405,12 @@ describe('get_device_app_path plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('\u{2717} Network error');
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('Network error');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -422,10 +428,12 @@ describe('get_device_app_path plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('\u{1F50D} Get App Path');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('\u{2717} String error');
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+      expect(text).toContain('Get App Path');
+      expect(text).toContain('String error');
       expect(result.nextStepParams).toBeUndefined();
     });
   });

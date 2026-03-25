@@ -1,0 +1,8 @@
+📦 Swift Package Run
+
+  Package: example_projects/SwiftPackage
+
+✅ Executable completed successfully.
+
+Output:
+  Hello, world!

@@ -4,5 +4,5 @@ import { withBridgeToolHandler } from './shared.ts';
 export const schema = {};
 
 export const handler = async (): Promise<ToolResponse> => {
-  return withBridgeToolHandler(async (bridge) => bridge.syncTool());
+  return withBridgeToolHandler('Bridge Sync', async (bridge) => bridge.syncTool());
 };

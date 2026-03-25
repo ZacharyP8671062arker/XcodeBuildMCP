@@ -14,14 +14,14 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Define schema as ZodObject
 const stopAppDeviceSchema = z.object({
   deviceId: z.string().describe('UDID of the device (obtained from list_devices)'),
   processId: z.number(),
 });
 
-// Use z.infer for type safety
 type StopAppDeviceParams = z.infer<typeof stopAppDeviceSchema>;
 
 const publicSchemaObject = stopAppDeviceSchema.omit({ deviceId: true } as const);
@@ -48,42 +48,36 @@ export async function stop_app_deviceLogic(
         processId.toString(),
       ],
       'Stop app on device',
-      false, // useShell
-      undefined, // env
+      false,
     );
 
     if (!result.success) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Failed to stop app: ${result.error}`,
-          },
-        ],
-        isError: true,
-      };
+      return toolResponse([
+        header('Stop App', [
+          { label: 'Device', value: deviceId },
+          { label: 'PID', value: processId.toString() },
+        ]),
+        statusLine('error', `Failed to stop app: ${result.error}`),
+      ]);
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `✅ App stopped successfully\n\n${result.output}`,
-        },
-      ],
-    };
+    return toolResponse([
+      header('Stop App', [
+        { label: 'Device', value: deviceId },
+        { label: 'PID', value: processId.toString() },
+      ]),
+      statusLine('success', 'App stopped successfully.'),
+    ]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error stopping app on device: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Failed to stop app on device: ${errorMessage}`,
-        },
-      ],
-      isError: true,
-    };
+    return toolResponse([
+      header('Stop App', [
+        { label: 'Device', value: deviceId },
+        { label: 'PID', value: processId.toString() },
+      ]),
+      statusLine('error', `Failed to stop app on device: ${errorMessage}`),
+    ]);
   }
 }
 

@@ -1,8 +1,8 @@
 import type {
   XcodebuildOperation,
-  XcodebuildEvent,
+  PipelineEvent,
   XcodebuildStage,
-} from '../types/xcodebuild-events.ts';
+} from '../types/pipeline-events.ts';
 import {
   packageResolutionPatterns,
   compilePatterns,
@@ -62,7 +62,7 @@ function now(): string {
 
 export interface EventParserOptions {
   operation: XcodebuildOperation;
-  onEvent: (event: XcodebuildEvent) => void;
+  onEvent: (event: PipelineEvent) => void;
 }
 
 export interface XcodebuildEventParser {
@@ -92,7 +92,7 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       return;
     }
     onEvent({
-      type: 'error',
+      type: 'compiler-error',
       timestamp: pendingError.timestamp,
       operation,
       message: pendingError.message,
@@ -109,7 +109,6 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       return;
     }
 
-    // Indented lines following a build error are continuations
     if (pendingError && /^\s/u.test(rawLine)) {
       pendingError.message += `\n${line}`;
       pendingError.rawLines.push(rawLine);
@@ -178,7 +177,7 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
     const stage = resolveStageFromLine(line);
     if (stage) {
       onEvent({
-        type: 'status',
+        type: 'build-stage',
         timestamp: now(),
         operation,
         stage,
@@ -201,7 +200,7 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
     const warning = parseWarningLine(line);
     if (warning) {
       onEvent({
-        type: 'warning',
+        type: 'compiler-warning',
         timestamp: now(),
         operation,
         message: warning.message,
@@ -211,37 +210,27 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       return;
     }
 
-    // Skip known noise lines
     if (/^Test Suite /u.test(line)) {
       return;
     }
   }
 
-  function drainBuffer(chunk: string, source: 'stdout' | 'stderr'): void {
-    if (source === 'stdout') {
-      stdoutBuffer += chunk;
-      const lines = stdoutBuffer.split(/\r?\n/u);
-      stdoutBuffer = lines.pop() ?? '';
-      for (const line of lines) {
-        processLine(line);
-      }
-      return;
-    }
-
-    stderrBuffer += chunk;
-    const lines = stderrBuffer.split(/\r?\n/u);
-    stderrBuffer = lines.pop() ?? '';
+  function drainLines(buffer: string, chunk: string): string {
+    const combined = buffer + chunk;
+    const lines = combined.split(/\r?\n/u);
+    const remainder = lines.pop() ?? '';
     for (const line of lines) {
       processLine(line);
     }
+    return remainder;
   }
 
   return {
     onStdout(chunk: string): void {
-      drainBuffer(chunk, 'stdout');
+      stdoutBuffer = drainLines(stdoutBuffer, chunk);
     },
     onStderr(chunk: string): void {
-      drainBuffer(chunk, 'stderr');
+      stderrBuffer = drainLines(stderrBuffer, chunk);
     },
     flush(): void {
       if (stdoutBuffer.trim()) {

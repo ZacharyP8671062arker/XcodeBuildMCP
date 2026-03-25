@@ -1,0 +1,11 @@
+🐛 Add Breakpoint
+
+  File: ContentView.swift
+  Line: 42
+
+✅ Breakpoint 1 set.
+
+Next steps:
+1. Continue execution: xcodebuildmcp debugging continue
+2. View stack trace: xcodebuildmcp debugging stack
+3. View variables: xcodebuildmcp debugging variables

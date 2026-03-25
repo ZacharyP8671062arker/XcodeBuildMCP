@@ -1,0 +1,43 @@
+
+📱 List Devices
+
+🟢 Cameron’s Apple Watch
+  ├ UDID: <UUID>
+  ├ Model: Watch4,2
+  ├ Product Type: Watch4,2
+  ├ Platform: Unknown 10.6.1
+  ├ CPU Architecture: arm64_32
+  ├ Connection:
+  └ Developer Mode: disabled
+
+🟢 Cameron’s Apple Watch
+  ├ UDID: <UUID>
+  ├ Model: Watch7,20
+  ├ Product Type: Watch7,20
+  ├ Platform: Unknown 26.1
+  ├ CPU Architecture: arm64e
+  ├ Connection: localNetwork
+  └ Developer Mode: disabled
+
+🟢 Cameron’s iPhone 16 Pro Max
+  ├ UDID: <UUID>
+  ├ Model: iPhone17,2
+  ├ Product Type: iPhone17,2
+  ├ Platform: Unknown 26.3.1 (a)
+  ├ CPU Architecture: arm64e
+  ├ Connection: localNetwork
+  └ Developer Mode: enabled
+
+🟢 iPhone
+  ├ UDID: <UUID>
+  ├ Model: iPhone99,11
+  ├ Product Type: iPhone99,11
+  ├ Platform: Unknown 26.1
+  ├ CPU Architecture: arm64e
+  └ Connection:
+✅ Devices discovered.
+
+Hints
+  Use the device ID/UDID from above when required by other tools.
+  Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.
+  Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.

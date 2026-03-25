@@ -1,6 +1,5 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
-import { createTextContent } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { startLogCapture } from '../../../utils/log-capture/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
@@ -9,6 +8,8 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
 export type LogCaptureFunction = (
   params: {
@@ -44,7 +45,6 @@ const baseSchemaObject = z.object({
     ),
 });
 
-// Internal schema requires simulatorId (factory resolves simulatorName → simulatorId)
 const internalSchemaObject = z.object({
   simulatorId: z.string(),
   simulatorName: z.string().optional(),
@@ -75,6 +75,12 @@ export async function launch_app_logs_simLogic(
 ): Promise<ToolResponse> {
   log('info', `Starting app launch with logs for simulator ${params.simulatorId}`);
 
+  const headerEvent = header('Launch App', [
+    { label: 'Simulator', value: params.simulatorId },
+    { label: 'Bundle ID', value: params.bundleId },
+    { label: 'Log Capture', value: 'enabled' },
+  ]);
+
   const captureParams = {
     simulatorUuid: params.simulatorId,
     bundleId: params.bundleId,
@@ -85,23 +91,27 @@ export async function launch_app_logs_simLogic(
 
   const { sessionId, error } = await logCaptureFunction(captureParams, executor);
   if (error) {
-    return {
-      content: [createTextContent(`Failed to launch app with log capture: ${error}`)],
-      isError: true,
-    };
+    return toolResponse([
+      headerEvent,
+      statusLine('error', `Failed to launch app with log capture: ${error}`),
+    ]);
   }
 
-  return {
-    content: [
-      createTextContent(
-        `App launched successfully in simulator ${params.simulatorId} with log capture enabled.\n\nLog capture session ID: ${sessionId}\n\nInteract with your app in the simulator, then stop capture to retrieve logs.`,
+  return toolResponse(
+    [
+      headerEvent,
+      detailTree([{ label: 'Log Session ID', value: sessionId }]),
+      statusLine(
+        'success',
+        `App launched successfully in simulator ${params.simulatorId} with log capture enabled`,
       ),
     ],
-    nextStepParams: {
-      stop_sim_log_cap: { logSessionId: sessionId },
+    {
+      nextStepParams: {
+        stop_sim_log_cap: { logSessionId: sessionId },
+      },
     },
-    isError: false,
-  };
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

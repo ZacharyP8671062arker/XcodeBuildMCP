@@ -1,0 +1,5 @@
+🐛 LLDB Command
+
+  Command: po self
+
+<CalculatorService: display="0", expressionDisplay="">

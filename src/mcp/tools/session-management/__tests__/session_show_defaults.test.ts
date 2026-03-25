@@ -22,24 +22,28 @@ describe('session-show-defaults tool', () => {
   });
 
   describe('Handler Behavior', () => {
+    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+      return result.content
+        .filter((i) => i.type === 'text')
+        .map((i) => i.text)
+        .join('\n');
+    }
+
     it('should return empty defaults when none set', async () => {
       const result = await handler();
-      expect(result.isError).toBe(false);
-      expect(result.content).toHaveLength(1);
-      expect(typeof result.content[0].text).toBe('string');
-      const parsed = JSON.parse(result.content[0].text as string);
-      expect(parsed).toEqual({});
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('Show Defaults');
+      expect(text).toContain('No session defaults are set');
     });
 
     it('should return current defaults when set', async () => {
       sessionStore.setDefaults({ scheme: 'MyScheme', simulatorId: 'SIM-123' });
       const result = await handler();
-      expect(result.isError).toBe(false);
-      expect(result.content).toHaveLength(1);
-      expect(typeof result.content[0].text).toBe('string');
-      const parsed = JSON.parse(result.content[0].text as string);
-      expect(parsed.scheme).toBe('MyScheme');
-      expect(parsed.simulatorId).toBe('SIM-123');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('scheme: MyScheme');
+      expect(text).toContain('simulatorId: SIM-123');
     });
 
     it('shows defaults from the active profile', async () => {
@@ -48,8 +52,8 @@ describe('session-show-defaults tool', () => {
       sessionStore.setDefaults({ scheme: 'IOSScheme' });
 
       const result = await handler();
-      const parsed = JSON.parse(result.content[0].text as string);
-      expect(parsed.scheme).toBe('IOSScheme');
+      const text = textOf(result);
+      expect(text).toContain('scheme: IOSScheme');
     });
   });
 });

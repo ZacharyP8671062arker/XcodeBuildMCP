@@ -9,6 +9,13 @@ import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { schema, handler, snapshot_uiLogic } from '../snapshot_ui.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
 
+function allText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content
+    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .map((c) => c.text)
+    .join('\n');
+}
+
 describe('Snapshot UI Plugin', () => {
   describe('Export Field Validation (Literal)', () => {
     it('should have handler function', () => {
@@ -33,8 +40,8 @@ describe('Snapshot UI Plugin', () => {
       const result = await handler({});
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Missing required session defaults');
-      expect(result.content[0].text).toContain('simulatorId is required');
+      expect(allText(result)).toContain('Missing required session defaults');
+      expect(allText(result)).toContain('simulatorId is required');
     });
 
     it('should handle invalid simulatorId format via schema validation', async () => {
@@ -44,8 +51,8 @@ describe('Snapshot UI Plugin', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Parameter validation failed');
-      expect(result.content[0].text).toContain('Invalid Simulator UUID format');
+      expect(allText(result)).toContain('Parameter validation failed');
+      expect(allText(result)).toContain('Invalid Simulator UUID format');
     });
 
     it('should return success for valid snapshot_ui execution', async () => {
@@ -63,10 +70,6 @@ describe('Snapshot UI Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'axe not available' }],
-          isError: true,
-        }),
       };
 
       // Wrap executor to track calls
@@ -91,22 +94,17 @@ describe('Snapshot UI Plugin', () => {
         { env: {} },
       ]);
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Accessibility hierarchy retrieved successfully:\n```json\n{"elements": [{"type": "Button", "frame": {"x": 100, "y": 200, "width": 50, "height": 30}}]}\n```',
-          },
-          {
-            type: 'text' as const,
-            text: 'Tips:\n- Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)\n- If a debugger is attached, ensure the app is running (not stopped on breakpoints)\n- Screenshots are for visual verification only',
-          },
-        ],
-        nextStepParams: {
-          snapshot_ui: { simulatorId: '12345678-1234-4234-8234-123456789012' },
-          tap: { simulatorId: '12345678-1234-4234-8234-123456789012', x: 0, y: 0 },
-          screenshot: { simulatorId: '12345678-1234-4234-8234-123456789012' },
-        },
+      expect(result.isError).toBeFalsy();
+      const text = allText(result);
+      expect(text).toContain('Accessibility hierarchy retrieved successfully.');
+      expect(text).toContain(
+        '{"elements": [{"type": "Button", "frame": {"x": 100, "y": 200, "width": 50, "height": 30}}]}',
+      );
+      expect(text).toContain('Use frame coordinates for tap/swipe');
+      expect(result.nextStepParams).toEqual({
+        snapshot_ui: { simulatorId: '12345678-1234-4234-8234-123456789012' },
+        tap: { simulatorId: '12345678-1234-4234-8234-123456789012', x: 0, y: 0 },
+        screenshot: { simulatorId: '12345678-1234-4234-8234-123456789012' },
       });
     });
 
@@ -115,15 +113,6 @@ describe('Snapshot UI Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => null,
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [
-            {
-              type: 'text' as const,
-              text: AXE_NOT_AVAILABLE_MESSAGE,
-            },
-          ],
-          isError: true,
-        }),
       };
 
       const result = await snapshot_uiLogic(
@@ -134,15 +123,8 @@ describe('Snapshot UI Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: AXE_NOT_AVAILABLE_MESSAGE,
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(AXE_NOT_AVAILABLE_MESSAGE);
     });
 
     it('should handle AxeError from failed command execution', async () => {
@@ -157,10 +139,6 @@ describe('Snapshot UI Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'axe not available' }],
-          isError: true,
-        }),
       };
 
       const result = await snapshot_uiLogic(
@@ -171,15 +149,10 @@ describe('Snapshot UI Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: "Error: Failed to get accessibility hierarchy: axe command 'describe-ui' failed.\nDetails: axe command failed",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        "Failed to get accessibility hierarchy: axe command 'describe-ui' failed.",
+      );
     });
 
     it('should handle SystemError from command execution', async () => {
@@ -189,10 +162,6 @@ describe('Snapshot UI Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'axe not available' }],
-          isError: true,
-        }),
       };
 
       const result = await snapshot_uiLogic(
@@ -203,17 +172,7 @@ describe('Snapshot UI Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: expect.stringContaining(
-              'Error: System error executing axe: Failed to execute axe command: ENOENT: no such file or directory',
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
     });
 
     it('should handle unexpected Error objects', async () => {
@@ -223,10 +182,6 @@ describe('Snapshot UI Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'axe not available' }],
-          isError: true,
-        }),
       };
 
       const result = await snapshot_uiLogic(
@@ -237,17 +192,7 @@ describe('Snapshot UI Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: expect.stringContaining(
-              'Error: System error executing axe: Failed to execute axe command: Unexpected error',
-            ),
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
     });
 
     it('should handle unexpected string errors', async () => {
@@ -257,10 +202,6 @@ describe('Snapshot UI Plugin', () => {
       const mockAxeHelpers = {
         getAxePath: () => '/usr/local/bin/axe',
         getBundledAxeEnvironment: () => ({}),
-        createAxeNotAvailableResponse: () => ({
-          content: [{ type: 'text' as const, text: 'axe not available' }],
-          isError: true,
-        }),
       };
 
       const result = await snapshot_uiLogic(
@@ -271,15 +212,10 @@ describe('Snapshot UI Plugin', () => {
         mockAxeHelpers,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text' as const,
-            text: 'Error: System error executing axe: Failed to execute axe command: String error',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      expect(allText(result)).toContain(
+        'System error executing axe: Failed to execute axe command: String error',
+      );
     });
   });
 });

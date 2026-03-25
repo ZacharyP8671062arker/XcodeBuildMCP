@@ -155,8 +155,6 @@ describe('swift_package_test plugin', () => {
 
   describe('Response Logic Testing', () => {
     it('should handle empty packagePath parameter', async () => {
-      // When packagePath is empty, the function should still process it
-      // but the command execution may fail, which is handled by the executor
       const mockExecutor = createMockExecutor({
         success: true,
         output: 'Tests completed with empty path',
@@ -164,8 +162,9 @@ describe('swift_package_test plugin', () => {
 
       const result = await swift_package_testLogic({ packagePath: '' }, mockExecutor);
 
-      expect(result.isError).toBe(false);
-      expect(result.content[0].text).toBe('✅ Swift package tests completed.');
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift package tests completed');
     });
 
     it('should return successful test response', async () => {
@@ -181,17 +180,11 @@ describe('swift_package_test plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '✅ Swift package tests completed.' },
-          {
-            type: 'text',
-            text: '💡 Next: Execute your app with swift_package_run if tests passed',
-          },
-          { type: 'text', text: 'All tests passed.' },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift Package Test');
+      expect(text).toContain('Swift package tests completed');
+      expect(text).toContain('All tests passed.');
     });
 
     it('should return error response for test failure', async () => {
@@ -207,15 +200,10 @@ describe('swift_package_test plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Swift package tests failed\nDetails: 2 tests failed',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift package tests failed');
+      expect(text).toContain('2 tests failed');
     });
 
     it('should include stdout diagnostics when stderr is empty on test failure', async () => {
@@ -233,15 +221,10 @@ describe('swift_package_test plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: "Error: Swift package tests failed\nDetails: main.swift:10:25: error: cannot find type 'DOESNOTEXIST' in scope\nlet broken: DOESNOTEXIST = 42",
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift package tests failed');
+      expect(text).toContain("cannot find type 'DOESNOTEXIST' in scope");
     });
 
     it('should handle spawn error', async () => {
@@ -256,15 +239,10 @@ describe('swift_package_test plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'Error: Failed to execute swift test\nDetails: spawn ENOENT',
-          },
-        ],
-        isError: true,
-      });
+      expect(result.isError).toBe(true);
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Failed to execute swift test');
+      expect(text).toContain('spawn ENOENT');
     });
 
     it('should handle successful test with parameters', async () => {
@@ -286,17 +264,11 @@ describe('swift_package_test plugin', () => {
         mockExecutor,
       );
 
-      expect(result).toEqual({
-        content: [
-          { type: 'text', text: '✅ Swift package tests completed.' },
-          {
-            type: 'text',
-            text: '💡 Next: Execute your app with swift_package_run if tests passed',
-          },
-          { type: 'text', text: 'Tests completed.' },
-        ],
-        isError: false,
-      });
+      expect(result.isError).toBeUndefined();
+      const text = result.content.map((c) => c.text).join('\n');
+      expect(text).toContain('Swift Package Test');
+      expect(text).toContain('Swift package tests completed');
+      expect(text).toContain('Tests completed.');
     });
   });
 });

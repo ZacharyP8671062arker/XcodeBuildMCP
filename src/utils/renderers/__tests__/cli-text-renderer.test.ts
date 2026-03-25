@@ -39,24 +39,19 @@ describe('cli-text-renderer', () => {
     const renderer = createCliTextRenderer({ interactive: false });
 
     renderer.onEvent({
-      type: 'start',
+      type: 'header',
       timestamp: '2026-03-20T12:00:00.000Z',
-      operation: 'BUILD',
-      toolName: 'build_run_macos',
-      params: {},
-      message: [
-        '🚀 Build & Run',
-        '',
-        '  Scheme: MyApp',
-        '  Project: /tmp/MyApp.xcodeproj',
-        '  Configuration: Debug',
-        '  Platform: macOS',
-        '',
-      ].join('\n'),
+      operation: 'Build & Run',
+      params: [
+        { label: 'Scheme', value: 'MyApp' },
+        { label: 'Project', value: '/tmp/MyApp.xcodeproj' },
+        { label: 'Configuration', value: 'Debug' },
+        { label: 'Platform', value: 'macOS' },
+      ],
     });
 
     renderer.onEvent({
-      type: 'status',
+      type: 'build-stage',
       timestamp: '2026-03-20T12:00:01.000Z',
       operation: 'BUILD',
       stage: 'COMPILING',
@@ -64,7 +59,7 @@ describe('cli-text-renderer', () => {
     });
 
     const output = stdoutWrite.mock.calls.flat().join('');
-    expect(output).toContain('  Platform: macOS\n\n› Compiling\n');
+    expect(output).toContain('  Platform: macOS\n\n\u203A Compiling\n');
   });
 
   it('uses transient interactive updates for active phases and durable writes for lasting events', () => {
@@ -72,16 +67,14 @@ describe('cli-text-renderer', () => {
     const renderer = createCliTextRenderer({ interactive: true });
 
     renderer.onEvent({
-      type: 'start',
+      type: 'header',
       timestamp: '2026-03-20T12:00:00.000Z',
-      operation: 'BUILD',
-      toolName: 'build_run_macos',
-      params: {},
-      message: '🚀 Build & Run\n\n  Scheme: MyApp\n\n',
+      operation: 'Build & Run',
+      params: [{ label: 'Scheme', value: 'MyApp' }],
     });
 
     renderer.onEvent({
-      type: 'status',
+      type: 'build-stage',
       timestamp: '2026-03-20T12:00:01.000Z',
       operation: 'BUILD',
       stage: 'COMPILING',
@@ -89,17 +82,14 @@ describe('cli-text-renderer', () => {
     });
 
     renderer.onEvent({
-      type: 'notice',
+      type: 'status-line',
       timestamp: '2026-03-20T12:00:02.000Z',
-      operation: 'BUILD',
       level: 'info',
       message: 'Resolving app path',
-      code: 'build-run-step',
-      data: { step: 'resolve-app-path', status: 'started' },
     });
 
     renderer.onEvent({
-      type: 'warning',
+      type: 'compiler-warning',
       timestamp: '2026-03-20T12:00:03.000Z',
       operation: 'BUILD',
       message: 'unused variable',
@@ -107,13 +97,10 @@ describe('cli-text-renderer', () => {
     });
 
     renderer.onEvent({
-      type: 'notice',
+      type: 'status-line',
       timestamp: '2026-03-20T12:00:04.000Z',
-      operation: 'BUILD',
       level: 'success',
-      message: 'App path resolved',
-      code: 'build-run-step',
-      data: { step: 'resolve-app-path', status: 'succeeded', appPath: '/tmp/build/MyApp.app' },
+      message: 'Resolving app path',
     });
 
     renderer.onEvent({
@@ -127,11 +114,10 @@ describe('cli-text-renderer', () => {
     expect(reporter.update).toHaveBeenCalledWith('Resolving app path...');
 
     const output = stdoutWrite.mock.calls.flat().join('');
-    expect(output).not.toContain('› Compiling\n');
-    expect(output).not.toContain('› Resolving app path\n');
+    expect(output).not.toContain('\u203A Compiling\n');
     expect(output).toContain('Warnings (1):');
     expect(output).toContain('unused variable');
-    expect(output).toContain('✓ Resolving app path\n');
+    expect(output).toContain('\u{2705} Resolving app path\n');
   });
 
   it('renders grouped sad-path diagnostics before the failed summary', () => {
@@ -139,25 +125,20 @@ describe('cli-text-renderer', () => {
     const renderer = createCliTextRenderer({ interactive: false });
 
     renderer.onEvent({
-      type: 'start',
+      type: 'header',
       timestamp: '2026-03-20T12:00:00.000Z',
-      operation: 'BUILD',
-      toolName: 'build_run_sim',
-      params: {},
-      message: [
-        '🚀 Build & Run',
-        '',
-        '  Scheme: MyApp',
-        '  Project: /tmp/MyApp.xcodeproj',
-        '  Configuration: Debug',
-        '  Platform: iOS Simulator',
-        '  Simulator: INVALID-SIM-ID-123',
-        '',
-      ].join('\n'),
+      operation: 'Build & Run',
+      params: [
+        { label: 'Scheme', value: 'MyApp' },
+        { label: 'Project', value: '/tmp/MyApp.xcodeproj' },
+        { label: 'Configuration', value: 'Debug' },
+        { label: 'Platform', value: 'iOS Simulator' },
+        { label: 'Simulator', value: 'INVALID-SIM-ID-123' },
+      ],
     });
 
     renderer.onEvent({
-      type: 'error',
+      type: 'compiler-error',
       timestamp: '2026-03-20T12:00:01.000Z',
       operation: 'BUILD',
       message: 'No available simulator matched: INVALID-SIM-ID-123',
@@ -174,8 +155,8 @@ describe('cli-text-renderer', () => {
 
     const output = stdoutWrite.mock.calls.flat().join('');
     expect(output).toContain('Errors (1):');
-    expect(output).toContain('  ✗ No available simulator matched: INVALID-SIM-ID-123');
-    expect(output).toContain('❌ Build failed. (⏱️ 1.2s)');
+    expect(output).toContain('  \u2717 No available simulator matched: INVALID-SIM-ID-123');
+    expect(output).toContain('\u{274C} Build failed. (\u{23F1}\u{FE0F} 1.2s)');
   });
 
   it('groups compiler diagnostics under a nested failure header before the failed summary', () => {
@@ -183,24 +164,19 @@ describe('cli-text-renderer', () => {
     const renderer = createCliTextRenderer({ interactive: false });
 
     renderer.onEvent({
-      type: 'start',
+      type: 'header',
       timestamp: '2026-03-20T12:00:00.000Z',
-      operation: 'BUILD',
-      toolName: 'build_run_macos',
-      params: {},
-      message: [
-        '🚀 Build & Run',
-        '',
-        '  Scheme: MyApp',
-        '  Project: /tmp/MyApp.xcodeproj',
-        '  Configuration: Debug',
-        '  Platform: macOS',
-        '',
-      ].join('\n'),
+      operation: 'Build & Run',
+      params: [
+        { label: 'Scheme', value: 'MyApp' },
+        { label: 'Project', value: '/tmp/MyApp.xcodeproj' },
+        { label: 'Configuration', value: 'Debug' },
+        { label: 'Platform', value: 'macOS' },
+      ],
     });
 
     renderer.onEvent({
-      type: 'status',
+      type: 'build-stage',
       timestamp: '2026-03-20T12:00:01.000Z',
       operation: 'BUILD',
       stage: 'COMPILING',
@@ -208,7 +184,7 @@ describe('cli-text-renderer', () => {
     });
 
     renderer.onEvent({
-      type: 'error',
+      type: 'compiler-error',
       timestamp: '2026-03-20T12:00:02.000Z',
       operation: 'BUILD',
       message: 'unterminated string literal',
@@ -225,10 +201,10 @@ describe('cli-text-renderer', () => {
 
     const output = stdoutWrite.mock.calls.flat().join('');
     expect(output).toContain(
-      '› Compiling\n\nCompiler Errors (1):\n\n  ✗ unterminated string literal\n    /tmp/MCPTest/ContentView.swift:16:18',
+      '\u203A Compiling\n\nCompiler Errors (1):\n\n  \u2717 unterminated string literal\n    /tmp/MCPTest/ContentView.swift:16:18',
     );
     expect(output).not.toContain('error: unterminated string literal\n  ContentView.swift:16:18');
-    expect(output).toContain('\n\n❌ Build failed. (⏱️ 4.0s)');
+    expect(output).toContain('\n\n\u{274C} Build failed. (\u{23F1}\u{FE0F} 4.0s)');
   });
 
   it('uses exactly one blank-line boundary between front matter and compiler errors when no runtime line rendered', () => {
@@ -236,24 +212,19 @@ describe('cli-text-renderer', () => {
     const renderer = createCliTextRenderer({ interactive: false });
 
     renderer.onEvent({
-      type: 'start',
+      type: 'header',
       timestamp: '2026-03-20T12:00:00.000Z',
-      operation: 'BUILD',
-      toolName: 'build_run_macos',
-      params: {},
-      message: [
-        '🚀 Build & Run',
-        '',
-        '  Scheme: MyApp',
-        '  Project: /tmp/MyApp.xcodeproj',
-        '  Configuration: Debug',
-        '  Platform: macOS',
-        '',
-      ].join('\n'),
+      operation: 'Build & Run',
+      params: [
+        { label: 'Scheme', value: 'MyApp' },
+        { label: 'Project', value: '/tmp/MyApp.xcodeproj' },
+        { label: 'Configuration', value: 'Debug' },
+        { label: 'Platform', value: 'macOS' },
+      ],
     });
 
     renderer.onEvent({
-      type: 'error',
+      type: 'compiler-error',
       timestamp: '2026-03-20T12:00:01.000Z',
       operation: 'BUILD',
       message: 'unterminated string literal',
@@ -270,7 +241,7 @@ describe('cli-text-renderer', () => {
 
     const output = stdoutWrite.mock.calls.flat().join('');
     expect(output).toContain(
-      '  Platform: macOS\n\nCompiler Errors (1):\n\n  ✗ unterminated string literal\n    /tmp/MCPTest/ContentView.swift:16:18',
+      '  Platform: macOS\n\nCompiler Errors (1):\n\n  \u2717 unterminated string literal\n    /tmp/MCPTest/ContentView.swift:16:18',
     );
     expect(output).not.toContain('  Platform: macOS\n\n\nCompiler Errors (1):');
   });
@@ -280,16 +251,14 @@ describe('cli-text-renderer', () => {
     const renderer = createCliTextRenderer({ interactive: true });
 
     renderer.onEvent({
-      type: 'start',
+      type: 'header',
       timestamp: '2026-03-20T12:00:00.000Z',
-      operation: 'BUILD',
-      toolName: 'build_run_macos',
-      params: {},
-      message: '🚀 Build & Run\n\n  Scheme: MyApp\n\n',
+      operation: 'Build & Run',
+      params: [{ label: 'Scheme', value: 'MyApp' }],
     });
 
     renderer.onEvent({
-      type: 'status',
+      type: 'build-stage',
       timestamp: '2026-03-20T12:00:01.000Z',
       operation: 'BUILD',
       stage: 'COMPILING',
@@ -297,7 +266,7 @@ describe('cli-text-renderer', () => {
     });
 
     renderer.onEvent({
-      type: 'status',
+      type: 'build-stage',
       timestamp: '2026-03-20T12:00:02.000Z',
       operation: 'BUILD',
       stage: 'LINKING',
@@ -305,7 +274,7 @@ describe('cli-text-renderer', () => {
     });
 
     renderer.onEvent({
-      type: 'error',
+      type: 'compiler-error',
       timestamp: '2026-03-20T12:00:03.000Z',
       operation: 'BUILD',
       message: 'unterminated string literal',
@@ -325,7 +294,7 @@ describe('cli-text-renderer', () => {
 
     const output = stdoutWrite.mock.calls.flat().join('');
     expect(output).toContain(
-      '› Linking\n\nCompiler Errors (1):\n\n  ✗ unterminated string literal\n    /tmp/MCPTest/ContentView.swift:16:18',
+      '\u203A Linking\n\nCompiler Errors (1):\n\n  \u2717 unterminated string literal\n    /tmp/MCPTest/ContentView.swift:16:18',
     );
   });
 
@@ -342,19 +311,16 @@ describe('cli-text-renderer', () => {
     });
 
     renderer.onEvent({
-      type: 'notice',
+      type: 'status-line',
       timestamp: '2026-03-20T12:00:06.000Z',
-      operation: 'BUILD',
       level: 'success',
       message: 'Build & Run complete',
-      code: 'build-run-result',
-      data: {
-        scheme: 'MyApp',
-        platform: 'macOS',
-        target: 'macOS',
-        appPath: '/tmp/build/MyApp.app',
-        launchState: 'requested',
-      },
+    });
+
+    renderer.onEvent({
+      type: 'detail-tree',
+      timestamp: '2026-03-20T12:00:06.000Z',
+      items: [{ label: 'App Path', value: '/tmp/build/MyApp.app' }],
     });
 
     renderer.onEvent({
@@ -364,13 +330,14 @@ describe('cli-text-renderer', () => {
     });
 
     const output = stdoutWrite.mock.calls.flat().join('');
-    const summaryIndex = output.indexOf('✅ Build succeeded.');
-    const footerIndex = output.indexOf('✅ Build & Run complete');
+    const summaryIndex = output.indexOf('\u{2705} Build succeeded.');
+    const footerIndex = output.indexOf('\u{2705} Build & Run complete');
     const nextStepsIndex = output.indexOf('Next steps:');
 
     expect(summaryIndex).toBeGreaterThanOrEqual(0);
     expect(footerIndex).toBeGreaterThan(summaryIndex);
     expect(nextStepsIndex).toBeGreaterThan(footerIndex);
-    expect(output).toContain('✅ Build & Run complete\n\n  └ App Path: /tmp/build/MyApp.app');
+    expect(output).toContain('\u{2705} Build & Run complete');
+    expect(output).toContain('\u2514 App Path: /tmp/build/MyApp.app');
   });
 });

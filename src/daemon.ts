@@ -25,9 +25,9 @@ import {
   DAEMON_IDLE_TIMEOUT_ENV_KEY,
   DEFAULT_DAEMON_IDLE_CHECK_INTERVAL_MS,
   resolveDaemonIdleTimeoutMs,
-  getDaemonRuntimeActivitySnapshot,
   hasActiveRuntimeSessions,
 } from './daemon/idle-shutdown.ts';
+import { getDaemonActivitySnapshot } from './daemon/activity-registry.ts';
 import { getDefaultCommandExecutor } from './utils/command.ts';
 import { resolveAxeBinary } from './utils/axe/index.ts';
 import {
@@ -308,10 +308,7 @@ async function main(): Promise<void> {
 
   const emitRequestGauges = (): void => {
     recordDaemonGaugeMetric('inflight_requests', inFlightRequests);
-    recordDaemonGaugeMetric(
-      'active_sessions',
-      getDaemonRuntimeActivitySnapshot().activeOperationCount,
-    );
+    recordDaemonGaugeMetric('active_sessions', getDaemonActivitySnapshot().activeOperationCount);
   };
 
   const server = startDaemonServer({
@@ -354,7 +351,7 @@ async function main(): Promise<void> {
         return;
       }
 
-      if (hasActiveRuntimeSessions(getDaemonRuntimeActivitySnapshot())) {
+      if (hasActiveRuntimeSessions(getDaemonActivitySnapshot())) {
         return;
       }
 

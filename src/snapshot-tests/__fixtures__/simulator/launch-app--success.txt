@@ -1,0 +1,7 @@
+
+🚀 Launch App
+
+  Simulator: <UUID>
+  Bundle ID: io.sentry.calculatorapp
+
+✅ App launched successfully in simulator <UUID>

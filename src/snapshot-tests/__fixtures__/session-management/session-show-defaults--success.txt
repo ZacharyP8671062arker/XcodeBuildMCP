@@ -1,0 +1,7 @@
+
+⚙️ Show Defaults
+
+  Active Profile: global
+
+  ├ workspacePath: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  └ scheme: CalculatorApp

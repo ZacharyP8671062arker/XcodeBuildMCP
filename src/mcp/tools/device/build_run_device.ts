@@ -18,13 +18,15 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
-import { createTextResponse } from '../../../utils/responses/index.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { extractBundleIdFromAppPath } from '../../../utils/bundle-id.ts';
 import { mapDevicePlatform } from './build-settings.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 import {
+  createBuildRunResultEvents,
   createPendingXcodebuildResponse,
   emitPipelineError,
   emitPipelineNotice,
@@ -296,31 +298,24 @@ export async function build_run_deviceLogic(
         nextStepParams,
       },
       {
-        tailEvents: [
-          {
-            type: 'notice',
-            timestamp: new Date().toISOString(),
-            operation: 'BUILD',
-            level: 'success',
-            message: 'Build & Run complete',
-            code: 'build-run-result',
-            data: {
-              scheme: params.scheme,
-              platform: String(platform),
-              target: `${platform} Device`,
-              appPath,
-              bundleId,
-              launchState: 'requested',
-              ...(processId !== undefined ? { processId } : {}),
-            },
-          },
-        ],
+        tailEvents: createBuildRunResultEvents({
+          scheme: params.scheme,
+          platform: String(platform),
+          target: `${platform} Device`,
+          appPath,
+          bundleId,
+          launchState: 'requested',
+          ...(processId !== undefined ? { processId } : {}),
+        }),
       },
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during device build & run logic: ${errorMessage}`);
-    return createTextResponse(`Error during device build and run: ${errorMessage}`, true);
+    return toolResponse([
+      header('Build & Run Device'),
+      statusLine('error', `Error during device build and run: ${errorMessage}`),
+    ]);
   }
 }
 

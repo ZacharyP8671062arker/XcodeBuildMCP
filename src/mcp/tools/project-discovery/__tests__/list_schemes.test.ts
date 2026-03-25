@@ -14,6 +14,13 @@ import { schema, handler, listSchemes, listSchemesLogic } from '../list_schemes.
 import { sessionStore } from '../../../../utils/session-store.ts';
 
 describe('list_schemes plugin', () => {
+  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
+    return result.content
+      .filter((i) => i.type === 'text')
+      .map((i) => i.text)
+      .join('\n');
+  }
+
   beforeEach(() => {
     sessionStore.clear();
   });
@@ -59,11 +66,12 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(false);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
-      expect(result.content[0].text).toContain('Project: /path/to/MyProject.xcodeproj');
-      expect(result.content[0].text).toContain('Schemes:\n  - MyProject\n  - MyProjectTests');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('List Schemes');
+      expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
+      expect(text).toContain('MyProject');
+      expect(text).toContain('MyProjectTests');
       expect(result.nextStepParams).toEqual({
         build_macos: { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyProject' },
         build_run_sim: {
@@ -92,12 +100,10 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
-      expect(result.content[0].text).toContain('Project: /path/to/MyProject.xcodeproj');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('\u{2717} Project not found');
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = textOf(result);
+      expect(text).toContain('List Schemes');
+      expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
+      expect(text).toContain('Project not found');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -113,11 +119,9 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('\u{2717} No schemes found in the output');
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = textOf(result);
+      expect(text).toContain('List Schemes');
+      expect(text).toContain('No schemes found in the output');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -142,10 +146,10 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(false);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
-      expect(result.content[0].text).toContain('Schemes:\n  (none)');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('List Schemes');
+      expect(text).toContain('(none)');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -160,11 +164,9 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('\u{2717} Command execution failed');
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = textOf(result);
+      expect(text).toContain('List Schemes');
+      expect(text).toContain('Command execution failed');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -179,11 +181,9 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
-      expect(result.content[0].text).toContain('Errors (1):');
-      expect(result.content[0].text).toContain('\u{2717} String error');
-      expect(result.content[0].text).toContain('\u{274C} Query failed.');
+      const text = textOf(result);
+      expect(text).toContain('List Schemes');
+      expect(text).toContain('String error');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -243,8 +243,6 @@ describe('list_schemes plugin', () => {
     });
 
     it('should handle validation when testing with missing projectPath via plugin handler', async () => {
-      // Note: Direct logic function calls bypass Zod validation, so we test the actual plugin handler
-      // to verify Zod validation works properly. The createTypedTool wrapper handles validation.
       const result = await handler({});
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Missing required session defaults');
@@ -295,11 +293,12 @@ describe('list_schemes plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(false);
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain('\u{1F50D} List Schemes');
-      expect(result.content[0].text).toContain('Workspace: /path/to/MyProject.xcworkspace');
-      expect(result.content[0].text).toContain('Schemes:\n  - MyApp\n  - MyAppTests');
+      expect(result.isError).toBeFalsy();
+      const text = textOf(result);
+      expect(text).toContain('List Schemes');
+      expect(text).toContain('Workspace: /path/to/MyProject.xcworkspace');
+      expect(text).toContain('MyApp');
+      expect(text).toContain('MyAppTests');
       expect(result.nextStepParams).toEqual({
         build_macos: { workspacePath: '/path/to/MyProject.xcworkspace', scheme: 'MyApp' },
         build_run_sim: {

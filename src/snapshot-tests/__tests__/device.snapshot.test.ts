@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { execSync } from 'node:child_process';
 import { createSnapshotHarness } from '../harness.ts';
 import { expectMatchesFixture } from '../fixture-io.ts';
 import type { SnapshotHarness } from '../harness.ts';
 
 const WORKSPACE = 'example_projects/iOS_Calculator/CalculatorApp.xcworkspace';
+const BUNDLE_ID = 'io.sentry.calculatorapp';
 const DEVICE_ID = process.env.DEVICE_ID;
 
 describe('device workflow', () => {
@@ -115,7 +117,82 @@ describe('device workflow', () => {
     });
   });
 
+  describe.runIf(DEVICE_ID)('install (requires device)', () => {
+    it('success', async () => {
+      const appPathOutput = execSync(
+        [
+          'xcodebuild -workspace', WORKSPACE,
+          '-scheme CalculatorApp',
+          `-destination 'id=${DEVICE_ID}'`,
+          '-showBuildSettings',
+        ].join(' '),
+        { encoding: 'utf8', timeout: 30_000, stdio: 'pipe' },
+      );
+      const builtProductsDir = appPathOutput
+        .split('\n')
+        .find((l) => l.includes('BUILT_PRODUCTS_DIR'))
+        ?.split('=')[1]
+        ?.trim();
+      const appPath = `${builtProductsDir}/CalculatorApp.app`;
+
+      const { text, isError } = await harness.invoke('device', 'install', {
+        deviceId: DEVICE_ID,
+        appPath,
+      });
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'install--success');
+    }, 60_000);
+  });
+
+  describe.runIf(DEVICE_ID)('launch (requires device)', () => {
+    it('success', async () => {
+      const { text, isError } = await harness.invoke('device', 'launch', {
+        deviceId: DEVICE_ID,
+        bundleId: BUNDLE_ID,
+      });
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'launch--success');
+    }, 60_000);
+  });
+
+  describe.runIf(DEVICE_ID)('stop (requires device)', () => {
+    it('success', async () => {
+      const tmpJson = `/tmp/devicectl-launch-${Date.now()}.json`;
+      execSync(
+        `xcrun devicectl device process launch --device ${DEVICE_ID} ${BUNDLE_ID} --json-output ${tmpJson}`,
+        { encoding: 'utf8', timeout: 30_000, stdio: 'pipe' },
+      );
+      const launchData = JSON.parse(
+        require('fs').readFileSync(tmpJson, 'utf8'),
+      );
+      require('fs').unlinkSync(tmpJson);
+      const pid = launchData?.result?.process?.processIdentifier;
+      expect(pid).toBeGreaterThan(0);
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      const { text, isError } = await harness.invoke('device', 'stop', {
+        deviceId: DEVICE_ID,
+        processId: pid,
+      });
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'stop--success');
+    }, 60_000);
+  });
+
   describe.runIf(DEVICE_ID)('test (requires device)', () => {
+    it('success - targeted passing test', async () => {
+      const { text, isError } = await harness.invoke('device', 'test', {
+        workspacePath: WORKSPACE,
+        scheme: 'CalculatorApp',
+        deviceId: DEVICE_ID,
+        extraArgs: ['-only-testing:CalculatorAppTests/CalculatorAppTests/testAddition'],
+      });
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'test--success');
+    }, 300_000);
+
     it('failure - intentional test failure', async () => {
       const { text, isError } = await harness.invoke('device', 'test', {
         workspacePath: WORKSPACE,

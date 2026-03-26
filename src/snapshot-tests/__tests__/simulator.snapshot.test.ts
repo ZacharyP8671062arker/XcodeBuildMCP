@@ -61,10 +61,22 @@ describe('simulator workflow', () => {
         workspacePath: WORKSPACE,
         scheme: 'CalculatorApp',
         simulatorName: 'iPhone 17',
+        extraArgs: ['-only-testing:CalculatorAppTests/CalculatorAppTests/testAddition'],
+      });
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'test--success');
+    }, 120_000);
+
+    it('failure - intentional test failure', async () => {
+      const { text, isError } = await harness.invoke('simulator', 'test', {
+        workspacePath: WORKSPACE,
+        scheme: 'CalculatorApp',
+        simulatorName: 'iPhone 17',
       });
       expect(isError).toBe(true);
       expect(text.length).toBeGreaterThan(10);
-      expectMatchesFixture(text, __filename, 'test--success');
+      expectMatchesFixture(text, __filename, 'test--failure');
     }, 120_000);
   });
 

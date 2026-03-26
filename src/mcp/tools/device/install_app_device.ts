@@ -16,6 +16,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { formatDeviceId } from '../../../utils/device-name-resolver.ts';
 
 const installAppDeviceSchema = z.object({
   deviceId: z
@@ -35,7 +36,7 @@ export async function install_app_deviceLogic(
 ): Promise<ToolResponse> {
   const { deviceId, appPath } = params;
   const headerEvent = header('Install App', [
-    { label: 'Device', value: deviceId },
+    { label: 'Device', value: formatDeviceId(deviceId) },
     { label: 'App', value: appPath },
   ]);
 

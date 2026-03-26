@@ -16,6 +16,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { formatDeviceId } from '../../../utils/device-name-resolver.ts';
 
 const stopAppDeviceSchema = z.object({
   deviceId: z.string().describe('UDID of the device (obtained from list_devices)'),
@@ -32,7 +33,7 @@ export async function stop_app_deviceLogic(
 ): Promise<ToolResponse> {
   const { deviceId, processId } = params;
   const headerEvent = header('Stop App', [
-    { label: 'Device', value: deviceId },
+    { label: 'Device', value: formatDeviceId(deviceId) },
     { label: 'PID', value: processId.toString() },
   ]);
 

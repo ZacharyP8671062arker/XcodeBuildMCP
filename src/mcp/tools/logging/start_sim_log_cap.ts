@@ -15,7 +15,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
 const startSimLogCapSchema = z.object({
   simulatorId: z
@@ -73,16 +73,20 @@ export async function start_sim_log_capLogic(
 
   const filterDescription = buildSubsystemFilterDescription(subsystemFilter);
 
-  const lines: string[] = [];
-  lines.push(`Session ID: ${sessionId}`);
+  const items: Array<{ label: string; value: string }> = [
+    { label: 'Session ID', value: sessionId },
+    { label: 'Filter', value: filterDescription },
+  ];
   if (captureConsole) {
-    lines.push('Note: Your app was relaunched to capture console output.');
+    items.push({ label: 'Console', value: 'App relaunched to capture console output' });
   }
-  lines.push(filterDescription);
-  lines.push('Interact with your simulator and app, then stop capture to retrieve logs.');
 
   return toolResponse(
-    [headerEvent, section('Details', lines), statusLine('success', 'Log capture started.')],
+    [
+      headerEvent,
+      statusLine('success', 'Log capture started.'),
+      detailTree(items),
+    ],
     {
       nextStepParams: {
         stop_sim_log_cap: { logSessionId: sessionId },

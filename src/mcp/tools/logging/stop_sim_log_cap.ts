@@ -46,8 +46,8 @@ export async function stop_sim_log_capLogic(
   }
   return toolResponse([
     headerEvent,
-    section('Captured Logs', [logContent]),
     statusLine('success', 'Log capture stopped.'),
+    section('Captured Logs', logContent.split('\n')),
   ]);
 }
 

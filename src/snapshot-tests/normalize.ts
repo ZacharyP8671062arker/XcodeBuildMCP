@@ -5,11 +5,11 @@ const ANSI_REGEX = /\x1B\[[0-9;]*[mK]/g;
 const ISO_TIMESTAMP_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z/g;
 const UUID_REGEX = /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/g;
 const DURATION_REGEX = /\d+\.\d+s\b/g;
-const PID_NUMBER_REGEX = /pid:\s*\d+/g;
+const PID_NUMBER_REGEX = /pid:\s*\d+/gi;
 const PID_JSON_REGEX = /"pid"\s*:\s*\d+/g;
 const PROCESS_ID_REGEX = /Process ID: \d+/g;
 const DERIVED_DATA_HASH_REGEX = /(DerivedData\/[A-Za-z0-9_]+)-[a-z]{28}\b/g;
-const PROGRESS_LINE_REGEX = /^›.*\n?/gm;
+const PROGRESS_LINE_REGEX = /^›.*\n*/gm;
 const WARNINGS_BLOCK_REGEX = /Warnings \(\d+\):\n(?:\n? *⚠[^\n]*\n?)*/g;
 const TEST_DISCOVERY_REGEX =
   /Resolved to \d+ test\(s\):\n(?:\s*-\s+[^\n]+\n)*(?:\s*\.\.\. and \d+ more\n)?/g;
@@ -71,8 +71,9 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(DERIVED_DATA_HASH_REGEX, '$1-<HASH>');
   normalized = normalized.replace(ISO_TIMESTAMP_REGEX, '<TIMESTAMP>');
   normalized = normalized.replace(UUID_REGEX, '<UUID>');
+  normalized = normalized.replace(/Device: .+ \(<UUID>\)/g, 'Device: <DEVICE> (<UUID>)');
   normalized = normalized.replace(DURATION_REGEX, '<DURATION>');
-  normalized = normalized.replace(PID_NUMBER_REGEX, 'pid: <PID>');
+  normalized = normalized.replace(PID_NUMBER_REGEX, (match) => match.replace(/\d+/, '<PID>'));
   normalized = normalized.replace(PID_JSON_REGEX, '"pid" : <PID>');
   normalized = normalized.replace(PROCESS_ID_REGEX, 'Process ID: <PID>');
   normalized = normalized.replace(PROGRESS_LINE_REGEX, '');

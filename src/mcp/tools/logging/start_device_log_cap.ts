@@ -20,7 +20,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
+import { header, detailTree, statusLine } from '../../../utils/tool-event-builders.ts';
 import {
   activeDeviceLogSessions,
   type DeviceLogSession,
@@ -647,13 +647,11 @@ export async function start_device_log_capLogic(
   return toolResponse(
     [
       headerEvent,
-      section('Details', [
-        `Session ID: ${sessionId}`,
-        'The app has been launched on the device with console output capture enabled.',
-        'Do not call launch_app_device during this capture session; relaunching can interrupt captured output.',
-        'Interact with your app on the device, then stop capture to retrieve logs.',
-      ]),
       statusLine('success', 'Log capture started.'),
+      detailTree([
+        { label: 'Session ID', value: sessionId },
+        { label: 'Note', value: 'Do not call launch_app_device during this session' },
+      ]),
     ],
     {
       nextStepParams: {

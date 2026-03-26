@@ -4,7 +4,7 @@
    Scheme: CalculatorApp
    Configuration: Debug
    Platform: iOS
-   Device: <UUID>
+   Device: <DEVICE> (<UUID>)
 
 ℹ️ Resolving app path
 ✅ Resolving app path
@@ -14,10 +14,11 @@
 
 ✅ Build succeeded. (⏱️ <DURATION>)
 ✅ Build & Run complete
+
   ├ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphoneos/CalculatorApp.app
   ├ Bundle ID: io.sentry.calculatorapp
   └ Process ID: <PID>
 
 Next steps:
 1. Capture device logs: xcodebuildmcp device start-device-log-capture --device-id "<UUID>" --bundle-id "io.sentry.calculatorapp"
-2. Stop app on device: xcodebuildmcp device stop --device-id "<UUID>" --process-id "18692"
+2. Stop app on device: xcodebuildmcp device stop --device-id "<UUID>" --process-id "21293"

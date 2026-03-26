@@ -51,8 +51,8 @@ export async function stop_device_log_capLogic(
 
     return toolResponse([
       headerEvent,
-      section('Captured Logs', [result.logContent]),
       statusLine('success', 'Log capture stopped.'),
+      section('Captured Logs', result.logContent.split('\n')),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

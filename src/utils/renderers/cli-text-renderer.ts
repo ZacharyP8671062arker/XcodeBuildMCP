@@ -97,7 +97,7 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
         }
 
         case 'detail-tree': {
-          writeDurable(formatDetailTreeEvent(event));
+          writeSection(formatDetailTreeEvent(event));
           break;
         }
 

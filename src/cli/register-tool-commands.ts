@@ -141,7 +141,9 @@ function registerToolSubcommand(
     tool.description ?? `Run the ${tool.mcpName} tool`,
     (subYargs) => {
       // Hide root-level options from tool help
-      subYargs.option('log-level', { hidden: true }).option('style', { hidden: true });
+      subYargs
+        .option('log-level', { hidden: true })
+        .option('style', { hidden: true });
 
       // Parse option-like values as arguments (e.g. --extra-args "-only-testing:...")
       subYargs.parserConfiguration({
@@ -170,7 +172,7 @@ function registerToolSubcommand(
       // Add --output option for format control
       subYargs.option('output', {
         type: 'string',
-        choices: ['text', 'json'] as const,
+        choices: ['text', 'json', 'raw'] as const,
         default: 'text',
         describe: 'Output format',
       });
@@ -211,6 +213,7 @@ function registerToolSubcommand(
       const outputStyle = (argv.style as OutputStyle) ?? 'normal';
       const socketPath = argv.socket as string;
       const logLevel = argv['log-level'] as string | undefined;
+
 
       if (
         profileOverride &&
@@ -281,6 +284,11 @@ function registerToolSubcommand(
       const previousCliOutputFormat = process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
       process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = outputFormat;
 
+      const previousVerbose = process.env.XCODEBUILDMCP_VERBOSE;
+      if (outputFormat === 'raw') {
+        process.env.XCODEBUILDMCP_VERBOSE = '1';
+      }
+
       try {
         // Invoke the tool
         const response = await invoker.invokeDirect(tool, args, {
@@ -297,6 +305,12 @@ function registerToolSubcommand(
           delete process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
         } else {
           process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = previousCliOutputFormat;
+        }
+
+        if (previousVerbose === undefined) {
+          delete process.env.XCODEBUILDMCP_VERBOSE;
+        } else {
+          process.env.XCODEBUILDMCP_VERBOSE = previousVerbose;
         }
       }
     },

@@ -158,7 +158,6 @@ describe('discover_projs plugin', () => {
       expect(text).toContain('Found 1 project(s) and 1 workspace(s).');
       expect(text).toContain('/workspace/MyApp.xcodeproj');
       expect(text).toContain('/workspace/MyWorkspace.xcworkspace');
-      expect(text).toContain('session-set-defaults');
     });
 
     it('should handle fs error with code', async () => {

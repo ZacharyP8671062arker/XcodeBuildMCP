@@ -255,15 +255,6 @@ export async function discover_projsLogic(
     events.push(section('Workspaces', results.workspaces));
   }
 
-  if (results.projects.length > 0 || results.workspaces.length > 0) {
-    events.push(
-      statusLine(
-        'info',
-        "Save a default with session-set-defaults { projectPath: '...' } or { workspacePath: '...' }.",
-      ),
-    );
-  }
-
   return toolResponse(events);
 }
 

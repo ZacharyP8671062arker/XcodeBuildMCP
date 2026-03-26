@@ -3,7 +3,7 @@
 
    Scheme: CalculatorApp
    Configuration: Debug
-   Platform: iOS Simulator
-   Simulator: iPhone 17
+   Platform: iOS
+   Device: <DEVICE> (<UUID>)
 
 ✅ Test succeeded. (<TEST_COUNTS>, ⏱️ <DURATION>)

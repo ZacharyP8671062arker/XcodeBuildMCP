@@ -12,6 +12,7 @@
 
 ✅ Build succeeded. (⏱️ <DURATION>)
 ✅ Build & Run complete
+
   └ App Path: <HOME>/Library/Developer/Xcode/DerivedData/MCPTest-<HASH>/Build/Products/Debug/MCPTest.app
 
 Next steps:

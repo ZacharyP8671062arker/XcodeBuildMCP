@@ -100,7 +100,6 @@ describe('start_sim_log_cap plugin', () => {
       const text = allText(result);
       expect(text).toContain('test-uuid-123');
       expect(text).toContain('app subsystem');
-      expect(text).toContain('stop capture to retrieve logs');
       expect(result.nextStepParams?.stop_sim_log_cap).toBeDefined();
       expect(result.nextStepParams?.stop_sim_log_cap).toMatchObject({
         logSessionId: 'test-uuid-123',
@@ -210,7 +209,7 @@ describe('start_sim_log_cap plugin', () => {
       );
 
       const text = allText(result);
-      expect(text).toContain('app was relaunched to capture console output');
+      expect(text).toContain('App relaunched to capture console output');
       expect(text).toContain('test-uuid-123');
     });
 

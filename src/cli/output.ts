@@ -1,7 +1,7 @@
 import type { ToolResponse, OutputStyle } from '../types/common.ts';
 import { formatCliTextLine } from '../utils/terminal-output.ts';
 
-export type OutputFormat = 'text' | 'json';
+export type OutputFormat = 'text' | 'json' | 'raw';
 
 export interface PrintToolResponseOptions {
   format?: OutputFormat;
@@ -49,7 +49,7 @@ export function printToolResponse(
 ): void {
   const { format = 'text', style = 'normal' } = options;
 
-  if (isCompletePipelineStream(response)) {
+  if (isCompletePipelineStream(response) || process.env.XCODEBUILDMCP_VERBOSE === '1') {
     if (response.isError) {
       process.exitCode = 1;
     }

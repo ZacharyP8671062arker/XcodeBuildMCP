@@ -1,0 +1,6 @@
+
+📝 Stop Log Capture
+
+   Session ID: nonexistent-session-id
+
+❌ Failed to stop device log capture session nonexistent-session-id: Device log capture session not found: nonexistent-session-id

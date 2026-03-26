@@ -28,7 +28,7 @@ export function resolveRenderers(): {
   const runtime = process.env.XCODEBUILDMCP_RUNTIME;
   const outputFormat = process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
 
-  if (runtime === 'cli') {
+  if (runtime === 'cli' && process.env.XCODEBUILDMCP_VERBOSE !== '1') {
     if (outputFormat === 'json') {
       renderers.push(createCliJsonlRenderer());
     } else {

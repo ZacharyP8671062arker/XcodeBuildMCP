@@ -1,0 +1,13 @@
+
+📝 Start Log Capture
+
+   Device: <UUID>
+   Bundle ID: io.sentry.calculatorapp
+
+✅ Log capture started.
+
+  ├ Session ID: <UUID>
+  └ Note: Do not call launch_app_device during this session
+
+Next steps:
+1. Stop capture and retrieve logs: stop_device_log_cap({ logSessionId: "<UUID>" })

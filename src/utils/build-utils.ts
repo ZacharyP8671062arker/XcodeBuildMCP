@@ -118,7 +118,6 @@ export async function executeXcodeBuildCommand(
     command.push('-scheme', params.scheme);
     command.push('-configuration', params.configuration);
     command.push('-skipMacroValidation');
-    command.push('-allowProvisioningUpdates');
 
     let destinationString: string;
     const isSimulatorPlatform = [

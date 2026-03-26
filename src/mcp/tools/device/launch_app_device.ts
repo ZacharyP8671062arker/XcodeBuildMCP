@@ -20,6 +20,7 @@ import {
 import { join } from 'path';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
+import { formatDeviceId } from '../../../utils/device-name-resolver.ts';
 
 type LaunchDataResponse = {
   result?: {
@@ -55,7 +56,7 @@ export async function launch_app_deviceLogic(
   log('info', `Launching app ${bundleId} on device ${deviceId}`);
 
   const headerEvent = header('Launch App', [
-    { label: 'Device', value: deviceId },
+    { label: 'Device', value: formatDeviceId(deviceId) },
     { label: 'Bundle ID', value: bundleId },
   ]);
 
@@ -105,12 +106,11 @@ export async function launch_app_deviceLogic(
     }
 
     const events = [headerEvent];
+    events.push(statusLine('success', 'App launched successfully.'));
 
     if (processId) {
       events.push(detailTree([{ label: 'Process ID', value: processId.toString() }]));
     }
-
-    events.push(statusLine('success', 'App launched successfully.'));
 
     return toolResponse(
       events,

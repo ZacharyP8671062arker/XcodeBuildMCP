@@ -6,5 +6,6 @@
    Configuration: Debug
    Platform: macOS
 
-  └ App Path: <HOME>/Library/Developer/Xcode/DerivedData/MCPTest-<HASH>/Build/Products/Debug/MCPTest.app
 ✅ App path resolved.
+
+  └ App Path: <HOME>/Library/Developer/Xcode/DerivedData/MCPTest-<HASH>/Build/Products/Debug/MCPTest.app

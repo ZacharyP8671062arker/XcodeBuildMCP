@@ -136,8 +136,7 @@ describe('start_device_log_cap plugin', () => {
       );
 
       const text = allText(result);
-      expect(text).toContain('Do not call launch_app_device during this capture session');
-      expect(text).toContain('Interact with your app');
+      expect(text).toContain('Do not call launch_app_device during this session');
       const sessionIdMatch = text.match(/Session ID: ([a-f0-9-]{36})/);
       expect(sessionIdMatch).not.toBeNull();
       const sessionId = sessionIdMatch?.[1];

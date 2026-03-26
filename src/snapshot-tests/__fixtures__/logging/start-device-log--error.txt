@@ -1,0 +1,7 @@
+
+📝 Start Log Capture
+
+   Device: <UUID>
+   Bundle ID: com.nonexistent.app
+
+❌ Failed to start device log capture: Device log capture process exited immediately (exit code: 1)

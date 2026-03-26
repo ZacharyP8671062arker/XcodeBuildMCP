@@ -2,6 +2,7 @@
 📱 List Devices
 
 🟢 Cameron’s Apple Watch
+
   ├ UDID: <UUID>
   ├ Model: Watch4,2
   ├ Product Type: Watch4,2
@@ -11,6 +12,7 @@
   └ Developer Mode: disabled
 
 🟢 Cameron’s Apple Watch
+
   ├ UDID: <UUID>
   ├ Model: Watch7,20
   ├ Product Type: Watch7,20
@@ -20,15 +22,17 @@
   └ Developer Mode: disabled
 
 🟢 Cameron’s iPhone 16 Pro Max
+
   ├ UDID: <UUID>
   ├ Model: iPhone17,2
   ├ Product Type: iPhone17,2
   ├ Platform: Unknown 26.3.1 (a)
   ├ CPU Architecture: arm64e
-  ├ Connection: wired
+  ├ Connection: localNetwork
   └ Developer Mode: enabled
 
 🟢 iPhone
+
   ├ UDID: <UUID>
   ├ Model: iPhone99,11
   ├ Product Type: iPhone99,11

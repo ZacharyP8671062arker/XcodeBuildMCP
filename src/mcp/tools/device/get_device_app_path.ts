@@ -96,8 +96,8 @@ export async function get_device_app_pathLogic(
     return toolResponse(
       [
         headerEvent,
-        detailTree([{ label: 'App Path', value: appPath }]),
         statusLine('success', 'App path resolved.'),
+        detailTree([{ label: 'App Path', value: appPath }]),
       ],
       {
         nextStepParams: {

@@ -65,7 +65,7 @@ export function createMcpRenderer(): XcodebuildRenderer & {
         }
 
         case 'detail-tree': {
-          pushText(formatDetailTreeEvent(event));
+          pushSection(formatDetailTreeEvent(event));
           break;
         }
 

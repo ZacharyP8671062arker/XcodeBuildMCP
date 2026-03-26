@@ -46,6 +46,13 @@ async function defaultExecutor(
       useShell && escapedCommand.length === 3 ? escapedCommand[2] : [executable, ...args].join(' ');
     log('debug', `Executing ${logPrefix ?? ''} command: ${displayCommand}`);
 
+    const verbose = process.env.XCODEBUILDMCP_VERBOSE === '1';
+    if (verbose) {
+      const dim = process.stderr.isTTY ? '\x1B[2m' : '';
+      const reset = process.stderr.isTTY ? '\x1B[0m' : '';
+      process.stderr.write(`${dim}$ ${displayCommand}${reset}\n`);
+    }
+
     const spawnOpts: Parameters<typeof spawn>[2] = {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ...(opts?.env ?? {}) },
@@ -68,6 +75,11 @@ async function defaultExecutor(
     };
 
     const childProcess = spawn(executable, args, spawnOpts);
+
+    if (verbose) {
+      childProcess.stdout?.pipe(process.stderr, { end: false });
+      childProcess.stderr?.pipe(process.stderr, { end: false });
+    }
 
     let stdout = '';
     let stderr = '';

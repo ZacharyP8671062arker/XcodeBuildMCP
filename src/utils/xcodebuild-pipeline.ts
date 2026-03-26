@@ -10,6 +10,7 @@ import type { XcodebuildRunState } from './xcodebuild-run-state.ts';
 import { resolveRenderers } from './renderers/index.ts';
 import type { XcodebuildRenderer } from './renderers/index.ts';
 import { displayPath } from './build-preflight.ts';
+import { formatDeviceId } from './device-name-resolver.ts';
 
 export interface PipelineOptions {
   operation: XcodebuildOperation;
@@ -76,7 +77,14 @@ function buildHeaderParams(
       if (key === 'simulatorId' && typeof params.simulatorName === 'string') {
         continue;
       }
-      const displayValue = pathKeys.has(key) ? displayPath(value) : value;
+      let displayValue: string;
+      if (pathKeys.has(key)) {
+        displayValue = displayPath(value);
+      } else if (key === 'deviceId') {
+        displayValue = formatDeviceId(value);
+      } else {
+        displayValue = value;
+      }
       result.push({ label, value: displayValue });
     }
   }

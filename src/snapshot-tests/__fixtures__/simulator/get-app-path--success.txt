@@ -7,5 +7,6 @@
    Platform: iOS Simulator
    Simulator: iPhone 17
 
-  └ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphonesimulator/CalculatorApp.app
 ✅ App path resolved
+
+  └ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphonesimulator/CalculatorApp.app

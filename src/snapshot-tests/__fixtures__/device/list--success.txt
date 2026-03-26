@@ -14,7 +14,7 @@
   ├ UDID: <UUID>
   ├ Model: Watch7,20
   ├ Product Type: Watch7,20
-  ├ Platform: Unknown 26.1
+  ├ Platform: Unknown 26.3
   ├ CPU Architecture: arm64e
   ├ Connection: localNetwork
   └ Developer Mode: disabled
@@ -25,7 +25,7 @@
   ├ Product Type: iPhone17,2
   ├ Platform: Unknown 26.3.1 (a)
   ├ CPU Architecture: arm64e
-  ├ Connection: localNetwork
+  ├ Connection: wired
   └ Developer Mode: enabled
 
 🟢 iPhone

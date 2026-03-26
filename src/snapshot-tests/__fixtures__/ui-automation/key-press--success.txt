@@ -1,6 +1,6 @@
 
 ⌨️ Key Press
 
-  Simulator: <UUID>
+   Simulator: <UUID>
 
 ✅ Key press (code: 4) simulated successfully.

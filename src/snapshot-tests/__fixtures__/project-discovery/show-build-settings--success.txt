@@ -1,8 +1,8 @@
 
 🔍 Show Build Settings
 
-  Scheme: CalculatorApp
-  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+   Scheme: CalculatorApp
+   Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
 
 ✅ Build settings retrieved.
 

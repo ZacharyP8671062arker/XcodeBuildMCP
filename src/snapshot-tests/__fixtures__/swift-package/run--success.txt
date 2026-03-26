@@ -1,8 +1,8 @@
 
 🚀 Swift Package Run
 
-  Package: <ROOT>/example_projects/spm
-  Executable: spm
+   Package: <ROOT>/example_projects/spm
+   Executable: spm
 
 Output
   Hello, world!

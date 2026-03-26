@@ -1,9 +1,9 @@
 
 🚀 Launch App
 
-  Simulator: <UUID>
-  Bundle ID: io.sentry.calculatorapp
-  Log Capture: enabled
+   Simulator: <UUID>
+   Bundle ID: io.sentry.calculatorapp
+   Log Capture: enabled
 
   └ Log Session ID: <UUID>
 ✅ App launched successfully in simulator <UUID> with log capture enabled

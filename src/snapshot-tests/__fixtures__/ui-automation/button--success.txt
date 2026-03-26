@@ -1,6 +1,6 @@
 
 👆 Button
 
-  Simulator: <UUID>
+   Simulator: <UUID>
 
 ✅ Hardware button 'home' pressed successfully.

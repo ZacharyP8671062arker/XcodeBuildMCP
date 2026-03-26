@@ -34,7 +34,7 @@ export async function debug_lldb_commandLogic(
     return toolResponse([
       headerEvent,
       statusLine('success', 'Command executed'),
-      ...(trimmed ? [section('Output', [trimmed])] : []),
+      ...(trimmed ? [section('Output', trimmed.split('\n'))] : []),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

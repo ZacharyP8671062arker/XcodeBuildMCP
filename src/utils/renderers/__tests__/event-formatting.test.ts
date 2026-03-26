@@ -22,7 +22,7 @@ describe('event formatting', () => {
         operation: 'Build & Run',
         params: [{ label: 'Scheme', value: 'MyApp' }],
       }),
-    ).toBe('\u{1F680} Build & Run\n\n  Scheme: MyApp\n');
+    ).toBe('\u{1F680} Build & Run\n\n   Scheme: MyApp\n');
   });
 
   it('formats build-stage events as durable phase lines', () => {

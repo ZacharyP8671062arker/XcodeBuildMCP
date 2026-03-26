@@ -1,0 +1,24 @@
+
+🐛 Stack Trace
+
+✅ Stack trace retrieved
+
+Frames
+  Thread 15494840 (Thread 1 Queue: com.apple.main-thread (serial))
+  frame #0: mach_msg2_trap at /usr/lib/system/libsystem_kernel.dylib`mach_msg2_trap:3
+  frame #1: mach_msg2_internal at /usr/lib/system/libsystem_kernel.dylib`mach_msg2_internal:56
+  frame #2: mach_msg_overwrite at /usr/lib/system/libsystem_kernel.dylib`mach_msg_overwrite:121
+  frame #3: mach_msg at /usr/lib/system/libsystem_kernel.dylib`mach_msg:6
+  frame #4: __CFRunLoopServiceMachPort at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation`__CFRunLoopServiceMachPort:40
+  frame #5: __CFRunLoopRun at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation`__CFRunLoopRun:283
+  frame #6: _CFRunLoopRunSpecificWithOptions at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation`_CFRunLoopRunSpecificWithOptions:125
+  frame #7: GSEventRunModal at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices`GSEventRunModal:30
+  frame #8: -[UIApplication _run] at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore`-[UIApplication _run]:195
+  frame #9: UIApplicationMain at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore`UIApplicationMain:31
+  frame #10: closure #1 in KitRendererCommon(_:) at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUI.framework/SwiftUI`closure #1 (Swift.UnsafeMutablePointer<Swift.Optional<Swift.UnsafeMutablePointer<Swift.Int8>>>) -> Swift.Never in SwiftUI.KitRendererCommon(Swift.AnyObject.Type) -> Swift.Never:42
+  frame #11: runApp<τ_0_0>(_:) at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUI.framework/SwiftUI`SwiftUI.runApp<τ_0_0 where τ_0_0: SwiftUI.App>(τ_0_0) -> Swift.Never:46
+  frame #12: static App.main() at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUI.framework/SwiftUI`static SwiftUI.App.main() -> ():38
+  frame #13: static CalculatorApp.$main() at <HOME>/Library/Developer/CoreSimulator/Devices/<UUID>/data/Containers/Bundle/Application/<UUID>/CalculatorApp.app/CalculatorApp.debug.dylib`static CalculatorApp.CalculatorApp.$main() -> ():11
+  frame #14: main at <HOME>/Library/Developer/CoreSimulator/Devices/<UUID>/data/Containers/Bundle/Application/<UUID>/CalculatorApp.app/CalculatorApp.debug.dylib`main:4
+  frame #15: start_sim at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/usr/lib/dyld_sim`start_sim:6
+  frame #16: start at /usr/lib/dyld`start:1797

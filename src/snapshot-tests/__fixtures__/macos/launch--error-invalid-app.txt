@@ -1,6 +1,6 @@
 
 🚀 Launch macOS App
 
-  App: <TMPDIR>/Fake.app
+   App: <TMPDIR>/Fake.app
 
 ✅ App launched successfully.

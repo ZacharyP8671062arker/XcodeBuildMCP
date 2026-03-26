@@ -77,9 +77,7 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(PROCESS_ID_REGEX, 'Process ID: <PID>');
   normalized = normalized.replace(PROGRESS_LINE_REGEX, '');
   normalized = normalized.replace(WARNINGS_BLOCK_REGEX, '');
-  normalized = normalized.replace(TEST_DISCOVERY_REGEX, 'Resolved to <N> test(s)\n');
   normalized = normalized.replace(XCODE_INFRA_ERRORS_REGEX, '');
-  normalized = normalized.replace(TEST_FAILURE_BLOCK_REGEX, '');
 
   normalized = normalized.replace(SPM_STEP_LINE_REGEX, '');
   normalized = normalized.replace(SPM_PLANNING_LINE_REGEX, '');

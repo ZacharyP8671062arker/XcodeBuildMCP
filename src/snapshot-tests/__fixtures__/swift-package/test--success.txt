@@ -1,7 +1,7 @@
 
 🧪 Swift Package Test
 
-  Package: <ROOT>/example_projects/spm
+   Package: <ROOT>/example_projects/spm
 
 Output
   Test Suite 'All tests' started at <TIMESTAMP>.

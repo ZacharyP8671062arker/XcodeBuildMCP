@@ -1,8 +1,8 @@
 
 📊 Coverage Report
 
-  xcresult: <TMPDIR>/TestResults.xcresult
-  Target Filter: CalculatorAppTests
+   xcresult: <TMPDIR>/TestResults.xcresult
+   Target Filter: CalculatorAppTests
 
 ℹ️ Overall: 94.9% (354/373 lines)
 

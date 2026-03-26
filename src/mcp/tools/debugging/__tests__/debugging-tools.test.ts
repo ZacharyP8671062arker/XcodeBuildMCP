@@ -761,7 +761,8 @@ describe('debug_stack', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain(stackOutput.trim());
+      expect(text).toContain('frame #0: 0x0000 main at main.swift:10');
+      expect(text).toContain('frame #1: 0x0001 start');
     });
 
     it('should pass threadIndex and maxFrames through', async () => {
@@ -851,7 +852,8 @@ describe('debug_variables', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain(variablesOutput.trim());
+      expect(text).toContain('(Int) x = 42');
+      expect(text).toContain('(String) name = "hello"');
     });
 
     it('should pass frameIndex through', async () => {

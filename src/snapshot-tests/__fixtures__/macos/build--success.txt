@@ -1,9 +1,9 @@
 
 🔨 Build
 
-  Scheme: MCPTest
-  Configuration: Debug
-  Platform: macOS
+   Scheme: MCPTest
+   Configuration: Debug
+   Platform: macOS
 
 ✅ Build succeeded. (⏱️ <DURATION>)
 

@@ -1,8 +1,8 @@
 
 📦 Install App
 
-  Simulator: <UUID>
-  App Path: <TMPDIR>/NotAnApp.app
+   Simulator: <UUID>
+   App Path: <TMPDIR>/NotAnApp.app
 
 ❌ Install app in simulator operation failed: An error was encountered processing the command (domain=IXErrorDomain, code=13):
 Simulator device failed to install the application.

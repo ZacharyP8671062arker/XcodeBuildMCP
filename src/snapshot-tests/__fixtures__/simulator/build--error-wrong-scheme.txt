@@ -1,18 +1,12 @@
 
 🔨 Build
 
-  Scheme: NONEXISTENT
-  Configuration: Debug
-  Platform: iOS Simulator
-
-⚙️ iOS Simulator Build build
-
-  Scheme: NONEXISTENT
-  Platform: iOS Simulator
-  Configuration: Debug
-
-❌ iOS Simulator Build build failed for scheme NONEXISTENT.
+   Scheme: NONEXISTENT
+   Configuration: Debug
+   Platform: iOS Simulator
 
 Errors (1):
+
+  ✗ The workspace named "CalculatorApp" does not contain a scheme named "NONEXISTENT". The "-list" option can be used to find the names of the schemes in the workspace.
 
 ❌ Build failed. (⏱️ <DURATION>)

@@ -1,6 +1,6 @@
 
 🛑 Stop macOS App
 
-  Target: NonExistentXBMTestApp
+   Target: NonExistentXBMTestApp
 
 ✅ App stopped successfully.

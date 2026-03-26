@@ -1,9 +1,9 @@
 
 🚀 Build & Run
 
-  Scheme: MCPTest
-  Configuration: Debug
-  Platform: macOS
+   Scheme: MCPTest
+   Configuration: Debug
+   Platform: macOS
 
 ℹ️ Resolving app path
 ✅ Resolving app path

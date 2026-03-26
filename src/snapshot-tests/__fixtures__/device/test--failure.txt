@@ -1,0 +1,12 @@
+
+🧪 Test
+
+   Scheme: CalculatorApp
+   Configuration: Debug
+   Platform: iOS
+   Device: <UUID>
+
+  ✗ CalculatorAppTests.CalculatorAppTests/testCalculatorServiceFailure: XCTAssertEqual failed: ("0") is not equal to ("999") - This test should fail - display should be 0, not 999
+    example_projects/iOS_Calculator/CalculatorAppTests/CalculatorAppTests.swift:52
+
+❌ Test failed. (<TEST_COUNTS>, ⏱️ <DURATION>)

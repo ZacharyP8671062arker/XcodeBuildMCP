@@ -103,6 +103,7 @@ export async function build_run_deviceLogic(
         scheme: params.scheme,
         configuration,
         platform: String(platform),
+        deviceId: params.deviceId,
         preflight: preflightText,
       },
       message: preflightText,

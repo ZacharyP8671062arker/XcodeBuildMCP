@@ -1,7 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createSnapshotHarness } from '../harness.ts';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { execSync } from 'node:child_process';
+import { createSnapshotHarness, ensureSimulatorBooted } from '../harness.ts';
 import { expectMatchesFixture } from '../fixture-io.ts';
 import type { SnapshotHarness } from '../harness.ts';
+
+const WORKSPACE = 'example_projects/iOS_Calculator/CalculatorApp.xcworkspace';
+const BUNDLE_ID = 'io.sentry.calculatorapp';
 
 describe('debugging workflow', () => {
   let harness: SnapshotHarness;
@@ -14,40 +18,32 @@ describe('debugging workflow', () => {
     harness.cleanup();
   });
 
-  describe('continue', () => {
-    it('error - no session', async () => {
+  describe('error paths (no session)', () => {
+    it('continue - error no session', async () => {
       const { text, isError } = await harness.invoke('debugging', 'continue', {});
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'continue--error-no-session');
     }, 30_000);
-  });
 
-  describe('detach', () => {
-    it('error - no session', async () => {
+    it('detach - error no session', async () => {
       const { text, isError } = await harness.invoke('debugging', 'detach', {});
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'detach--error-no-session');
     }, 30_000);
-  });
 
-  describe('stack', () => {
-    it('error - no session', async () => {
+    it('stack - error no session', async () => {
       const { text, isError } = await harness.invoke('debugging', 'stack', {});
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'stack--error-no-session');
     }, 30_000);
-  });
 
-  describe('variables', () => {
-    it('error - no session', async () => {
+    it('variables - error no session', async () => {
       const { text, isError } = await harness.invoke('debugging', 'variables', {});
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'variables--error-no-session');
     }, 30_000);
-  });
 
-  describe('add-breakpoint', () => {
-    it('error - no session', async () => {
+    it('add-breakpoint - error no session', async () => {
       const { text, isError } = await harness.invoke('debugging', 'add-breakpoint', {
         file: 'test.swift',
         line: 1,
@@ -55,36 +51,135 @@ describe('debugging workflow', () => {
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'add-breakpoint--error-no-session');
     }, 30_000);
-  });
 
-  describe('remove-breakpoint', () => {
-    it('error - no session', async () => {
+    it('remove-breakpoint - error no session', async () => {
       const { text, isError } = await harness.invoke('debugging', 'remove-breakpoint', {
         breakpointId: 1,
       });
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'remove-breakpoint--error-no-session');
     }, 30_000);
-  });
 
-  describe('lldb-command', () => {
-    it('error - no session', async () => {
+    it('lldb-command - error no session', async () => {
       const { text, isError } = await harness.invoke('debugging', 'lldb-command', {
         command: 'bt',
       });
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'lldb-command--error-no-session');
     }, 30_000);
-  });
 
-  describe('attach', () => {
-    it('error - no process', async () => {
+    it('attach - error no process', async () => {
       const { text, isError } = await harness.invoke('debugging', 'attach', {
         simulatorId: '00000000-0000-0000-0000-000000000000',
         bundleId: 'com.nonexistent.app',
       });
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'attach--error-no-process');
+    }, 30_000);
+  });
+
+  describe('happy path (live debugger session)', () => {
+    let simulatorUdid: string;
+
+    beforeAll(async () => {
+      vi.setConfig({ testTimeout: 120_000 });
+      simulatorUdid = await ensureSimulatorBooted('iPhone 17');
+
+      execSync(
+        [
+          'xcodebuild build',
+          `-workspace ${WORKSPACE}`,
+          '-scheme CalculatorApp',
+          `-destination 'platform=iOS Simulator,id=${simulatorUdid}'`,
+          '-quiet',
+        ].join(' '),
+        { encoding: 'utf8', timeout: 120_000, stdio: 'pipe' },
+      );
+
+      execSync(`xcrun simctl launch --terminate-running-process ${simulatorUdid} ${BUNDLE_ID}`, {
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }, 120_000);
+
+    afterAll(async () => {
+      try {
+        await harness.invoke('debugging', 'detach', {});
+      } catch {
+        // best-effort cleanup
+      }
+    });
+
+    it('attach - success', async () => {
+      const { text, isError } = await harness.invoke('debugging', 'attach', {
+        simulatorId: simulatorUdid,
+        bundleId: BUNDLE_ID,
+        continueOnAttach: false,
+      });
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'attach--success');
+    }, 30_000);
+
+    it('pause via lldb', async () => {
+      // DAP attach is non-intrusive; pause so subsequent commands work on a stopped process
+      await harness.invoke('debugging', 'lldb-command', { command: 'process interrupt' });
+      // Let the process settle after interrupt
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }, 30_000);
+
+    it('stack - success', async () => {
+      const { text, isError } = await harness.invoke('debugging', 'stack', {});
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'stack--success');
+    }, 30_000);
+
+    it('variables - success', async () => {
+      const { text, isError } = await harness.invoke('debugging', 'variables', {});
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'variables--success');
+    }, 30_000);
+
+    it('add-breakpoint - success', async () => {
+      const { text, isError } = await harness.invoke('debugging', 'add-breakpoint', {
+        file: 'ContentView.swift',
+        line: 42,
+      });
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'add-breakpoint--success');
+    }, 30_000);
+
+    it('continue - success', async () => {
+      const { text, isError } = await harness.invoke('debugging', 'continue', {});
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'continue--success');
+    }, 30_000);
+
+    it('lldb-command - success', async () => {
+      const { text, isError } = await harness.invoke('debugging', 'lldb-command', {
+        command: 'breakpoint list',
+      });
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(0);
+      expectMatchesFixture(text, __filename, 'lldb-command--success');
+    }, 30_000);
+
+    it('remove-breakpoint - success', async () => {
+      const { text, isError } = await harness.invoke('debugging', 'remove-breakpoint', {
+        breakpointId: 1,
+      });
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'remove-breakpoint--success');
+    }, 30_000);
+
+    it('detach - success', async () => {
+      const { text, isError } = await harness.invoke('debugging', 'detach', {});
+      expect(isError).toBe(false);
+      expectMatchesFixture(text, __filename, 'detach--success');
     }, 30_000);
   });
 });

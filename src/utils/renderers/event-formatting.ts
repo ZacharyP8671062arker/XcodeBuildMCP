@@ -213,7 +213,7 @@ export function formatHeaderEvent(event: HeaderEvent): string {
   const lines: string[] = [`${emoji} ${event.operation}`, ''];
 
   for (const param of event.params) {
-    lines.push(`  ${param.label}: ${param.value}`);
+    lines.push(`   ${param.label}: ${param.value}`);
   }
 
   lines.push('');
@@ -248,7 +248,8 @@ export function formatSectionEvent(event: SectionEvent): string {
   if (event.lines.length === 0) {
     return header;
   }
-  const indented = event.lines.map((line) => `  ${line}`);
+  const indent = event.icon ? '   ' : '  ';
+  const indented = event.lines.map((line) => `${indent}${line}`);
   return [header, ...indented].join('\n');
 }
 

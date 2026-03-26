@@ -1,6 +1,6 @@
 
 📝 Stop Log Capture
 
-  Session ID: nonexistent-session-id
+   Session ID: nonexistent-session-id
 
 ❌ Error stopping log capture session nonexistent-session-id: Log capture session not found: nonexistent-session-id

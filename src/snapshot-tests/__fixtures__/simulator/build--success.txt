@@ -1,9 +1,9 @@
 
 🔨 Build
 
-  Scheme: CalculatorApp
-  Configuration: Debug
-  Platform: iOS Simulator
+   Scheme: CalculatorApp
+   Configuration: Debug
+   Platform: iOS Simulator
 
 ✅ Build succeeded. (⏱️ <DURATION>)
 

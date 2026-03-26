@@ -1,6 +1,6 @@
 
 👆 Gesture
 
-  Simulator: <UUID>
+   Simulator: <UUID>
 
 ✅ Gesture 'scroll-down' executed successfully.

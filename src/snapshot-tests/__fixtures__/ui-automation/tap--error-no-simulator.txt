@@ -1,7 +1,7 @@
 
 👆 Tap
 
-  Simulator: <UUID>
+   Simulator: <UUID>
 
 ❌ Failed to simulate tap at (100, 100): axe command 'tap' failed.
 

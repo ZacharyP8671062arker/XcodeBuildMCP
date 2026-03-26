@@ -1,8 +1,8 @@
 
 🧪 Test
 
-  Scheme: MCPTest
-  Configuration: Debug
-  Platform: macOS
+   Scheme: MCPTest
+   Configuration: Debug
+   Platform: macOS
 
 ✅ Test succeeded. (<TEST_COUNTS>, ⏱️ <DURATION>)

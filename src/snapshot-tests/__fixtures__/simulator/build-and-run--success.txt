@@ -1,9 +1,9 @@
 
 🚀 Build & Run
 
-  Scheme: CalculatorApp
-  Configuration: Debug
-  Platform: iOS Simulator
+   Scheme: CalculatorApp
+   Configuration: Debug
+   Platform: iOS Simulator
 
 ℹ️ Resolving app path
 ✅ Resolving app path

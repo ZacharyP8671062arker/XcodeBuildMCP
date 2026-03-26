@@ -1,7 +1,7 @@
 
 📷 Snapshot UI
 
-  Simulator: <UUID>
+   Simulator: <UUID>
 
 ✅ Accessibility hierarchy retrieved successfully.
 

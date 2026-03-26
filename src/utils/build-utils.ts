@@ -118,6 +118,7 @@ export async function executeXcodeBuildCommand(
     command.push('-scheme', params.scheme);
     command.push('-configuration', params.configuration);
     command.push('-skipMacroValidation');
+    command.push('-allowProvisioningUpdates');
 
     let destinationString: string;
     const isSimulatorPlatform = [
@@ -142,15 +143,16 @@ export async function executeXcodeBuildCommand(
           platformOptions.useLatestOS,
         );
       } else {
+        const errorMsg = `For ${platformOptions.platform} platform, either simulatorId or simulatorName must be provided`;
+        if (pipeline) {
+          return { content: [{ type: 'text', text: errorMsg }], isError: true };
+        }
         return toolResponse([
           header(`${platformOptions.logPrefix} ${buildAction}`, [
             { label: 'Scheme', value: params.scheme },
             { label: 'Platform', value: String(platformOptions.platform) },
           ]),
-          statusLine(
-            'error',
-            `For ${platformOptions.platform} platform, either simulatorId or simulatorName must be provided`,
-          ),
+          statusLine('error', errorMsg),
         ]);
       }
     } else if (platformOptions.platform === XcodePlatform.macOS) {
@@ -176,12 +178,16 @@ export async function executeXcodeBuildCommand(
         destinationString = `generic/platform=${platformName}`;
       }
     } else {
+      const errorMsg = `Unsupported platform: ${platformOptions.platform}`;
+      if (pipeline) {
+        return { content: [{ type: 'text', text: errorMsg }], isError: true };
+      }
       return toolResponse([
         header(`${platformOptions.logPrefix} ${buildAction}`, [
           { label: 'Scheme', value: params.scheme },
           { label: 'Platform', value: String(platformOptions.platform) },
         ]),
-        statusLine('error', `Unsupported platform: ${platformOptions.platform}`),
+        statusLine('error', errorMsg),
       ]);
     }
 
@@ -274,16 +280,28 @@ export async function executeXcodeBuildCommand(
         `${platformOptions.logPrefix} ${buildAction} failed: ${result.error}`,
         { sentry: isMcpError },
       );
+      const failureMsg = `${platformOptions.logPrefix} ${buildAction} failed for scheme ${params.scheme}.`;
+
+      if (pipeline) {
+        const content: { type: 'text'; text: string }[] = [{ type: 'text', text: failureMsg }];
+
+        if (warningOrErrorLines.length === 0 && useXcodemake) {
+          content.push({
+            type: 'text',
+            text: 'Incremental build using xcodemake failed, suggest using preferXcodebuild option to try build again using slower xcodebuild command.',
+          });
+        }
+
+        return { content, isError: true };
+      }
+
       const errorResponse = toolResponse([
         header(`${platformOptions.logPrefix} ${buildAction}`, [
           { label: 'Scheme', value: params.scheme },
           { label: 'Platform', value: String(platformOptions.platform) },
           { label: 'Configuration', value: params.configuration },
         ]),
-        statusLine(
-          'error',
-          `${platformOptions.logPrefix} ${buildAction} failed for scheme ${params.scheme}.`,
-        ),
+        statusLine('error', failureMsg),
       ]);
 
       if (buildMessages.length > 0 && errorResponse.content) {
@@ -334,14 +352,12 @@ Future builds will use the generated Makefile for improved performance.
       }
     }
 
+    const successText = pipeline
+      ? `${platformOptions.logPrefix} ${buildAction} succeeded for scheme ${params.scheme}.`
+      : `✅ ${platformOptions.logPrefix} ${buildAction} succeeded for scheme ${params.scheme}.`;
+
     const successResponse: ToolResponse = {
-      content: [
-        ...buildMessages,
-        {
-          type: 'text',
-          text: `✅ ${platformOptions.logPrefix} ${buildAction} succeeded for scheme ${params.scheme}.`,
-        },
-      ],
+      content: [...buildMessages, { type: 'text', text: successText }],
     };
 
     if (additionalInfo) {
@@ -364,15 +380,16 @@ Future builds will use the generated Makefile for improved performance.
       sentry: !isSpawnError,
     });
 
+    const errorMsg = `Error during ${platformOptions.logPrefix} ${buildAction}: ${errorMessage}`;
+    if (pipeline) {
+      return { content: [{ type: 'text', text: errorMsg }], isError: true };
+    }
     return toolResponse([
       header(`${platformOptions.logPrefix} ${buildAction}`, [
         { label: 'Scheme', value: params.scheme },
         { label: 'Platform', value: String(platformOptions.platform) },
       ]),
-      statusLine(
-        'error',
-        `Error during ${platformOptions.logPrefix} ${buildAction}: ${errorMessage}`,
-      ),
+      statusLine('error', errorMsg),
     ]);
   }
 }

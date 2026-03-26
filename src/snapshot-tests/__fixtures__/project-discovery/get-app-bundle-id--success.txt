@@ -1,6 +1,6 @@
 
 🔍 Get Bundle ID
 
-  App: <TMPDIR>/BundleTest.app
+   App: <TMPDIR>/BundleTest.app
 
 ✅ Bundle ID: com.test.snapshot

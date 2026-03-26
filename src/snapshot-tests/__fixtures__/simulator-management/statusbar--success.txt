@@ -1,7 +1,7 @@
 
 📱 Statusbar
 
-  Simulator: <UUID>
-  Data Network: wifi
+   Simulator: <UUID>
+   Data Network: wifi
 
 ✅ Status bar data network set to wifi

@@ -1,20 +1,10 @@
-/**
- * Tests for snapshot_ui tool plugin
- */
-
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { createMockExecutor, createNoopExecutor } from '../../../../test-utils/mock-executors.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { schema, handler, snapshot_uiLogic } from '../snapshot_ui.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-
-function allText(result: { content: Array<{ type: string; text?: string }> }): string {
-  return result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('Snapshot UI Plugin', () => {
   describe('Export Field Validation (Literal)', () => {

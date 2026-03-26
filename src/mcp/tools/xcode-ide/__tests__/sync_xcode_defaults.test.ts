@@ -4,8 +4,8 @@ import { join } from 'path';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { createCommandMatchingMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, syncXcodeDefaultsLogic } from '../sync_xcode_defaults.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
-// Path to the example project (used as test fixture)
 const EXAMPLE_PROJECT_PATH = join(process.cwd(), 'example_projects/iOS/MCPTest.xcodeproj');
 const EXAMPLE_XCUSERSTATE = join(
   EXAMPLE_PROJECT_PATH,
@@ -25,13 +25,6 @@ describe('sync_xcode_defaults tool', () => {
   });
 
   describe('syncXcodeDefaultsLogic', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('returns error when no project found', async () => {
       const executor = createCommandMatchingMockExecutor({
         whoami: { output: 'testuser\n' },
@@ -41,7 +34,7 @@ describe('sync_xcode_defaults tool', () => {
       const result = await syncXcodeDefaultsLogic({}, { executor, cwd: '/test/project' });
 
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('Failed to read Xcode IDE state');
+      expect(allText(result)).toContain('Failed to read Xcode IDE state');
     });
 
     it('returns error when xcuserstate file not found', async () => {
@@ -54,13 +47,11 @@ describe('sync_xcode_defaults tool', () => {
       const result = await syncXcodeDefaultsLogic({}, { executor, cwd: '/test/project' });
 
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('Failed to read Xcode IDE state');
+      expect(allText(result)).toContain('Failed to read Xcode IDE state');
     });
   });
 
   describe('syncXcodeDefaultsLogic integration', () => {
-    // These tests use the actual example project fixture
-
     it.skipIf(!existsSync(EXAMPLE_XCUSERSTATE))(
       'syncs scheme and simulator from example project',
       async () => {
@@ -143,7 +134,6 @@ describe('sync_xcode_defaults tool', () => {
     });
 
     it.skipIf(!existsSync(EXAMPLE_XCUSERSTATE))('updates existing session defaults', async () => {
-      // Set some existing defaults
       sessionStore.setDefaults({
         scheme: 'OldScheme',
         simulatorId: 'OLD-SIM-UUID',
@@ -178,7 +168,6 @@ describe('sync_xcode_defaults tool', () => {
       expect(defaults.simulatorId).toBe('B38FE93D-578B-454B-BE9A-C6FA0CE5F096');
       expect(defaults.simulatorName).toBe('Apple Vision Pro');
       expect(defaults.bundleId).toBe('io.sentry.MCPTest');
-      // Original projectPath should be preserved
       expect(defaults.projectPath).toBe('/some/project.xcodeproj');
     });
   });

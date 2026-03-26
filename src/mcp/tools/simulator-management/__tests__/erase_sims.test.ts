@@ -2,14 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { schema, erase_simsLogic } from '../erase_sims.ts';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
-
-function allText(result: ToolResponse): string {
-  return result.content
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('erase_sims tool (single simulator)', () => {
   describe('Schema Validation', () => {

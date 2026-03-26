@@ -54,8 +54,12 @@ export async function launch_app_deviceLogic(
 
   log('info', `Launching app ${bundleId} on device ${deviceId}`);
 
+  const headerEvent = header('Launch App', [
+    { label: 'Device', value: deviceId },
+    { label: 'Bundle ID', value: bundleId },
+  ]);
+
   try {
-    // Use JSON output to capture process ID
     const tempJsonPath = join(fileSystem.tmpdir(), `launch-${Date.now()}.json`);
 
     const command = [
@@ -79,14 +83,9 @@ export async function launch_app_deviceLogic(
 
     const result = await executor(command, 'Launch app on device', false);
 
-    const headerParams: Array<{ label: string; value: string }> = [
-      { label: 'Device', value: deviceId },
-      { label: 'Bundle ID', value: bundleId },
-    ];
-
     if (!result.success) {
       return toolResponse([
-        header('Launch App', headerParams),
+        headerEvent,
         statusLine('error', `Failed to launch app: ${result.error}`),
       ]);
     }
@@ -105,7 +104,7 @@ export async function launch_app_deviceLogic(
       await fileSystem.rm(tempJsonPath, { force: true }).catch(() => {});
     }
 
-    const events = [header('Launch App', headerParams)];
+    const events = [headerEvent];
 
     if (processId) {
       events.push(detailTree([{ label: 'Process ID', value: processId.toString() }]));
@@ -121,10 +120,7 @@ export async function launch_app_deviceLogic(
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error launching app on device: ${errorMessage}`);
     return toolResponse([
-      header('Launch App', [
-        { label: 'Device', value: deviceId },
-        { label: 'Bundle ID', value: bundleId },
-      ]),
+      headerEvent,
       statusLine('error', `Failed to launch app on device: ${errorMessage}`),
     ]);
   }

@@ -85,7 +85,6 @@ export class XcodeToolsBridgeManager {
         }
 
         this.lastError = null;
-        // Notify clients that our own tool list changed.
         this.server.sendToolListChanged();
 
         return sync;

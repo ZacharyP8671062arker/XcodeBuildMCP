@@ -1,7 +1,3 @@
-/**
- * Tests for type_text tool
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {
@@ -12,6 +8,7 @@ import {
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, type_textLogic } from '../type_text.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 // Mock axe helpers for dependency injection
 function createMockAxeHelpers(
@@ -32,13 +29,6 @@ function createRejectingExecutor(error: any) {
   return async () => {
     throw error;
   };
-}
-
-function allText(result: { content: Array<{ type: string; text?: string }> }): string {
-  return result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
 }
 
 describe('Type Text Tool', () => {

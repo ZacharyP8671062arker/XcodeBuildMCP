@@ -16,9 +16,7 @@ function createValidatedHandler<TParams, TContext>(
   return async (args: Record<string, unknown>): Promise<ToolResponse> => {
     try {
       const validatedParams = schema.parse(args);
-
-      const response = await logicFunction(validatedParams, getContext());
-      return response;
+      return logicFunction(validatedParams, getContext());
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;
@@ -181,8 +179,7 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
       }
 
       const validated = internalSchema.parse(merged);
-      const response = await logicFunction(validated, getContext());
-      return response;
+      return logicFunction(validated, getContext());
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;

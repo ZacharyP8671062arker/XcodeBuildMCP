@@ -1,20 +1,10 @@
-/**
- * Tests for long_press tool plugin
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import { createMockExecutor, mockProcess } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, long_pressLogic } from '../long_press.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-
-function allText(result: { content: Array<{ type: string; text?: string }> }): string {
-  return result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('Long Press Plugin', () => {
   beforeEach(() => {

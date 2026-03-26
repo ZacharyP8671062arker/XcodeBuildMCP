@@ -228,9 +228,10 @@ export async function discover_projsLogic(
   params: DiscoverProjsParams,
   fileSystemExecutor: FileSystemExecutor,
 ): Promise<ToolResponse> {
+  const headerEvent = header('Discover Projects');
   const results = await discoverProjectsOrError(params, fileSystemExecutor);
   if ('error' in results) {
-    return toolResponse([header('Discover Projects'), statusLine('error', results.error)]);
+    return toolResponse([headerEvent, statusLine('error', results.error)]);
   }
 
   log(
@@ -239,7 +240,7 @@ export async function discover_projsLogic(
   );
 
   const events = [
-    header('Discover Projects'),
+    headerEvent,
     statusLine(
       'success',
       `Found ${results.projects.length} project(s) and ${results.workspaces.length} workspace(s).`,
@@ -270,8 +271,6 @@ export const schema = discoverProjsSchema.shape;
 
 export const handler = createTypedTool(
   discoverProjsSchema,
-  (params: DiscoverProjsParams) => {
-    return discover_projsLogic(params, getDefaultFileSystemExecutor());
-  },
+  (params: DiscoverProjsParams) => discover_projsLogic(params, getDefaultFileSystemExecutor()),
   getDefaultCommandExecutor,
 );

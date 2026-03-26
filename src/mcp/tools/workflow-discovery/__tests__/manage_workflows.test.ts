@@ -25,19 +25,13 @@ import {
   applyWorkflowSelectionFromManifest,
   getRegisteredWorkflows,
 } from '../../../../utils/tool-registry.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('manage_workflows tool', () => {
   beforeEach(() => {
     vi.mocked(applyWorkflowSelectionFromManifest).mockReset();
     vi.mocked(getRegisteredWorkflows).mockReset();
   });
-
-  function allText(result: { content: Array<{ type: string; text: string }> }): string {
-    return result.content
-      .filter((c) => c.type === 'text')
-      .map((c) => c.text)
-      .join('\n');
-  }
 
   it('merges new workflows with current set when enable is true', async () => {
     vi.mocked(getRegisteredWorkflows).mockReturnValue(['simulator']);

@@ -30,19 +30,22 @@ export type StopLogCaptureFunction = (
 
 export async function stop_sim_log_capLogic(
   params: StopSimLogCapParams,
-  neverExecutor: CommandExecutor = getDefaultCommandExecutor(),
+  _executor: CommandExecutor = getDefaultCommandExecutor(),
   stopLogCaptureFunction: StopLogCaptureFunction = _stopLogCapture,
   fileSystem: FileSystemExecutor = getDefaultFileSystemExecutor(),
 ): Promise<ToolResponse> {
+  const headerEvent = header('Stop Log Capture', [
+    { label: 'Session ID', value: params.logSessionId },
+  ]);
   const { logContent, error } = await stopLogCaptureFunction(params.logSessionId, fileSystem);
   if (error) {
     return toolResponse([
-      header('Stop Log Capture', [{ label: 'Session ID', value: params.logSessionId }]),
+      headerEvent,
       statusLine('error', `Error stopping log capture session ${params.logSessionId}: ${error}`),
     ]);
   }
   return toolResponse([
-    header('Stop Log Capture', [{ label: 'Session ID', value: params.logSessionId }]),
+    headerEvent,
     section('Captured Logs', [logContent]),
     statusLine('success', 'Log capture stopped.'),
   ]);

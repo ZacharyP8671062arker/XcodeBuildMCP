@@ -1,16 +1,3 @@
-/**
- * stop_sim_log_cap Plugin Tests - Test coverage for stop_sim_log_cap plugin
- *
- * This test file provides complete coverage for the stop_sim_log_cap plugin:
- * - Plugin structure validation
- * - Handler functionality (stop log capture session and retrieve captured logs)
- * - Error handling for validation and log capture failures
- *
- * Tests follow the canonical testing patterns from CLAUDE.md with deterministic
- * response validation and comprehensive parameter testing.
- * Converted to pure dependency injection without vitest mocking.
- */
-
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { schema, handler, stop_sim_log_capLogic } from '../stop_sim_log_cap.ts';
@@ -18,14 +5,7 @@ import {
   createMockExecutor,
   createMockFileSystemExecutor,
 } from '../../../../test-utils/mock-executors.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
-
-function allText(response: ToolResponse): string {
-  return response.content
-    .filter((item) => item.type === 'text')
-    .map((item) => item.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('stop_sim_log_cap plugin', () => {
   const mockExecutor = createMockExecutor({ success: true, output: '' });
@@ -40,11 +20,9 @@ describe('stop_sim_log_cap plugin', () => {
     });
 
     it('should have correct schema structure', () => {
-      // Schema should be a plain object for MCP protocol compliance
       expect(typeof schema).toBe('object');
       expect(schema).toHaveProperty('logSessionId');
 
-      // Validate that schema fields are Zod types that can be used for validation
       const schemaObj = z.object(schema);
       expect(schemaObj.safeParse({ logSessionId: 'test-session-id' }).success).toBe(true);
       expect(schemaObj.safeParse({ logSessionId: 123 }).success).toBe(false);

@@ -31,6 +31,10 @@ export async function stop_app_deviceLogic(
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
   const { deviceId, processId } = params;
+  const headerEvent = header('Stop App', [
+    { label: 'Device', value: deviceId },
+    { label: 'PID', value: processId.toString() },
+  ]);
 
   log('info', `Stopping app with PID ${processId} on device ${deviceId}`);
 
@@ -53,29 +57,17 @@ export async function stop_app_deviceLogic(
 
     if (!result.success) {
       return toolResponse([
-        header('Stop App', [
-          { label: 'Device', value: deviceId },
-          { label: 'PID', value: processId.toString() },
-        ]),
+        headerEvent,
         statusLine('error', `Failed to stop app: ${result.error}`),
       ]);
     }
 
-    return toolResponse([
-      header('Stop App', [
-        { label: 'Device', value: deviceId },
-        { label: 'PID', value: processId.toString() },
-      ]),
-      statusLine('success', 'App stopped successfully.'),
-    ]);
+    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully.')]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error stopping app on device: ${errorMessage}`);
     return toolResponse([
-      header('Stop App', [
-        { label: 'Device', value: deviceId },
-        { label: 'PID', value: processId.toString() },
-      ]),
+      headerEvent,
       statusLine('error', `Failed to stop app on device: ${errorMessage}`),
     ]);
   }

@@ -1,14 +1,9 @@
-/**
- * Tests for install_app_device plugin (device-shared)
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, install_app_deviceLogic } from '../install_app_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('install_app_device plugin', () => {
   beforeEach(() => {
@@ -161,13 +156,6 @@ describe('install_app_device plugin', () => {
   });
 
   describe('Success Path Tests', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return successful installation response', async () => {
       const mockExecutor = createMockExecutor({
         success: true,
@@ -183,7 +171,7 @@ describe('install_app_device plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Install App');
       expect(text).toContain('test-device-123');
       expect(text).toContain('/path/to/test.app');
@@ -206,7 +194,7 @@ describe('install_app_device plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Install App');
       expect(text).toContain('App installed successfully');
     });
@@ -226,20 +214,13 @@ describe('install_app_device plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Install App');
       expect(text).toContain('App installed successfully');
     });
   });
 
   describe('Error Handling', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return installation failure response', async () => {
       const mockExecutor = createMockExecutor({
         success: false,
@@ -255,7 +236,7 @@ describe('install_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to install app: Installation failed: App not found');
     });
 
@@ -271,7 +252,7 @@ describe('install_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to install app on device: Network error');
     });
 
@@ -287,7 +268,7 @@ describe('install_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to install app on device: String error');
     });
   });

@@ -1,12 +1,3 @@
-/**
- * Vitest test for scaffold_ios_project plugin
- *
- * Tests the plugin structure and iOS scaffold tool functionality
- * including parameter validation, file operations, template processing, and response formatting.
- *
- * Plugin location: plugins/utilities/scaffold_ios_project.js
- */
-
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as z from 'zod';
 import { schema, handler, scaffold_ios_projectLogic } from '../scaffold_ios_project.ts';
@@ -19,6 +10,7 @@ import {
   initConfigStore,
   type RuntimeConfigOverrides,
 } from '../../../../utils/config-store.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 const cwd = '/repo';
 
@@ -32,7 +24,6 @@ describe('scaffold_ios_project plugin', () => {
   let mockFileSystemExecutor: any;
 
   beforeEach(async () => {
-    // Create mock executor using approved utility
     mockCommandExecutor = createMockExecutor({
       success: true,
       output: 'Command executed successfully',
@@ -40,7 +31,6 @@ describe('scaffold_ios_project plugin', () => {
 
     mockFileSystemExecutor = createMockFileSystemExecutor({
       existsSync: (path) => {
-        // Mock template directories exist but project files don't
         return (
           path.includes('xcodebuild-mcp-template') ||
           path.includes('XcodeBuildMCP-iOS-Template') ||
@@ -73,7 +63,6 @@ describe('scaffold_ios_project plugin', () => {
     it('should have valid schema with required fields', () => {
       const schemaObj = z.object(schema);
 
-      // Test valid input
       expect(
         schemaObj.safeParse({
           projectName: 'MyTestApp',
@@ -90,7 +79,6 @@ describe('scaffold_ios_project plugin', () => {
         }).success,
       ).toBe(true);
 
-      // Test minimal valid input
       expect(
         schemaObj.safeParse({
           projectName: 'MyTestApp',
@@ -98,21 +86,18 @@ describe('scaffold_ios_project plugin', () => {
         }).success,
       ).toBe(true);
 
-      // Test invalid input - missing projectName
       expect(
         schemaObj.safeParse({
           outputPath: '/path/to/output',
         }).success,
       ).toBe(false);
 
-      // Test invalid input - missing outputPath
       expect(
         schemaObj.safeParse({
           projectName: 'MyTestApp',
         }).success,
       ).toBe(false);
 
-      // Test invalid input - wrong type for customizeNames
       expect(
         schemaObj.safeParse({
           projectName: 'MyTestApp',
@@ -121,7 +106,6 @@ describe('scaffold_ios_project plugin', () => {
         }).success,
       ).toBe(false);
 
-      // Test invalid input - wrong enum value for targetedDeviceFamily
       expect(
         schemaObj.safeParse({
           projectName: 'MyTestApp',
@@ -130,7 +114,6 @@ describe('scaffold_ios_project plugin', () => {
         }).success,
       ).toBe(false);
 
-      // Test invalid input - wrong enum value for supportedOrientations
       expect(
         schemaObj.safeParse({
           projectName: 'MyTestApp',
@@ -145,13 +128,11 @@ describe('scaffold_ios_project plugin', () => {
     it('should generate correct curl command for iOS template download', async () => {
       await initConfigStoreForTest({ iosTemplatePath: '' });
 
-      // Track commands executed
       let capturedCommands: string[][] = [];
       const trackingCommandExecutor = createMockExecutor({
         success: true,
         output: 'Command executed successfully',
       });
-      // Wrap to capture commands
       const capturingExecutor = async (command: string[], ...args: any[]) => {
         capturedCommands.push(command);
         return trackingCommandExecutor(command, ...args);
@@ -167,7 +148,6 @@ describe('scaffold_ios_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      // Verify curl command was executed
       const curlCommand = capturedCommands.find((cmd) => cmd.includes('curl'));
       expect(curlCommand).toBeDefined();
       expect(curlCommand).toEqual([
@@ -187,10 +167,8 @@ describe('scaffold_ios_project plugin', () => {
     it.skip('should generate correct unzip command for iOS template extraction', async () => {
       await initConfigStoreForTest({ iosTemplatePath: '' });
 
-      // Create a mock that returns false for local template paths to force download
       const downloadMockFileSystemExecutor = createMockFileSystemExecutor({
         existsSync: (path) => {
-          // Only return true for extracted template directories, false for local template paths
           return (
             path.includes('xcodebuild-mcp-template') ||
             path.includes('XcodeBuildMCP-iOS-Template') ||
@@ -209,13 +187,11 @@ describe('scaffold_ios_project plugin', () => {
         stat: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
       });
 
-      // Track commands executed
       let capturedCommands: string[][] = [];
       const trackingCommandExecutor = createMockExecutor({
         success: true,
         output: 'Command executed successfully',
       });
-      // Wrap to capture commands
       const capturingExecutor = async (command: string[], ...args: any[]) => {
         capturedCommands.push(command);
         return trackingCommandExecutor(command, ...args);
@@ -231,7 +207,6 @@ describe('scaffold_ios_project plugin', () => {
         downloadMockFileSystemExecutor,
       );
 
-      // Verify unzip command was executed
       const unzipCommand = capturedCommands.find((cmd) => cmd.includes('unzip'));
       expect(unzipCommand).toBeDefined();
       expect(unzipCommand).toEqual(['unzip', '-q', expect.stringMatching(/template\.zip$/)]);
@@ -242,13 +217,11 @@ describe('scaffold_ios_project plugin', () => {
     it('should generate correct commands when using custom template version', async () => {
       await initConfigStoreForTest({ iosTemplatePath: '', iosTemplateVersion: 'v2.0.0' });
 
-      // Track commands executed
       let capturedCommands: string[][] = [];
       const trackingCommandExecutor = createMockExecutor({
         success: true,
         output: 'Command executed successfully',
       });
-      // Wrap to capture commands
       const capturingExecutor = async (command: string[], ...args: any[]) => {
         capturedCommands.push(command);
         return trackingCommandExecutor(command, ...args);
@@ -264,7 +237,6 @@ describe('scaffold_ios_project plugin', () => {
         mockFileSystemExecutor,
       );
 
-      // Verify curl command uses custom version
       const curlCommand = capturedCommands.find((cmd) => cmd.includes('curl'));
       expect(curlCommand).toBeDefined();
       expect(curlCommand).toEqual([
@@ -282,10 +254,8 @@ describe('scaffold_ios_project plugin', () => {
     it.skip('should generate correct commands with no command executor passed', async () => {
       await initConfigStoreForTest({ iosTemplatePath: '' });
 
-      // Create a mock that returns false for local template paths to force download
       const downloadMockFileSystemExecutor = createMockFileSystemExecutor({
         existsSync: (path) => {
-          // Only return true for extracted template directories, false for local template paths
           return (
             path.includes('xcodebuild-mcp-template') ||
             path.includes('XcodeBuildMCP-iOS-Template') ||
@@ -304,13 +274,11 @@ describe('scaffold_ios_project plugin', () => {
         stat: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
       });
 
-      // Track commands executed - using default executor path
       let capturedCommands: string[][] = [];
       const trackingCommandExecutor = createMockExecutor({
         success: true,
         output: 'Command executed successfully',
       });
-      // Wrap to capture commands
       const capturingExecutor = async (command: string[], ...args: any[]) => {
         capturedCommands.push(command);
         return trackingCommandExecutor(command, ...args);
@@ -326,7 +294,6 @@ describe('scaffold_ios_project plugin', () => {
         downloadMockFileSystemExecutor,
       );
 
-      // Verify both curl and unzip commands were executed in sequence
       expect(capturedCommands.length).toBeGreaterThanOrEqual(2);
 
       const curlCommand = capturedCommands.find((cmd) => cmd.includes('curl'));
@@ -345,13 +312,6 @@ describe('scaffold_ios_project plugin', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return success response for valid scaffold iOS project request', async () => {
       const result = await scaffold_ios_projectLogic(
         {
@@ -365,7 +325,7 @@ describe('scaffold_ios_project plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Scaffold iOS Project');
       expect(text).toContain('TestIOSApp');
       expect(text).toContain('/tmp/test-projects');
@@ -404,7 +364,7 @@ describe('scaffold_ios_project plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Project scaffolded successfully');
       expect(result.nextStepParams).toEqual({
         build_sim: {
@@ -432,7 +392,7 @@ describe('scaffold_ios_project plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Project scaffolded successfully');
       expect(result.nextStepParams).toEqual({
         build_sim: {
@@ -460,12 +420,11 @@ describe('scaffold_ios_project plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Project name must start with a letter');
     });
 
     it('should return error response for existing project files', async () => {
-      // Update mock to return true for existing files
       mockFileSystemExecutor = createMockFileSystemExecutor({
         existsSync: () => true,
         readFile: async () => 'template content with MyProject placeholder',
@@ -486,14 +445,13 @@ describe('scaffold_ios_project plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Xcode project files already exist in /tmp/test-projects');
     });
 
     it('should return error response for template download failure', async () => {
       await initConfigStoreForTest({ iosTemplatePath: '' });
 
-      // Mock command executor to fail for curl commands
       const failingMockCommandExecutor = createMockExecutor({
         success: false,
         output: '',
@@ -511,7 +469,7 @@ describe('scaffold_ios_project plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to get template for iOS');
       expect(text).toContain('Template download failed');
 
@@ -521,10 +479,8 @@ describe('scaffold_ios_project plugin', () => {
     it.skip('should return error response for template extraction failure', async () => {
       await initConfigStoreForTest({ iosTemplatePath: '' });
 
-      // Create a mock that returns false for local template paths to force download
       const downloadMockFileSystemExecutor = createMockFileSystemExecutor({
         existsSync: (path) => {
-          // Only return true for extracted template directories, false for local template paths
           return (
             path.includes('xcodebuild-mcp-template') ||
             path.includes('XcodeBuildMCP-iOS-Template') ||
@@ -543,7 +499,6 @@ describe('scaffold_ios_project plugin', () => {
         stat: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
       });
 
-      // Mock command executor to fail for unzip commands
       const failingMockCommandExecutor = createMockExecutor({
         success: false,
         output: '',
@@ -561,7 +516,7 @@ describe('scaffold_ios_project plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to get template for iOS');
       expect(text).toContain('Extraction failed');
 

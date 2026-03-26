@@ -1,14 +1,9 @@
-/**
- * Tests for stop_app_device plugin (device-shared)
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, stop_app_deviceLogic } from '../stop_app_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('stop_app_device plugin', () => {
   beforeEach(() => {
@@ -162,13 +157,6 @@ describe('stop_app_device plugin', () => {
   });
 
   describe('Success Path Tests', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return successful stop response', async () => {
       const mockExecutor = createMockExecutor({
         success: true,
@@ -184,7 +172,7 @@ describe('stop_app_device plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Stop App');
       expect(text).toContain('test-device-123');
       expect(text).toContain('12345');
@@ -206,7 +194,7 @@ describe('stop_app_device plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Stop App');
       expect(text).toContain('App stopped successfully');
     });
@@ -226,20 +214,13 @@ describe('stop_app_device plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Stop App');
       expect(text).toContain('App stopped successfully');
     });
   });
 
   describe('Error Handling', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return stop failure response', async () => {
       const mockExecutor = createMockExecutor({
         success: false,
@@ -255,7 +236,7 @@ describe('stop_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to stop app: Terminate failed: Process not found');
     });
 
@@ -271,7 +252,7 @@ describe('stop_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to stop app on device: Network error');
     });
 
@@ -287,7 +268,7 @@ describe('stop_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to stop app on device: String error');
     });
   });

@@ -24,6 +24,8 @@ export async function syncXcodeDefaultsLogic(
   _params: Params,
   ctx: SyncXcodeDefaultsContext,
 ): Promise<ToolResponse> {
+  const headerEvent = header('Sync Xcode Defaults');
+
   const xcodeState = await readXcodeIdeState({
     executor: ctx.executor,
     cwd: ctx.cwd,
@@ -33,7 +35,7 @@ export async function syncXcodeDefaultsLogic(
 
   if (xcodeState.error) {
     return toolResponse([
-      header('Sync Xcode Defaults'),
+      headerEvent,
       statusLine('error', `Failed to read Xcode IDE state: ${xcodeState.error}`),
     ]);
   }
@@ -66,7 +68,7 @@ export async function syncXcodeDefaultsLogic(
 
   if (Object.keys(synced).length === 0) {
     return toolResponse([
-      header('Sync Xcode Defaults'),
+      headerEvent,
       statusLine('info', 'No scheme or simulator selection detected in Xcode IDE state.'),
     ]);
   }
@@ -76,7 +78,7 @@ export async function syncXcodeDefaultsLogic(
   const items = Object.entries(synced).map(([k, v]) => ({ label: k, value: v }));
 
   return toolResponse([
-    header('Sync Xcode Defaults'),
+    headerEvent,
     detailTree(items),
     statusLine('success', 'Synced session defaults from Xcode IDE.'),
   ]);

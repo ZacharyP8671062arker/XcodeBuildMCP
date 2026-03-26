@@ -12,7 +12,7 @@ const openSimSchema = z.object({});
 type OpenSimParams = z.infer<typeof openSimSchema>;
 
 export async function open_simLogic(
-  params: OpenSimParams,
+  _params: OpenSimParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
   log('info', 'Starting open simulator request');

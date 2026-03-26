@@ -269,14 +269,13 @@ export async function screenshotLogic(
           };
         }
 
-        const textResponse = toolResponse([
+        return toolResponse([
           headerEvent,
           statusLine(
             'success',
             `Screenshot captured: ${screenshotPath} (image/png, optimization failed)`,
           ),
         ]);
-        return textResponse;
       }
 
       log('info', `${LOG_PREFIX}/screenshot: Image optimized successfully`);
@@ -346,9 +345,8 @@ export const schema = getSessionAwareToolSchemaShape({
 
 export const handler = createSessionAwareTool<ScreenshotParams>({
   internalSchema: screenshotSchema as unknown as z.ZodType<ScreenshotParams, unknown>,
-  logicFunction: (params: ScreenshotParams, executor: CommandExecutor) => {
-    return screenshotLogic(params, executor);
-  },
+  logicFunction: (params: ScreenshotParams, executor: CommandExecutor) =>
+    screenshotLogic(params, executor),
   getExecutor: getDefaultCommandExecutor,
   requirements: [{ allOf: ['simulatorId'], message: 'simulatorId is required' }],
 });

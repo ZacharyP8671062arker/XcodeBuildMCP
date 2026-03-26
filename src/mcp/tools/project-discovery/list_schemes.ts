@@ -84,9 +84,12 @@ export async function listSchemesLogic(
   const projectOrWorkspace = hasProjectPath ? 'project' : 'workspace';
   const pathValue = hasProjectPath ? params.projectPath : params.workspacePath;
 
-  const headerParams = hasProjectPath
-    ? [{ label: 'Project', value: pathValue! }]
-    : [{ label: 'Workspace', value: pathValue! }];
+  const headerEvent = header(
+    'List Schemes',
+    hasProjectPath
+      ? [{ label: 'Project', value: pathValue! }]
+      : [{ label: 'Workspace', value: pathValue! }],
+  );
 
   try {
     const schemes = await listSchemes(params, executor);
@@ -116,7 +119,7 @@ export async function listSchemesLogic(
 
     return toolResponse(
       [
-        header('List Schemes', headerParams),
+        headerEvent,
         statusLine('success', `Found ${schemes.length} scheme(s).`),
         section('Schemes', schemeItems),
       ],
@@ -130,7 +133,7 @@ export async function listSchemesLogic(
       ? errorMessage.slice('Failed to list schemes: '.length)
       : errorMessage;
 
-    return toolResponse([header('List Schemes', headerParams), statusLine('error', rawError)]);
+    return toolResponse([headerEvent, statusLine('error', rawError)]);
   }
 }
 

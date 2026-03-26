@@ -1,13 +1,8 @@
-/**
- * Tests for doctor plugin
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
-
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { schema, runDoctor, type DoctorDependencies } from '../doctor.ts';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 function createDeps(overrides?: Partial<DoctorDependencies>): DoctorDependencies {
   const base: DoctorDependencies = {
@@ -137,13 +132,6 @@ describe('doctor tool', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
-    function allText(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((c) => c.type === 'text')
-        .map((c) => c.text)
-        .join('\n');
-    }
-
     it('should handle successful doctor execution', async () => {
       const deps = createDeps();
       const result = await runDoctor({}, deps);

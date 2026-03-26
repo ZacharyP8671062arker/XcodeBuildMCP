@@ -1,9 +1,3 @@
-/**
- * Tests for swift_package_run plugin
- * Following CLAUDE.md testing standards with literal validation
- * Integration tests using dependency injection for deterministic testing
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {

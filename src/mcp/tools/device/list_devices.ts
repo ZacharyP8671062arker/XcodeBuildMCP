@@ -61,6 +61,7 @@ export async function list_devicesLogic(
   },
 ): Promise<ToolResponse> {
   log('info', 'Starting device discovery');
+  const headerEvent = header('List Devices');
 
   try {
     // Try modern devicectl with JSON output first (iOS 17+, Xcode 15+)
@@ -77,7 +78,6 @@ export async function list_devicesLogic(
         ['xcrun', 'devicectl', 'list', 'devices', '--json-output', tempJsonPath],
         'List Devices (devicectl with JSON)',
         false,
-        undefined,
       );
 
       if (result.success) {
@@ -178,12 +178,11 @@ export async function list_devicesLogic(
         ['xcrun', 'xctrace', 'list', 'devices'],
         'List Devices (xctrace)',
         false,
-        undefined,
       );
 
       if (!result.success) {
         return toolResponse([
-          header('List Devices'),
+          headerEvent,
           statusLine('error', `Failed to list devices: ${result.error}`),
           section('Troubleshooting', [
             'Make sure Xcode is installed and devices are connected and trusted.',
@@ -192,7 +191,7 @@ export async function list_devicesLogic(
       }
 
       return toolResponse([
-        header('List Devices'),
+        headerEvent,
         section('Device listing (xctrace output)', [result.output]),
         statusLine(
           'info',
@@ -205,7 +204,7 @@ export async function list_devicesLogic(
       (device, index, self) => index === self.findIndex((d) => d.identifier === device.identifier),
     );
 
-    const events: PipelineEvent[] = [header('List Devices')];
+    const events: PipelineEvent[] = [headerEvent];
 
     if (uniqueDevices.length === 0) {
       events.push(
@@ -312,7 +311,7 @@ export async function list_devicesLogic(
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error listing devices: ${errorMessage}`);
     return toolResponse([
-      header('List Devices'),
+      headerEvent,
       statusLine('error', `Failed to list devices: ${errorMessage}`),
     ]);
   }

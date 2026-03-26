@@ -31,9 +31,8 @@ async function runDoctor(): Promise<void> {
       );
     }
 
-    // Run the doctor tool logic directly with CLI flag enabled
     const executor = getDefaultCommandExecutor();
-    const result = await doctorLogic({ nonRedacted }, executor, true); // showAsciiLogo = true for CLI
+    const result = await doctorLogic({ nonRedacted }, executor);
 
     // Output the doctor information
     if (result.content && result.content.length > 0) {

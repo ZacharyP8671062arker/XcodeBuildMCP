@@ -66,9 +66,11 @@ export async function cleanLogic(
   params: CleanParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
+  const headerEvent = header('Clean');
+
   if (params.workspacePath && !params.scheme) {
     return toolResponse([
-      header('Clean'),
+      headerEvent,
       statusLine('error', 'scheme is required when workspacePath is provided.'),
     ]);
   }
@@ -90,7 +92,7 @@ export async function cleanLogic(
   const platformEnum = platformMap[targetPlatform];
   if (!platformEnum) {
     return toolResponse([
-      header('Clean'),
+      headerEvent,
       statusLine('error', `Unsupported platform: "${targetPlatform}".`),
     ]);
   }

@@ -1,8 +1,3 @@
-/**
- * Tests for get_sim_app_path plugin (session-aware version)
- * Mirrors patterns from other simulator session-aware migrations.
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ChildProcess } from 'child_process';
 import * as z from 'zod';
@@ -158,7 +153,7 @@ describe('get_sim_app_path tool', () => {
         'platform=iOS Simulator,name=iPhone 17,OS=latest',
       ]);
 
-      expect(result.isError).not.toBe(true);
+      expect(result.isError).toBeFalsy();
       const text = result.content.map((c) => c.text).join('\n');
       expect(text).toContain('Get App Path');
       expect(text).toContain('MyScheme');

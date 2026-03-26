@@ -1,20 +1,11 @@
-/**
- * Pure dependency injection test for launch_mac_app plugin
- *
- * Tests plugin structure and macOS app launching functionality including parameter validation,
- * command generation, file validation, and response formatting.
- *
- * Uses manual call tracking and createMockFileSystemExecutor for file operations.
- */
-
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import {
   createMockCommandResponse,
   createMockFileSystemExecutor,
 } from '../../../../test-utils/mock-executors.ts';
-import { schema, handler } from '../launch_mac_app.ts';
-import { launch_mac_appLogic } from '../launch_mac_app.ts';
+import { schema, handler, launch_mac_appLogic } from '../launch_mac_app.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('launch_mac_app plugin', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -181,13 +172,6 @@ describe('launch_mac_app plugin', () => {
   });
 
   describe('Response Processing', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return successful launch response', async () => {
       const mockExecutor = async () => Promise.resolve(createMockCommandResponse());
 
@@ -204,7 +188,7 @@ describe('launch_mac_app plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Launch macOS App');
       expect(text).toContain('/path/to/MyApp.app');
       expect(text).toContain('App launched successfully');
@@ -227,7 +211,7 @@ describe('launch_mac_app plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('App launched successfully');
     });
 
@@ -249,7 +233,7 @@ describe('launch_mac_app plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Launch macOS app operation failed: App not found');
     });
 
@@ -271,7 +255,7 @@ describe('launch_mac_app plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Launch macOS app operation failed: Permission denied');
     });
 
@@ -293,7 +277,7 @@ describe('launch_mac_app plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Launch macOS app operation failed: 123');
     });
   });

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, sessionClearDefaultsLogic } from '../session_clear_defaults.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('session-clear-defaults tool', () => {
   beforeEach(() => {
@@ -32,19 +33,12 @@ describe('session-clear-defaults tool', () => {
   });
 
   describe('Handler Behavior', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should clear specific keys when provided', async () => {
       const result = await sessionClearDefaultsLogic({
         keys: ['scheme', 'deviceId', 'derivedDataPath'],
       });
       expect(result.isError).toBeFalsy();
-      expect(textOf(result)).toContain('Session defaults cleared');
+      expect(allText(result)).toContain('Session defaults cleared');
 
       const current = sessionStore.getAll();
       expect(current.scheme).toBeUndefined();
@@ -62,7 +56,7 @@ describe('session-clear-defaults tool', () => {
       const result = await sessionClearDefaultsLogic({ keys: ['env'] });
 
       expect(result.isError).toBeFalsy();
-      expect(textOf(result)).toContain('Session defaults cleared');
+      expect(allText(result)).toContain('Session defaults cleared');
 
       const current = sessionStore.getAll();
       expect(current.env).toBeUndefined();
@@ -75,7 +69,7 @@ describe('session-clear-defaults tool', () => {
       sessionStore.setActiveProfile(null);
       const result = await sessionClearDefaultsLogic({ all: true });
       expect(result.isError).toBeFalsy();
-      expect(textOf(result)).toContain('All session defaults cleared');
+      expect(allText(result)).toContain('All session defaults cleared');
 
       const current = sessionStore.getAll();
       expect(Object.keys(current).length).toBe(0);
@@ -109,7 +103,7 @@ describe('session-clear-defaults tool', () => {
 
       const result = await sessionClearDefaultsLogic({ profile: 'ios' });
       expect(result.isError).toBeFalsy();
-      expect(textOf(result)).toContain('profile "ios"');
+      expect(allText(result)).toContain('profile "ios"');
 
       expect(sessionStore.listProfiles()).toEqual(['watch']);
       expect(sessionStore.getAll().scheme).toBe('Watch');
@@ -118,20 +112,20 @@ describe('session-clear-defaults tool', () => {
     it('should error when the specified profile does not exist', async () => {
       const result = await sessionClearDefaultsLogic({ profile: 'missing' });
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('does not exist');
+      expect(allText(result)).toContain('does not exist');
     });
 
     it('should reject all=true when combined with scoped arguments', async () => {
       const result = await sessionClearDefaultsLogic({ all: true, profile: 'ios' });
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('cannot be combined');
+      expect(allText(result)).toContain('cannot be combined');
     });
 
     it('should validate keys enum', async () => {
       const result = (await handler({ keys: ['invalid' as any] })) as any;
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('Parameter validation failed');
-      expect(textOf(result)).toContain('keys');
+      expect(allText(result)).toContain('Parameter validation failed');
+      expect(allText(result)).toContain('keys');
     });
   });
 });

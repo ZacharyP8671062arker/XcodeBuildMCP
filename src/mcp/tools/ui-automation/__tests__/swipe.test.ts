@@ -1,17 +1,13 @@
-/**
- * Tests for swipe tool
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import { createMockExecutor, mockProcess } from '../../../../test-utils/mock-executors.ts';
-import { SystemError } from '../../../../utils/responses/index.ts';
+import { SystemError } from '../../../../utils/errors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 
 import { schema, handler, type AxeHelpers, swipeLogic, type SwipeParams } from '../swipe.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
-// Helper function to create mock axe helpers
 function createMockAxeHelpers(): AxeHelpers {
   return {
     getAxePath: () => '/mocked/axe/path',
@@ -19,19 +15,11 @@ function createMockAxeHelpers(): AxeHelpers {
   };
 }
 
-// Helper function to create mock axe helpers with null path (for dependency error tests)
 function createMockAxeHelpersWithNullPath(): AxeHelpers {
   return {
     getAxePath: () => null,
     getBundledAxeEnvironment: () => ({ SOME_ENV: 'value' }),
   };
-}
-
-function allText(result: { content: Array<{ type: string; text?: string }> }): string {
-  return result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
 }
 
 describe('Swipe Tool', () => {

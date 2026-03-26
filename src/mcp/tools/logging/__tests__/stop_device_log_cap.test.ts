@@ -1,6 +1,3 @@
-/**
- * Tests for stop_device_log_cap plugin
- */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EventEmitter } from 'events';
 import * as z from 'zod';
@@ -10,20 +7,10 @@ import {
   type DeviceLogSession,
 } from '../../../../utils/log-capture/device-log-sessions.ts';
 import { createMockFileSystemExecutor } from '../../../../test-utils/mock-executors.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
-
-// Note: Logger is allowed to execute normally (integration testing pattern)
-
-function allText(response: ToolResponse): string {
-  return response.content
-    .filter((item) => item.type === 'text')
-    .map((item) => item.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('stop_device_log_cap plugin', () => {
   beforeEach(() => {
-    // Clear actual active sessions before each test
     activeDeviceLogSessions.clear();
   });
 
@@ -34,11 +21,9 @@ describe('stop_device_log_cap plugin', () => {
     });
 
     it('should have correct schema structure', () => {
-      // Schema should be a plain object for MCP protocol compliance
       expect(typeof schema).toBe('object');
       expect(schema).toHaveProperty('logSessionId');
 
-      // Validate that schema fields are Zod types that can be used for validation
       const schemaObj = z.object(schema);
       expect(schemaObj.safeParse({ logSessionId: 'test-session-id' }).success).toBe(true);
       expect(schemaObj.safeParse({ logSessionId: 123 }).success).toBe(false);
@@ -50,7 +35,6 @@ describe('stop_device_log_cap plugin', () => {
   });
 
   describe('Handler Functionality', () => {
-    // Helper function to create a test process
     function createTestProcess(
       options: {
         killed?: boolean;

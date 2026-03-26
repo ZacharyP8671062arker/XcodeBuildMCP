@@ -34,6 +34,10 @@ export async function install_app_deviceLogic(
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
   const { deviceId, appPath } = params;
+  const headerEvent = header('Install App', [
+    { label: 'Device', value: deviceId },
+    { label: 'App', value: appPath },
+  ]);
 
   log('info', `Installing app on device ${deviceId}`);
 
@@ -46,29 +50,17 @@ export async function install_app_deviceLogic(
 
     if (!result.success) {
       return toolResponse([
-        header('Install App', [
-          { label: 'Device', value: deviceId },
-          { label: 'App', value: appPath },
-        ]),
+        headerEvent,
         statusLine('error', `Failed to install app: ${result.error}`),
       ]);
     }
 
-    return toolResponse([
-      header('Install App', [
-        { label: 'Device', value: deviceId },
-        { label: 'App', value: appPath },
-      ]),
-      statusLine('success', 'App installed successfully.'),
-    ]);
+    return toolResponse([headerEvent, statusLine('success', 'App installed successfully.')]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error installing app on device: ${errorMessage}`);
     return toolResponse([
-      header('Install App', [
-        { label: 'Device', value: deviceId },
-        { label: 'App', value: appPath },
-      ]),
+      headerEvent,
       statusLine('error', `Failed to install app on device: ${errorMessage}`),
     ]);
   }

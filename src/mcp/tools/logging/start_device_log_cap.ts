@@ -624,6 +624,10 @@ export async function start_device_log_capLogic(
   fileSystemExecutor?: FileSystemExecutor,
 ): Promise<ToolResponse> {
   const { deviceId, bundleId } = params;
+  const headerEvent = header('Start Log Capture', [
+    { label: 'Device', value: deviceId },
+    { label: 'Bundle ID', value: bundleId },
+  ]);
 
   const resolvedFileSystemExecutor = fileSystemExecutor ?? getDefaultFileSystemExecutor();
 
@@ -635,20 +639,14 @@ export async function start_device_log_capLogic(
 
   if (error) {
     return toolResponse([
-      header('Start Log Capture', [
-        { label: 'Device', value: deviceId },
-        { label: 'Bundle ID', value: bundleId },
-      ]),
+      headerEvent,
       statusLine('error', `Failed to start device log capture: ${error}`),
     ]);
   }
 
   return toolResponse(
     [
-      header('Start Log Capture', [
-        { label: 'Device', value: deviceId },
-        { label: 'Bundle ID', value: bundleId },
-      ]),
+      headerEvent,
       section('Details', [
         `Session ID: ${sessionId}`,
         'The app has been launched on the device with console output capture enabled.',

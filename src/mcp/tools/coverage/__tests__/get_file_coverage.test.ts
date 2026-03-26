@@ -1,8 +1,3 @@
-/**
- * Tests for get_file_coverage tool
- * Covers happy-path, showLines, uncovered line parsing, and failure paths
- */
-
 import { afterEach, describe, it, expect } from 'vitest';
 import {
   createMockExecutor,
@@ -14,15 +9,8 @@ import {
   __setTestFileSystemExecutorOverride,
   __clearTestExecutorOverrides,
 } from '../../../../utils/execution/index.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
 import { schema, handler, get_file_coverageLogic } from '../get_file_coverage.ts';
-
-function allText(result: ToolResponse): string {
-  return result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 const sampleFunctionsJson = [
   {

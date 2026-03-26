@@ -1,9 +1,3 @@
-/**
- * Tests for list_schemes plugin
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {
@@ -12,15 +6,9 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, listSchemes, listSchemesLogic } from '../list_schemes.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('list_schemes plugin', () => {
-  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-    return result.content
-      .filter((i) => i.type === 'text')
-      .map((i) => i.text)
-      .join('\n');
-  }
-
   beforeEach(() => {
     sessionStore.clear();
   });
@@ -67,7 +55,7 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Schemes');
       expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
       expect(text).toContain('MyProject');
@@ -100,7 +88,7 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Schemes');
       expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
       expect(text).toContain('Project not found');
@@ -119,7 +107,7 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Schemes');
       expect(text).toContain('No schemes found in the output');
       expect(result.nextStepParams).toBeUndefined();
@@ -147,7 +135,7 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Schemes');
       expect(text).toContain('(none)');
       expect(result.nextStepParams).toBeUndefined();
@@ -164,7 +152,7 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Schemes');
       expect(text).toContain('Command execution failed');
       expect(result.nextStepParams).toBeUndefined();
@@ -181,7 +169,7 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Schemes');
       expect(text).toContain('String error');
       expect(result.nextStepParams).toBeUndefined();
@@ -294,7 +282,7 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Schemes');
       expect(text).toContain('Workspace: /path/to/MyProject.xcworkspace');
       expect(text).toContain('MyApp');

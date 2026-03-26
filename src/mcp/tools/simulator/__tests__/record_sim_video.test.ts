@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
-// Import the tool and logic
 import { schema, handler, record_sim_videoLogic } from '../record_sim_video.ts';
 import { createMockFileSystemExecutor } from '../../../../test-utils/mock-executors.ts';
 
@@ -48,7 +47,6 @@ describe('record_sim_video logic - start behavior', () => {
       }),
     };
 
-    // DI for AXe helpers: available and version OK
     const axe = {
       areAxeToolsAvailable: () => true,
       isAxeAtLeastVersion: async () => true,
@@ -60,8 +58,7 @@ describe('record_sim_video logic - start behavior', () => {
       {
         simulatorId: VALID_SIM_ID,
         start: true,
-        // fps omitted to hit default 30
-        outputFile: '/tmp/ignored.mp4', // should be ignored with a note
+        outputFile: '/tmp/ignored.mp4',
       } as any,
       DUMMY_EXECUTOR,
       axe,
@@ -69,7 +66,7 @@ describe('record_sim_video logic - start behavior', () => {
       fs,
     );
 
-    expect(res.isError).not.toBe(true);
+    expect(res.isError).toBeFalsy();
     const texts = (res.content ?? []).map((c: any) => c.text).join('\n');
 
     expect(texts).toContain('30');
@@ -103,7 +100,6 @@ describe('record_sim_video logic - end-to-end stop with rename', () => {
       isAxeAtLeastVersion: async () => true,
     };
 
-    // Start (not strictly required for stop path, but included to mimic flow)
     const startRes = await record_sim_videoLogic(
       {
         simulatorId: VALID_SIM_ID,
@@ -114,9 +110,8 @@ describe('record_sim_video logic - end-to-end stop with rename', () => {
       video,
       fs,
     );
-    expect(startRes.isError).not.toBe(true);
+    expect(startRes.isError).toBeFalsy();
 
-    // Stop and rename
     const outputFile = '/var/videos/final.mp4';
     const stopRes = await record_sim_videoLogic(
       {
@@ -130,7 +125,7 @@ describe('record_sim_video logic - end-to-end stop with rename', () => {
       fs,
     );
 
-    expect(stopRes.isError).not.toBe(true);
+    expect(stopRes.isError).toBeFalsy();
     const texts = (stopRes.content ?? []).map((c: any) => c.text).join('\n');
     expect(texts).toContain('Original file: /tmp/recorded.mp4');
     expect(texts).toContain(`Saved to: ${outputFile}`);

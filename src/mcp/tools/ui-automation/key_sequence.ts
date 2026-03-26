@@ -13,15 +13,13 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
-import {
-  getAxePath,
-  getBundledAxeEnvironment,
-  AXE_NOT_AVAILABLE_MESSAGE,
-} from '../../../utils/axe-helpers.ts';
+import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../utils/axe-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
+import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
+import type { AxeHelpers } from './shared/axe-command.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
@@ -36,20 +34,12 @@ const keySequenceSchema = z.object({
 
 type KeySequenceParams = z.infer<typeof keySequenceSchema>;
 
-export interface AxeHelpers {
-  getAxePath: () => string | null;
-  getBundledAxeEnvironment: () => Record<string, string>;
-}
-
 const LOG_PREFIX = '[AXe]';
 
 export async function key_sequenceLogic(
   params: KeySequenceParams,
   executor: CommandExecutor,
-  axeHelpers: AxeHelpers = {
-    getAxePath,
-    getBundledAxeEnvironment,
-  },
+  axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
 ): Promise<ToolResponse> {
   const toolName = 'key_sequence';
@@ -78,12 +68,11 @@ export async function key_sequenceLogic(
   try {
     await executeAxeCommand(commandArgs, simulatorId, 'key-sequence', executor, axeHelpers);
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-    const events = [
+    return toolResponse([
       headerEvent,
       statusLine('success', `Key sequence [${keyCodes.join(',')}] executed successfully.`),
       ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
-    ];
-    return toolResponse(events);
+    ]);
   } catch (error) {
     log('error', `${LOG_PREFIX}/${toolName}: Failed - ${error}`);
     if (error instanceof DependencyError) {
@@ -125,74 +114,7 @@ export const schema = getSessionAwareToolSchemaShape({
 export const handler = createSessionAwareTool<KeySequenceParams>({
   internalSchema: keySequenceSchema as unknown as z.ZodType<KeySequenceParams, unknown>,
   logicFunction: (params: KeySequenceParams, executor: CommandExecutor) =>
-    key_sequenceLogic(params, executor, {
-      getAxePath,
-      getBundledAxeEnvironment,
-    }),
+    key_sequenceLogic(params, executor, defaultAxeHelpers),
   getExecutor: getDefaultCommandExecutor,
   requirements: [{ allOf: ['simulatorId'], message: 'simulatorId is required' }],
 });
-
-// Helper function for executing axe commands (inlined from src/tools/axe/index.ts)
-async function executeAxeCommand(
-  commandArgs: string[],
-  simulatorId: string,
-  commandName: string,
-  executor: CommandExecutor = getDefaultCommandExecutor(),
-  axeHelpers: AxeHelpers = { getAxePath, getBundledAxeEnvironment },
-): Promise<void> {
-  // Get the appropriate axe binary path
-  const axeBinary = axeHelpers.getAxePath();
-  if (!axeBinary) {
-    throw new DependencyError('AXe binary not found');
-  }
-
-  // Add --udid parameter to all commands
-  const fullArgs = [...commandArgs, '--udid', simulatorId];
-
-  // Construct the full command array with the axe binary as the first element
-  const fullCommand = [axeBinary, ...fullArgs];
-
-  try {
-    // Determine environment variables for bundled AXe
-    const axeEnv = axeBinary !== 'axe' ? axeHelpers.getBundledAxeEnvironment() : undefined;
-
-    const result = await executor(
-      fullCommand,
-      `${LOG_PREFIX}: ${commandName}`,
-      false,
-      axeEnv ? { env: axeEnv } : undefined,
-    );
-
-    if (!result.success) {
-      throw new AxeError(
-        `axe command '${commandName}' failed.`,
-        commandName,
-        result.error ?? result.output,
-        simulatorId,
-      );
-    }
-
-    // Check for stderr output in successful commands
-    if (result.error) {
-      log(
-        'warn',
-        `${LOG_PREFIX}: Command '${commandName}' produced stderr output but exited successfully. Output: ${result.error}`,
-      );
-    }
-
-    // Function now returns void - the calling code creates its own response
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error instanceof AxeError) {
-        throw error;
-      }
-
-      // Otherwise wrap it in a SystemError
-      throw new SystemError(`Failed to execute axe command: ${error.message}`, error);
-    }
-
-    // For any other type of error
-    throw new SystemError(`Failed to execute axe command: ${String(error)}`);
-  }
-}

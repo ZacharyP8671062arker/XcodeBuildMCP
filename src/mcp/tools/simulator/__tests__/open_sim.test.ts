@@ -6,14 +6,7 @@ import {
   type CommandExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, open_simLogic } from '../open_sim.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
-
-function allText(result: ToolResponse): string {
-  return result.content
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('open_sim tool', () => {
   describe('Export Field Validation (Literal)', () => {

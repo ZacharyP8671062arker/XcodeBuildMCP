@@ -7,7 +7,7 @@
 import * as z from 'zod';
 import { join, dirname, basename } from 'path';
 import { log } from '../../../utils/logging/index.ts';
-import { ValidationError } from '../../../utils/responses/index.ts';
+import { ValidationError } from '../../../utils/errors.ts';
 import { TemplateManager } from '../../../utils/template/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/command.ts';

@@ -1,18 +1,6 @@
-/**
- * Pure dependency injection test for stop_mac_app plugin
- *
- * Tests plugin structure and macOS app stopping functionality including parameter validation,
- * command generation, and response formatting.
- *
- * Uses manual call tracking instead of vitest mocking.
- * NO VITEST MOCKING ALLOWED - Only manual stubs
- */
-
 import { describe, it, expect } from 'vitest';
-import * as z from 'zod';
-
-import { schema, handler } from '../stop_mac_app.ts';
-import { stop_mac_appLogic } from '../stop_mac_app.ts';
+import { schema, handler, stop_mac_appLogic } from '../stop_mac_app.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('stop_mac_app plugin', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -35,19 +23,12 @@ describe('stop_mac_app plugin', () => {
   });
 
   describe('Input Validation', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return exact validation error for missing parameters', async () => {
       const mockExecutor = async () => ({ success: true, output: '', process: {} as any });
       const result = await stop_mac_appLogic({}, mockExecutor);
 
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('Either appName or processId must be provided.');
+      expect(allText(result)).toContain('Either appName or processId must be provided.');
     });
   });
 
@@ -113,13 +94,6 @@ describe('stop_mac_app plugin', () => {
   });
 
   describe('Response Processing', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return exact successful stop response by app name', async () => {
       const mockExecutor = async () => ({ success: true, output: '', process: {} as any });
 
@@ -131,7 +105,7 @@ describe('stop_mac_app plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Stop macOS App');
       expect(text).toContain('Calculator');
       expect(text).toContain('App stopped successfully');
@@ -148,7 +122,7 @@ describe('stop_mac_app plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('PID 1234');
       expect(text).toContain('App stopped successfully');
     });
@@ -165,7 +139,7 @@ describe('stop_mac_app plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('PID 1234');
       expect(text).toContain('App stopped successfully');
     });
@@ -183,7 +157,7 @@ describe('stop_mac_app plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Stop macOS app operation failed: Process not found');
     });
   });

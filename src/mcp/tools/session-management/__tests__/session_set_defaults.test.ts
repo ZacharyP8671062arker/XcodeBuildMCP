@@ -6,6 +6,7 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 import { createMockFileSystemExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, sessionSetDefaultsLogic } from '../session_set_defaults.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('session-set-defaults tool', () => {
   beforeEach(() => {
@@ -54,13 +55,6 @@ describe('session-set-defaults tool', () => {
   });
 
   describe('Handler Behavior', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should set provided defaults and return updated state', async () => {
       const result = await sessionSetDefaultsLogic(
         {
@@ -73,7 +67,7 @@ describe('session-set-defaults tool', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      expect(textOf(result)).toContain('Session defaults updated.');
+      expect(allText(result)).toContain('Session defaults updated.');
 
       const current = sessionStore.getAll();
       expect(current.scheme).toBe('MyScheme');
@@ -90,8 +84,8 @@ describe('session-set-defaults tool', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('Parameter validation failed');
-      expect(textOf(result)).toContain('useLatestOS');
+      expect(allText(result)).toContain('Parameter validation failed');
+      expect(allText(result)).toContain('useLatestOS');
     });
 
     it('should reject env values that are not strings', async () => {
@@ -102,8 +96,8 @@ describe('session-set-defaults tool', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('Parameter validation failed');
-      expect(textOf(result)).toContain('env');
+      expect(allText(result)).toContain('Parameter validation failed');
+      expect(allText(result)).toContain('env');
     });
 
     it('should reject empty string defaults for required string fields', async () => {
@@ -112,8 +106,8 @@ describe('session-set-defaults tool', () => {
       });
 
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('Parameter validation failed');
-      expect(textOf(result)).toContain('scheme');
+      expect(allText(result)).toContain('Parameter validation failed');
+      expect(allText(result)).toContain('scheme');
     });
 
     it('should clear workspacePath when projectPath is set', async () => {
@@ -125,7 +119,7 @@ describe('session-set-defaults tool', () => {
       const current = sessionStore.getAll();
       expect(current.projectPath).toBe('/new/App.xcodeproj');
       expect(current.workspacePath).toBeUndefined();
-      expect(textOf(result)).toContain('Cleared workspacePath because projectPath was set.');
+      expect(allText(result)).toContain('Cleared workspacePath because projectPath was set.');
     });
 
     it('should clear projectPath when workspacePath is set', async () => {
@@ -137,7 +131,7 @@ describe('session-set-defaults tool', () => {
       const current = sessionStore.getAll();
       expect(current.workspacePath).toBe('/new/App.xcworkspace');
       expect(current.projectPath).toBeUndefined();
-      expect(textOf(result)).toContain('Cleared projectPath because workspacePath was set.');
+      expect(allText(result)).toContain('Cleared projectPath because workspacePath was set.');
     });
 
     it('should clear stale simulatorName when simulatorId is explicitly set', async () => {
@@ -149,7 +143,7 @@ describe('session-set-defaults tool', () => {
       const current = sessionStore.getAll();
       expect(current.simulatorId).toBe('RESOLVED-SIM-UUID');
       expect(current.simulatorName).toBeUndefined();
-      expect(textOf(result)).toContain(
+      expect(allText(result)).toContain(
         'Cleared simulatorName because simulatorId was set; background resolution will repopulate it.',
       );
     });
@@ -161,7 +155,7 @@ describe('session-set-defaults tool', () => {
       // simulatorId resolution happens in background; stale id is cleared immediately
       expect(current.simulatorName).toBe('iPhone 17');
       expect(current.simulatorId).toBeUndefined();
-      expect(textOf(result)).toContain(
+      expect(allText(result)).toContain(
         'Cleared simulatorId because simulatorName was set; background resolution will repopulate it.',
       );
     });
@@ -173,7 +167,7 @@ describe('session-set-defaults tool', () => {
         createContext(),
       );
 
-      expect(textOf(result)).not.toContain('Cleared simulatorName');
+      expect(allText(result)).not.toContain('Cleared simulatorName');
     });
 
     it('should not fail when simulatorName cannot be resolved immediately', async () => {
@@ -214,7 +208,7 @@ describe('session-set-defaults tool', () => {
       const current = sessionStore.getAll();
       expect(current.workspacePath).toBe('/app/App.xcworkspace');
       expect(current.projectPath).toBeUndefined();
-      expect(textOf(res)).toContain(
+      expect(allText(res)).toContain(
         'Both projectPath and workspacePath were provided; keeping workspacePath and ignoring projectPath.',
       );
     });
@@ -231,7 +225,7 @@ describe('session-set-defaults tool', () => {
       // Both are kept, simulatorId takes precedence for tools
       expect(current.simulatorId).toBe('SIM-1');
       expect(current.simulatorName).toBe('iPhone 17');
-      expect(textOf(res)).toContain(
+      expect(allText(res)).toContain(
         'Both simulatorId and simulatorName were provided; simulatorId will be used by tools.',
       );
     });
@@ -270,7 +264,7 @@ describe('session-set-defaults tool', () => {
         createContext(),
       );
 
-      expect(textOf(result)).toContain('Persisted defaults to');
+      expect(allText(result)).toContain('Persisted defaults to');
       expect(writes.length).toBe(1);
       expect(writes[0].path).toBe(configPath);
 
@@ -298,7 +292,7 @@ describe('session-set-defaults tool', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      expect(textOf(result)).toContain('Activated profile "ios".');
+      expect(allText(result)).toContain('Activated profile "ios".');
       expect(sessionStore.getActiveProfile()).toBe('ios');
       expect(sessionStore.getAll().scheme).toBe('NewIOS');
       expect(sessionStore.getAll().simulatorName).toBe('iPhone 17');
@@ -314,8 +308,8 @@ describe('session-set-defaults tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      expect(textOf(result)).toContain('Profile "missing" does not exist');
-      expect(textOf(result)).toContain('createIfNotExists=true');
+      expect(allText(result)).toContain('Profile "missing" does not exist');
+      expect(allText(result)).toContain('createIfNotExists=true');
     });
 
     it('creates profile when createIfNotExists is true and activates it', async () => {
@@ -329,7 +323,7 @@ describe('session-set-defaults tool', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      expect(textOf(result)).toContain('Created and activated profile "ios".');
+      expect(allText(result)).toContain('Created and activated profile "ios".');
       expect(sessionStore.getActiveProfile()).toBe('ios');
       expect(sessionStore.getAll().scheme).toBe('NewIOS');
     });
@@ -416,7 +410,7 @@ describe('session-set-defaults tool', () => {
         createContext(),
       );
 
-      expect(textOf(result)).toContain('Persisted defaults to');
+      expect(allText(result)).toContain('Persisted defaults to');
       expect(writes.length).toBe(1);
 
       const parsed = parseYaml(writes[0].content) as {
@@ -428,7 +422,7 @@ describe('session-set-defaults tool', () => {
     it('should not persist when persist is true but no defaults were provided', async () => {
       const result = await sessionSetDefaultsLogic({ persist: true }, createContext());
 
-      expect(textOf(result)).toContain('No defaults provided to persist');
+      expect(allText(result)).toContain('No defaults provided to persist');
     });
   });
 });

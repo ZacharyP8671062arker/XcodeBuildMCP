@@ -77,7 +77,7 @@ export async function get_device_app_pathLogic(
 ): Promise<ToolResponse> {
   const platform = mapDevicePlatform(params.platform);
   const configuration = params.configuration ?? 'Debug';
-  const headerParams = buildHeaderParams(params, configuration, platform);
+  const headerEvent = header('Get App Path', buildHeaderParams(params, configuration, platform));
 
   log('info', `Getting app path for scheme ${params.scheme} on platform ${platform}`);
 
@@ -95,7 +95,7 @@ export async function get_device_app_pathLogic(
 
     return toolResponse(
       [
-        header('Get App Path', headerParams),
+        headerEvent,
         detailTree([{ label: 'App Path', value: appPath }]),
         statusLine('success', 'App path resolved.'),
       ],
@@ -111,7 +111,7 @@ export async function get_device_app_pathLogic(
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error retrieving app path: ${errorMessage}`);
 
-    return toolResponse([header('Get App Path', headerParams), statusLine('error', errorMessage)]);
+    return toolResponse([headerEvent, statusLine('error', errorMessage)]);
   }
 }
 

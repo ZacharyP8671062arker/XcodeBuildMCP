@@ -1,8 +1,3 @@
-/**
- * Tests for launch_app_logs_sim plugin (session-aware version)
- * Follows CLAUDE.md guidance with literal validation and DI.
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {
@@ -91,7 +86,7 @@ describe('launch_app_logs_sim tool', () => {
       expect(result.nextStepParams).toEqual({
         stop_sim_log_cap: { logSessionId: 'test-session-123' },
       });
-      expect(result.isError).not.toBe(true);
+      expect(result.isError).toBeFalsy();
 
       expect(capturedParams).toEqual({
         simulatorUuid: 'test-uuid-123',

@@ -1,9 +1,3 @@
-/**
- * Tests for swift_package_list plugin
- * Following CLAUDE.md testing standards with literal validation
- * Using pure dependency injection for deterministic testing
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import { schema, handler, swift_package_listLogic } from '../swift_package_list.ts';
 

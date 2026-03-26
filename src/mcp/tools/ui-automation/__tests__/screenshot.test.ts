@@ -1,7 +1,3 @@
-/**
- * Tests for screenshot tool plugin
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {
@@ -9,7 +5,7 @@ import {
   createMockFileSystemExecutor,
   mockProcess,
 } from '../../../../test-utils/mock-executors.ts';
-import { SystemError } from '../../../../utils/responses/index.ts';
+import { SystemError } from '../../../../utils/errors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import {
   schema,
@@ -18,13 +14,7 @@ import {
   detectLandscapeMode,
   rotateImage,
 } from '../screenshot.ts';
-
-function allText(result: { content: Array<{ type: string; text?: string }> }): string {
-  return result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('Screenshot Plugin', () => {
   beforeEach(() => {

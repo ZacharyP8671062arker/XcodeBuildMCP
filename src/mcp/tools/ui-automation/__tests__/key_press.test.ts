@@ -1,7 +1,3 @@
-/**
- * Tests for key_press tool
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {
@@ -13,19 +9,13 @@ import {
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, key_pressLogic } from '../key_press.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 function createDefaultMockAxeHelpers() {
   return {
     getAxePath: () => '/usr/local/bin/axe',
     getBundledAxeEnvironment: () => ({}),
   };
-}
-
-function allText(result: { content: Array<{ type: string; text?: string }> }): string {
-  return result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
 }
 
 describe('Key Press Tool', () => {

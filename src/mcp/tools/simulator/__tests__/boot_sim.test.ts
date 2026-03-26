@@ -6,14 +6,7 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, boot_simLogic } from '../boot_sim.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
-
-function allText(result: ToolResponse): string {
-  return result.content
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('boot_sim tool', () => {
   beforeEach(() => {

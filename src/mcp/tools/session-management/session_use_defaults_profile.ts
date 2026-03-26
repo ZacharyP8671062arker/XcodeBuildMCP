@@ -31,10 +31,11 @@ function resolveProfileToActivate(params: Params): string | null | undefined {
 
 export async function sessionUseDefaultsProfileLogic(params: Params): Promise<ToolResponse> {
   const notices: string[] = [];
+  const errorHeader = header('Use Defaults Profile');
 
   if (params.global === true && params.profile !== undefined) {
     return toolResponse([
-      header('Use Defaults Profile'),
+      errorHeader,
       statusLine('error', 'Provide either global=true or profile, not both.'),
     ]);
   }
@@ -43,14 +44,11 @@ export async function sessionUseDefaultsProfileLogic(params: Params): Promise<To
 
   if (typeof profileToActivate === 'string') {
     if (profileToActivate.length === 0) {
-      return toolResponse([
-        header('Use Defaults Profile'),
-        statusLine('error', 'Profile name cannot be empty.'),
-      ]);
+      return toolResponse([errorHeader, statusLine('error', 'Profile name cannot be empty.')]);
     }
     if (!sessionStore.listProfiles().includes(profileToActivate)) {
       return toolResponse([
-        header('Use Defaults Profile'),
+        errorHeader,
         statusLine('error', `Profile "${profileToActivate}" does not exist.`),
       ]);
     }

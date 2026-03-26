@@ -34,15 +34,9 @@ import {
   buildXcodeToolsBridgeStatus,
   getMcpBridgeAvailability,
 } from '../../../../integrations/xcode-tools-bridge/core.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('xcode-ide bridge tools (standalone fallback)', () => {
-  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-    return result.content
-      .filter((i) => i.type === 'text')
-      .map((i) => i.text)
-      .join('\n');
-  }
-
   beforeEach(async () => {
     await shutdownXcodeToolsBridge();
 
@@ -88,7 +82,7 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
 
   it('status handler returns bridge status without MCP server instance', async () => {
     const result = await statusHandler();
-    const text = textOf(result);
+    const text = allText(result);
     expect(text).toContain('Bridge Status');
     expect(text).toContain('"bridgeAvailable": true');
     expect(buildXcodeToolsBridgeStatus).toHaveBeenCalledOnce();
@@ -96,7 +90,7 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
 
   it('sync handler uses direct bridge client when MCP server is not initialized', async () => {
     const result = await syncHandler();
-    const text = textOf(result);
+    const text = allText(result);
     expect(text).toContain('Bridge Sync');
     expect(text).toContain('"total": 2');
     expect(clientMocks.connectOnce).toHaveBeenCalledOnce();
@@ -106,7 +100,7 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
 
   it('disconnect handler succeeds without MCP server instance', async () => {
     const result = await disconnectHandler();
-    const text = textOf(result);
+    const text = allText(result);
     expect(text).toContain('Bridge Disconnect');
     expect(text).toContain('"connected": false');
     expect(clientMocks.disconnect).toHaveBeenCalledOnce();
@@ -114,7 +108,7 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
 
   it('list handler returns bridge tools without MCP server instance', async () => {
     const result = await listHandler({ refresh: true });
-    const text = textOf(result);
+    const text = allText(result);
     expect(text).toContain('Xcode IDE List Tools');
     expect(text).toContain('"toolCount": 2');
     expect(clientMocks.listTools).toHaveBeenCalledOnce();

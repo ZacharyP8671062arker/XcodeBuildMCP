@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { DebuggerManager } from '../../../../utils/debugger/index.ts';
-import type { DebuggerToolContext } from '../../../../utils/debugger/index.ts';
+import { DebuggerManager, type DebuggerToolContext } from '../../../../utils/debugger/index.ts';
 import type { DebuggerBackend } from '../../../../utils/debugger/backends/DebuggerBackend.ts';
 import type { BreakpointSpec, DebugSessionInfo } from '../../../../utils/debugger/types.ts';
 
@@ -46,10 +45,7 @@ import {
   handler as variablesHandler,
   debug_variablesLogic,
 } from '../debug_variables.ts';
-
-function joinText(result: { content: Array<{ text: string }> }): string {
-  return result.content.map((c) => c.text).join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 function createMockBackend(overrides: Partial<DebuggerBackend> = {}): DebuggerBackend {
   return {
@@ -145,7 +141,7 @@ describe('debug_attach_sim', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Attached');
       expect(text).toContain('1234');
       expect(text).toContain('test-sim-uuid');
@@ -166,7 +162,7 @@ describe('debug_attach_sim', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Execution is paused');
     });
 
@@ -188,7 +184,7 @@ describe('debug_attach_sim', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to attach debugger');
       expect(text).toContain('LLDB attach failed');
     });
@@ -211,7 +207,7 @@ describe('debug_attach_sim', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to resume debugger after attach');
     });
 
@@ -257,7 +253,7 @@ describe('debug_attach_sim', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to resolve simulator PID');
     });
 
@@ -326,7 +322,7 @@ describe('debug_breakpoint_add', () => {
       const result = await debug_breakpoint_addLogic({ file: 'main.swift', line: 10 }, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('No active debug session');
     });
   });
@@ -341,7 +337,7 @@ describe('debug_breakpoint_add', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Breakpoint');
       expect(text).toContain('set');
     });
@@ -355,7 +351,7 @@ describe('debug_breakpoint_add', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Breakpoint');
     });
 
@@ -373,7 +369,7 @@ describe('debug_breakpoint_add', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Breakpoint');
     });
 
@@ -390,7 +386,7 @@ describe('debug_breakpoint_add', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to add breakpoint');
       expect(text).toContain('Invalid file path');
     });
@@ -401,7 +397,7 @@ describe('debug_breakpoint_add', () => {
       const result = await debug_breakpoint_addLogic({ file: 'main.swift', line: 10 }, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Breakpoint');
     });
   });
@@ -434,7 +430,7 @@ describe('debug_breakpoint_remove', () => {
       const result = await debug_breakpoint_removeLogic({ breakpointId: 1 }, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('No active debug session');
     });
   });
@@ -449,7 +445,7 @@ describe('debug_breakpoint_remove', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Breakpoint 1 removed');
     });
 
@@ -466,7 +462,7 @@ describe('debug_breakpoint_remove', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to remove breakpoint');
       expect(text).toContain('Breakpoint not found');
     });
@@ -477,7 +473,7 @@ describe('debug_breakpoint_remove', () => {
       const result = await debug_breakpoint_removeLogic({ breakpointId: 1 }, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Breakpoint 1 removed');
     });
   });
@@ -509,7 +505,7 @@ describe('debug_continue', () => {
       const result = await debug_continueLogic({}, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('No active debug session');
     });
   });
@@ -521,7 +517,7 @@ describe('debug_continue', () => {
       const result = await debug_continueLogic({ debugSessionId: session.id }, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Resumed debugger session');
       expect(text).toContain(session.id);
     });
@@ -532,7 +528,7 @@ describe('debug_continue', () => {
       const result = await debug_continueLogic({}, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Resumed debugger session');
     });
 
@@ -546,7 +542,7 @@ describe('debug_continue', () => {
       const result = await debug_continueLogic({ debugSessionId: session.id }, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to resume debugger');
       expect(text).toContain('Process terminated');
     });
@@ -579,7 +575,7 @@ describe('debug_detach', () => {
       const result = await debug_detachLogic({}, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('No active debug session');
     });
   });
@@ -591,7 +587,7 @@ describe('debug_detach', () => {
       const result = await debug_detachLogic({ debugSessionId: session.id }, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Detached debugger session');
       expect(text).toContain(session.id);
     });
@@ -602,7 +598,7 @@ describe('debug_detach', () => {
       const result = await debug_detachLogic({}, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Detached debugger session');
     });
 
@@ -616,7 +612,7 @@ describe('debug_detach', () => {
       const result = await debug_detachLogic({ debugSessionId: session.id }, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to detach debugger');
       expect(text).toContain('Connection lost');
     });
@@ -651,7 +647,7 @@ describe('debug_lldb_command', () => {
       const result = await debug_lldb_commandLogic({ command: 'bt' }, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('No active debug session');
     });
   });
@@ -668,7 +664,7 @@ describe('debug_lldb_command', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('frame #0: main');
     });
 
@@ -702,7 +698,7 @@ describe('debug_lldb_command', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to run LLDB command');
       expect(text).toContain('Command timed out');
     });
@@ -715,7 +711,7 @@ describe('debug_lldb_command', () => {
       const result = await debug_lldb_commandLogic({ command: 'po self' }, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('result');
     });
   });
@@ -749,7 +745,7 @@ describe('debug_stack', () => {
       const result = await debug_stackLogic({}, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('No active debug session');
     });
   });
@@ -764,7 +760,7 @@ describe('debug_stack', () => {
       const result = await debug_stackLogic({ debugSessionId: session.id }, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain(stackOutput.trim());
     });
 
@@ -793,7 +789,7 @@ describe('debug_stack', () => {
       const result = await debug_stackLogic({ debugSessionId: session.id }, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to get stack');
       expect(text).toContain('Process not stopped');
     });
@@ -806,7 +802,7 @@ describe('debug_stack', () => {
       const result = await debug_stackLogic({}, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('frame #0: main');
     });
   });
@@ -839,7 +835,7 @@ describe('debug_variables', () => {
       const result = await debug_variablesLogic({}, ctx);
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('No active debug session');
     });
   });
@@ -854,7 +850,7 @@ describe('debug_variables', () => {
       const result = await debug_variablesLogic({ debugSessionId: session.id }, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain(variablesOutput.trim());
     });
 
@@ -885,7 +881,7 @@ describe('debug_variables', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('Failed to get variables');
       expect(text).toContain('Frame index out of range');
     });
@@ -898,7 +894,7 @@ describe('debug_variables', () => {
       const result = await debug_variablesLogic({}, ctx);
 
       expect(result.isError).toBeFalsy();
-      const text = joinText(result);
+      const text = allText(result);
       expect(text).toContain('y = 99');
     });
   });

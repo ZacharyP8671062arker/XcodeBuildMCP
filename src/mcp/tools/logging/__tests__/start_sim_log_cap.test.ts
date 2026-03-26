@@ -1,22 +1,10 @@
-/**
- * Tests for start_sim_log_cap plugin
- */
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { schema, handler, start_sim_log_capLogic } from '../start_sim_log_cap.ts';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
-
-function allText(response: ToolResponse): string {
-  return response.content
-    .filter((item) => item.type === 'text')
-    .map((item) => item.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('start_sim_log_cap plugin', () => {
-  // Reset any test state if needed
-
   describe('Export Field Validation (Literal)', () => {
     it('should export schema and handler', () => {
       expect(schema).toBeDefined();
@@ -36,16 +24,13 @@ describe('start_sim_log_cap plugin', () => {
 
     it('should validate schema with subsystemFilter parameter', () => {
       const schemaObj = z.object(schema);
-      // Valid enum values
       expect(schemaObj.safeParse({ subsystemFilter: 'app' }).success).toBe(true);
       expect(schemaObj.safeParse({ subsystemFilter: 'all' }).success).toBe(true);
       expect(schemaObj.safeParse({ subsystemFilter: 'swiftui' }).success).toBe(true);
-      // Valid array of subsystems
       expect(schemaObj.safeParse({ subsystemFilter: ['com.apple.UIKit'] }).success).toBe(true);
       expect(
         schemaObj.safeParse({ subsystemFilter: ['com.apple.UIKit', 'com.apple.CoreData'] }).success,
       ).toBe(true);
-      // Invalid values
       expect(schemaObj.safeParse({ subsystemFilter: [] }).success).toBe(false);
       expect(schemaObj.safeParse({ subsystemFilter: 'invalid' }).success).toBe(false);
       expect(schemaObj.safeParse({ subsystemFilter: 123 }).success).toBe(false);
@@ -63,9 +48,6 @@ describe('start_sim_log_cap plugin', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
-    // Note: Parameter validation is now handled by createTypedTool wrapper
-    // Invalid parameters will not reach the logic function, so we test valid scenarios
-
     it('should return error when log capture fails', async () => {
       const mockExecutor = createMockExecutor({ success: true, output: '' });
       const logCaptureStub = (params: any, executor: any) => {
@@ -241,7 +223,6 @@ describe('start_sim_log_cap plugin', () => {
 
       const logCaptureStub = (params: any, executor: any) => {
         if (params.captureConsole) {
-          // Record the console capture spawn call
           spawnCalls.push({
             command: 'xcrun',
             args: [
@@ -254,7 +235,6 @@ describe('start_sim_log_cap plugin', () => {
             ],
           });
         }
-        // Record the structured log capture spawn call
         spawnCalls.push({
           command: 'xcrun',
           args: [
@@ -288,7 +268,6 @@ describe('start_sim_log_cap plugin', () => {
         logCaptureStub,
       );
 
-      // Should spawn both console capture and structured log capture
       expect(spawnCalls).toHaveLength(2);
       expect(spawnCalls[0]).toEqual({
         command: 'xcrun',
@@ -324,7 +303,6 @@ describe('start_sim_log_cap plugin', () => {
       }> = [];
 
       const logCaptureStub = (params: any, executor: any) => {
-        // Record the structured log capture spawn call only
         spawnCalls.push({
           command: 'xcrun',
           args: [
@@ -358,7 +336,6 @@ describe('start_sim_log_cap plugin', () => {
         logCaptureStub,
       );
 
-      // Should only spawn structured log capture
       expect(spawnCalls).toHaveLength(1);
       expect(spawnCalls[0]).toEqual({
         command: 'xcrun',

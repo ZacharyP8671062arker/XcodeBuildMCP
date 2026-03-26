@@ -1,19 +1,11 @@
-/**
- * Tests for list_devices plugin (device-shared)
- * This tests the re-exported plugin from device-workspace
- * Following CLAUDE.md testing standards with literal validation
- *
- * Note: This is a re-export test. Comprehensive handler tests are in device-workspace/list_devices.test.ts
- */
-
 import { describe, it, expect } from 'vitest';
 import {
   createMockCommandResponse,
   createMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 
-// Import the logic function and named exports
 import { schema, handler, list_devicesLogic } from '../list_devices.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('list_devices plugin (device-shared)', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -56,7 +48,6 @@ describe('list_devices plugin (device-shared)', () => {
         },
       };
 
-      // Track command calls
       const commandCalls: Array<{
         command: string[];
         logPrefix?: string;
@@ -64,13 +55,11 @@ describe('list_devices plugin (device-shared)', () => {
         env?: Record<string, string>;
       }> = [];
 
-      // Create mock executor
       const mockExecutor = createMockExecutor({
         success: true,
         output: '',
       });
 
-      // Wrap to track calls
       const trackingExecutor = async (
         command: string[],
         logPrefix?: string,
@@ -82,13 +71,11 @@ describe('list_devices plugin (device-shared)', () => {
         return mockExecutor(command, logPrefix, useShell, opts, _detached);
       };
 
-      // Create mock path dependencies
       const mockPathDeps = {
         tmpdir: () => '/tmp',
         join: (...paths: string[]) => paths.join('/'),
       };
 
-      // Create mock filesystem with specific behavior
       const mockFsDeps = {
         readFile: async (_path: string, _encoding?: string) => JSON.stringify(devicectlJson),
         unlink: async () => {},
@@ -111,7 +98,6 @@ describe('list_devices plugin (device-shared)', () => {
     });
 
     it('should generate correct xctrace fallback command', async () => {
-      // Track command calls
       const commandCalls: Array<{
         command: string[];
         logPrefix?: string;
@@ -119,7 +105,6 @@ describe('list_devices plugin (device-shared)', () => {
         env?: Record<string, string>;
       }> = [];
 
-      // Create tracking executor with call count behavior
       let callCount = 0;
       const trackingExecutor = async (
         command: string[],
@@ -132,14 +117,12 @@ describe('list_devices plugin (device-shared)', () => {
         commandCalls.push({ command, logPrefix, useShell, env: opts?.env });
 
         if (callCount === 1) {
-          // First call fails (devicectl)
           return createMockCommandResponse({
             success: false,
             output: '',
             error: 'devicectl failed',
           });
         } else {
-          // Second call succeeds (xctrace)
           return createMockCommandResponse({
             success: true,
             output: 'iPhone 15 (12345678-1234-1234-1234-123456789012)',
@@ -148,13 +131,11 @@ describe('list_devices plugin (device-shared)', () => {
         }
       };
 
-      // Create mock path dependencies
       const mockPathDeps = {
         tmpdir: () => '/tmp',
         join: (...paths: string[]) => paths.join('/'),
       };
 
-      // Create mock filesystem that throws for readFile
       const mockFsDeps = {
         readFile: async () => {
           throw new Error('File not found');
@@ -173,13 +154,6 @@ describe('list_devices plugin (device-shared)', () => {
   });
 
   describe('Success Path Tests', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return successful devicectl response with parsed devices', async () => {
       const devicectlJson = {
         result: {
@@ -223,7 +197,7 @@ describe('list_devices plugin (device-shared)', () => {
       const result = await list_devicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Devices');
       expect(text).toContain('Test iPhone');
       expect(text).toContain('test-device-123');
@@ -279,7 +253,7 @@ describe('list_devices plugin (device-shared)', () => {
       const result = await list_devicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Devices');
       expect(text).toContain('xctrace output');
       expect(text).toContain('iPhone 15 (12345678-1234-1234-1234-123456789012)');
@@ -330,13 +304,10 @@ describe('list_devices plugin (device-shared)', () => {
       const result = await list_devicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('List Devices');
       expect(text).toContain('xctrace output');
       expect(text).toContain('Xcode 15');
     });
   });
-
-  // Note: Handler functionality is thoroughly tested in device-workspace/list_devices.test.ts
-  // This test file only verifies the re-export works correctly
 });

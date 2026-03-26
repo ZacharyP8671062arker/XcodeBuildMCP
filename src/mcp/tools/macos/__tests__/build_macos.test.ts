@@ -1,16 +1,8 @@
-/**
- * Tests for build_macos plugin (unified)
- * Following CLAUDE.md testing standards with literal validation
- * Using pure dependency injection for deterministic testing
- * NO VITEST MOCKING ALLOWED - Only createMockExecutor and createMockFileSystemExecutor
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { schema, handler } from '../build_macos.ts';
-import { buildMacOSLogic } from '../build_macos.ts';
+import { schema, handler, buildMacOSLogic } from '../build_macos.ts';
 
 function expectPendingBuildResponse(
   result: Awaited<ReturnType<typeof buildMacOSLogic>>,

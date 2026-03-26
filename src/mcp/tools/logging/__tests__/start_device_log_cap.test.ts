@@ -1,7 +1,3 @@
-/**
- * Tests for start_device_log_cap plugin
- * Following CLAUDE.md testing standards with pure dependency injection
- */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { Readable } from 'stream';
@@ -19,20 +15,13 @@ import {
   initConfigStore,
   type RuntimeConfigOverrides,
 } from '../../../../utils/config-store.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 const cwd = '/repo';
 
 async function initConfigStoreForTest(overrides?: RuntimeConfigOverrides): Promise<void> {
   __resetConfigStoreForTests();
   await initConfigStore({ cwd, fs: createMockFileSystemExecutor(), overrides });
-}
-
-function allText(response: ToolResponse): string {
-  return response.content
-    .filter((item) => item.type === 'text')
-    .map((item) => item.text)
-    .join('\n');
 }
 
 type Mutable<T> = {
@@ -45,7 +34,6 @@ type MockChildProcess = Mutable<ChildProcess> & {
 };
 
 describe('start_device_log_cap plugin', () => {
-  // Mock state tracking
   let commandCalls: Array<{
     command: string[];
     logPrefix?: string;
@@ -68,11 +56,9 @@ describe('start_device_log_cap plugin', () => {
     });
 
     it('should have correct schema structure', () => {
-      // Schema should be a plain object for MCP protocol compliance
       expect(typeof schema).toBe('object');
       expect(Object.keys(schema)).toEqual([]);
 
-      // Validate that schema fields are Zod types that can be used for validation
       const schemaObj = z.strictObject(schema);
       expect(schemaObj.safeParse({ bundleId: 'com.test.app' }).success).toBe(false);
       expect(schemaObj.safeParse({}).success).toBe(true);
@@ -96,7 +82,6 @@ describe('start_device_log_cap plugin', () => {
 
   describe('Handler Functionality', () => {
     it('should start log capture successfully', async () => {
-      // Mock successful command execution
       const mockExecutor = createMockExecutor({
         success: true,
         output: 'App launched successfully',
@@ -127,7 +112,6 @@ describe('start_device_log_cap plugin', () => {
     });
 
     it('should include next steps in success response', async () => {
-      // Mock successful command execution
       const mockExecutor = createMockExecutor({
         success: true,
         output: 'App launched successfully',
@@ -401,7 +385,6 @@ describe('start_device_log_cap plugin', () => {
     });
 
     it('should handle directory creation failure', async () => {
-      // Mock mkdir to fail
       const mockExecutor = createMockExecutor({
         success: false,
         output: '',
@@ -431,7 +414,6 @@ describe('start_device_log_cap plugin', () => {
     });
 
     it('should handle file write failure', async () => {
-      // Mock writeFile to fail
       const mockExecutor = createMockExecutor({
         success: false,
         output: '',
@@ -464,7 +446,6 @@ describe('start_device_log_cap plugin', () => {
     });
 
     it('should handle spawn process error', async () => {
-      // Mock spawn to throw error
       const mockExecutor = createMockExecutor(new Error('Command not found'));
 
       const mockFileSystemExecutor = createMockFileSystemExecutor({
@@ -492,7 +473,6 @@ describe('start_device_log_cap plugin', () => {
     });
 
     it('should handle string error objects', async () => {
-      // Mock mkdir to fail with string error
       const mockExecutor = createMockExecutor('String error message');
 
       const mockFileSystemExecutor = createMockFileSystemExecutor({

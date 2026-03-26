@@ -5,14 +5,7 @@ import {
   createMockCommandResponse,
   createMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
-
-function allText(result: ToolResponse): string {
-  return result.content
-    .filter((c) => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('set_sim_appearance plugin', () => {
   describe('Export Field Validation (Literal)', () => {

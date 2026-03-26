@@ -1,8 +1,3 @@
-/**
- * Tests for test_sim plugin (session-aware version)
- * Follows CLAUDE.md guidance: dependency injection, no vi-mocks, literal validation.
- */
-
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as z from 'zod';
 import { sessionStore } from '../../../../utils/session-store.ts';

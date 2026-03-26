@@ -2,8 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import { createMockExecutor, mockProcess } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { schema, handler } from '../build_run_macos.ts';
-import { buildRunMacOSLogic } from '../build_run_macos.ts';
+import { schema, handler, buildRunMacOSLogic } from '../build_run_macos.ts';
 
 function expectPendingBuildRunResponse(
   result: Awaited<ReturnType<typeof buildRunMacOSLogic>>,

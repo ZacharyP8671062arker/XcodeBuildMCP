@@ -9,7 +9,7 @@ import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { log } from '../../../utils/logging/index.ts';
-import { validateFileExists } from '../../../utils/validation/index.ts';
+import { validateFileExists } from '../../../utils/validation.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from '../../../utils/execution/index.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
@@ -97,7 +97,6 @@ export async function get_file_coverageLogic(
     ['xcrun', 'xccov', 'view', '--report', '--functions-for-file', file, '--json', xcresultPath],
     'Get File Function Coverage',
     false,
-    undefined,
   );
 
   if (!funcResult.success) {
@@ -210,7 +209,6 @@ export async function get_file_coverageLogic(
       ['xcrun', 'xccov', 'view', '--archive', '--file', filePath, xcresultPath],
       'Get File Line Coverage',
       false,
-      undefined,
     );
 
     if (archiveResult.success && archiveResult.output) {

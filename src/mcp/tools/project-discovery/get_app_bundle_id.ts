@@ -32,10 +32,11 @@ export async function get_app_bundle_idLogic(
   fileSystemExecutor: FileSystemExecutor,
 ): Promise<ToolResponse> {
   const appPath = params.appPath;
+  const headerEvent = header('Get Bundle ID', [{ label: 'App', value: appPath }]);
 
   if (!fileSystemExecutor.existsSync(appPath)) {
     return toolResponse([
-      header('Get Bundle ID', [{ label: 'App', value: appPath }]),
+      headerEvent,
       statusLine('error', `File not found: '${appPath}'. Please check the path and try again.`),
     ]);
   }
@@ -55,27 +56,21 @@ export async function get_app_bundle_idLogic(
 
     log('info', `Extracted app bundle ID: ${bundleId}`);
 
-    return toolResponse(
-      [
-        header('Get Bundle ID', [{ label: 'App', value: appPath }]),
-        statusLine('success', `Bundle ID: ${bundleId}`),
-      ],
-      {
-        nextStepParams: {
-          install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
-          launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: bundleId.trim() },
-          install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-          launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: bundleId.trim() },
-        },
+    return toolResponse([headerEvent, statusLine('success', `Bundle ID: ${bundleId}`)], {
+      nextStepParams: {
+        install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
+        launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: bundleId.trim() },
+        install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: bundleId.trim() },
       },
-    );
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error extracting app bundle ID: ${errorMessage}`);
 
     return toolResponse([
-      header('Get Bundle ID', [{ label: 'App', value: appPath }]),
-      statusLine('error', `${errorMessage}`),
+      headerEvent,
+      statusLine('error', errorMessage),
       statusLine('info', 'Make sure the path points to a valid app bundle (.app directory).'),
     ]);
   }

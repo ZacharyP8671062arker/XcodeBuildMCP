@@ -1,8 +1,3 @@
-/**
- * Tests for get_mac_app_path plugin (unified project/workspace)
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {
@@ -11,8 +6,8 @@ import {
   type CommandExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { schema, handler } from '../get_mac_app_path.ts';
-import { get_mac_app_pathLogic } from '../get_mac_app_path.ts';
+import { schema, handler, get_mac_app_pathLogic } from '../get_mac_app_path.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('get_mac_app_path plugin', () => {
   beforeEach(() => {
@@ -337,20 +332,13 @@ describe('get_mac_app_path plugin', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return Zod validation error for missing scheme', async () => {
       const result = await handler({
         workspacePath: '/path/to/MyProject.xcworkspace',
       });
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('scheme is required');
       expect(text).toContain('session-set-defaults');
     });
@@ -376,7 +364,7 @@ FULL_PRODUCT_NAME = MyApp.app
         '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app';
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Get App Path');
       expect(text).toContain('Scheme: MyScheme');
       expect(text).toContain('Workspace: /path/to/MyProject.xcworkspace');
@@ -410,7 +398,7 @@ FULL_PRODUCT_NAME = MyApp.app
         '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app';
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Get App Path');
       expect(text).toContain('Scheme: MyScheme');
       expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
@@ -438,7 +426,7 @@ FULL_PRODUCT_NAME = MyApp.app
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Get App Path');
       expect(text).toContain('Scheme: MyScheme');
       expect(text).toContain('No such scheme');
@@ -460,7 +448,7 @@ FULL_PRODUCT_NAME = MyApp.app
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Get App Path');
       expect(text).toContain('Could not extract app path from build settings');
       expect(result.nextStepParams).toBeUndefined();
@@ -480,7 +468,7 @@ FULL_PRODUCT_NAME = MyApp.app
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Get App Path');
       expect(text).toContain('Network error');
       expect(result.nextStepParams).toBeUndefined();

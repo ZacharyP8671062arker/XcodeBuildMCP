@@ -1,9 +1,3 @@
-/**
- * Tests for get_device_app_path plugin (unified)
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {

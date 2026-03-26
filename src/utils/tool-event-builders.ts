@@ -5,7 +5,6 @@ import type {
   FileRefEvent,
   TableEvent,
   DetailTreeEvent,
-  SummaryEvent,
 } from '../types/pipeline-events.ts';
 
 function now(): string {
@@ -75,29 +74,5 @@ export function detailTree(items: Array<{ label: string; value: string }>): Deta
     type: 'detail-tree',
     timestamp: now(),
     items,
-  };
-}
-
-export function summary(
-  status: 'SUCCEEDED' | 'FAILED',
-  opts?: {
-    operation?: string;
-    durationMs?: number;
-    totalTests?: number;
-    passedTests?: number;
-    failedTests?: number;
-    skippedTests?: number;
-  },
-): SummaryEvent {
-  return {
-    type: 'summary',
-    timestamp: now(),
-    status,
-    operation: opts?.operation,
-    durationMs: opts?.durationMs,
-    totalTests: opts?.totalTests,
-    passedTests: opts?.passedTests,
-    failedTests: opts?.failedTests,
-    skippedTests: opts?.skippedTests,
   };
 }

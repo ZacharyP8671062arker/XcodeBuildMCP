@@ -28,6 +28,7 @@ export async function stop_device_log_capLogic(
   fileSystemExecutor: FileSystemExecutor,
 ): Promise<ToolResponse> {
   const { logSessionId } = params;
+  const headerEvent = header('Stop Log Capture', [{ label: 'Session ID', value: logSessionId }]);
 
   try {
     log('info', `Attempting to stop device log capture session: ${logSessionId}`);
@@ -40,7 +41,7 @@ export async function stop_device_log_capLogic(
     if (result.error) {
       log('error', `Failed to stop device log capture session ${logSessionId}: ${result.error}`);
       return toolResponse([
-        header('Stop Log Capture', [{ label: 'Session ID', value: logSessionId }]),
+        headerEvent,
         statusLine(
           'error',
           `Failed to stop device log capture session ${logSessionId}: ${result.error}`,
@@ -49,7 +50,7 @@ export async function stop_device_log_capLogic(
     }
 
     return toolResponse([
-      header('Stop Log Capture', [{ label: 'Session ID', value: logSessionId }]),
+      headerEvent,
       section('Captured Logs', [result.logContent]),
       statusLine('success', 'Log capture stopped.'),
     ]);
@@ -57,7 +58,7 @@ export async function stop_device_log_capLogic(
     const message = error instanceof Error ? error.message : String(error);
     log('error', `Failed to stop device log capture session ${logSessionId}: ${message}`);
     return toolResponse([
-      header('Stop Log Capture', [{ label: 'Session ID', value: logSessionId }]),
+      headerEvent,
       statusLine('error', `Failed to stop device log capture session ${logSessionId}: ${message}`),
     ]);
   }
@@ -69,8 +70,7 @@ export const schema = stopDeviceLogCapSchema.shape;
 
 export const handler = createTypedTool(
   stopDeviceLogCapSchema,
-  (params: StopDeviceLogCapParams) => {
-    return stop_device_log_capLogic(params, getDefaultFileSystemExecutor());
-  },
+  (params: StopDeviceLogCapParams) =>
+    stop_device_log_capLogic(params, getDefaultFileSystemExecutor()),
   getDefaultCommandExecutor,
 );

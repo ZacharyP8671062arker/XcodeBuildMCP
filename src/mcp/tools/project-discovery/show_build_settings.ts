@@ -60,12 +60,12 @@ export async function showBuildSettingsLogic(
   const hasProjectPath = typeof params.projectPath === 'string';
   const pathValue = hasProjectPath ? params.projectPath : params.workspacePath;
 
-  const headerParams = [
+  const headerEvent = header('Show Build Settings', [
     { label: 'Scheme', value: params.scheme },
     ...(hasProjectPath
       ? [{ label: 'Project', value: params.projectPath! }]
       : [{ label: 'Workspace', value: params.workspacePath! }]),
-  ];
+  ]);
 
   try {
     const command = ['xcodebuild', '-showBuildSettings'];
@@ -81,10 +81,7 @@ export async function showBuildSettingsLogic(
     const result = await executor(command, 'Show Build Settings', false);
 
     if (!result.success) {
-      return toolResponse([
-        header('Show Build Settings', headerParams),
-        statusLine('error', result.error || 'Unknown error'),
-      ]);
+      return toolResponse([headerEvent, statusLine('error', result.error || 'Unknown error')]);
     }
 
     const settingsOutput = stripXcodebuildPreamble(
@@ -106,7 +103,7 @@ export async function showBuildSettingsLogic(
 
     return toolResponse(
       [
-        header('Show Build Settings', headerParams),
+        headerEvent,
         statusLine('success', 'Build settings retrieved.'),
         section('Settings', settingsLines),
       ],
@@ -115,10 +112,7 @@ export async function showBuildSettingsLogic(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error showing build settings: ${errorMessage}`);
-    return toolResponse([
-      header('Show Build Settings', headerParams),
-      statusLine('error', errorMessage),
-    ]);
+    return toolResponse([headerEvent, statusLine('error', errorMessage)]);
   }
 }
 

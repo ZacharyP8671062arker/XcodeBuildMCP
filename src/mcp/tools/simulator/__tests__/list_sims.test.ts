@@ -5,7 +5,6 @@ import {
   createMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 
-// Import the named exports and logic function
 import { schema, handler, list_simsLogic, listSimulators } from '../list_sims.ts';
 
 describe('list_sims tool', () => {
@@ -26,13 +25,11 @@ describe('list_sims tool', () => {
     it('should have correct schema with enabled boolean field', () => {
       const schemaObj = z.object(schema);
 
-      // Valid inputs
       expect(schemaObj.safeParse({ enabled: true }).success).toBe(true);
       expect(schemaObj.safeParse({ enabled: false }).success).toBe(true);
       expect(schemaObj.safeParse({ enabled: undefined }).success).toBe(true);
       expect(schemaObj.safeParse({}).success).toBe(true);
 
-      // Invalid inputs
       expect(schemaObj.safeParse({ enabled: 'yes' }).success).toBe(false);
       expect(schemaObj.safeParse({ enabled: 1 }).success).toBe(false);
       expect(schemaObj.safeParse({ enabled: null }).success).toBe(false);
@@ -97,7 +94,6 @@ describe('list_sims tool', () => {
 -- iOS 17.0 --
     iPhone 15 (test-uuid-123) (Shutdown)`;
 
-      // Create a mock executor that returns different outputs based on command
       const mockExecutor = async (
         command: string[],
         logPrefix?: string,
@@ -108,7 +104,6 @@ describe('list_sims tool', () => {
         callHistory.push({ command, logPrefix, useShell, env: opts?.env });
         void detached;
 
-        // Return JSON output for JSON command
         if (command.includes('--json')) {
           return createMockCommandResponse({
             success: true,
@@ -117,7 +112,6 @@ describe('list_sims tool', () => {
           });
         }
 
-        // Return text output for text command
         return createMockCommandResponse({
           success: true,
           output: mockTextOutput,
@@ -127,7 +121,6 @@ describe('list_sims tool', () => {
 
       const result = await list_simsLogic({ enabled: true }, mockExecutor);
 
-      // Verify both commands were called
       expect(callHistory).toHaveLength(2);
       expect(callHistory[0]).toEqual({
         command: ['xcrun', 'simctl', 'list', 'devices', '--json'],
@@ -290,7 +283,6 @@ describe('list_sims tool', () => {
     iPhone 15 (test-uuid-456) (Shutdown)`;
 
       const mockExecutor = async (command: string[]) => {
-        // JSON command returns invalid JSON
         if (command.includes('--json')) {
           return createMockCommandResponse({
             success: true,
@@ -299,7 +291,6 @@ describe('list_sims tool', () => {
           });
         }
 
-        // Text command returns valid text output
         return createMockCommandResponse({
           success: true,
           output: mockTextOutput,

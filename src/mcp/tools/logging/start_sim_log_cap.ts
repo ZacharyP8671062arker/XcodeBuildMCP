@@ -55,6 +55,11 @@ export async function start_sim_log_capLogic(
 ): Promise<ToolResponse> {
   const { bundleId, simulatorId, subsystemFilter } = params;
   const captureConsole = params.captureConsole ?? false;
+  const headerEvent = header('Start Log Capture', [
+    { label: 'Simulator', value: simulatorId },
+    { label: 'Bundle ID', value: bundleId },
+  ]);
+
   const logCaptureParams: Parameters<typeof startLogCapture>[0] = {
     simulatorUuid: simulatorId,
     bundleId,
@@ -63,13 +68,7 @@ export async function start_sim_log_capLogic(
   };
   const { sessionId, error } = await logCaptureFunction(logCaptureParams, _executor);
   if (error) {
-    return toolResponse([
-      header('Start Log Capture', [
-        { label: 'Simulator', value: simulatorId },
-        { label: 'Bundle ID', value: bundleId },
-      ]),
-      statusLine('error', `Error starting log capture: ${error}`),
-    ]);
+    return toolResponse([headerEvent, statusLine('error', `Error starting log capture: ${error}`)]);
   }
 
   const filterDescription = buildSubsystemFilterDescription(subsystemFilter);
@@ -83,14 +82,7 @@ export async function start_sim_log_capLogic(
   lines.push('Interact with your simulator and app, then stop capture to retrieve logs.');
 
   return toolResponse(
-    [
-      header('Start Log Capture', [
-        { label: 'Simulator', value: simulatorId },
-        { label: 'Bundle ID', value: bundleId },
-      ]),
-      section('Details', lines),
-      statusLine('success', 'Log capture started.'),
-    ],
+    [headerEvent, section('Details', lines), statusLine('success', 'Log capture started.')],
     {
       nextStepParams: {
         stop_sim_log_cap: { logSessionId: sessionId },

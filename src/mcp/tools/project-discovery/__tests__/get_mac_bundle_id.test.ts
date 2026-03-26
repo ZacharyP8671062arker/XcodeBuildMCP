@@ -5,15 +5,9 @@ import {
   createMockFileSystemExecutor,
   createCommandMatchingMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('get_mac_bundle_id plugin', () => {
-  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-    return result.content
-      .filter((i) => i.type === 'text')
-      .map((i) => i.text)
-      .join('\n');
-  }
-
   const createMockExecutorForCommands = (results: Record<string, string | Error>) => {
     return createCommandMatchingMockExecutor(
       Object.fromEntries(
@@ -61,7 +55,7 @@ describe('get_mac_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Get macOS Bundle ID');
       expect(text).toContain("File not found: '/Applications/MyApp.app'");
     });
@@ -82,7 +76,7 @@ describe('get_mac_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Get macOS Bundle ID');
       expect(text).toContain('Bundle ID: io.sentry.MyMacApp');
       expect(result.nextStepParams).toEqual({
@@ -110,7 +104,7 @@ describe('get_mac_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Bundle ID: io.sentry.MyMacApp');
       expect(result.nextStepParams).toEqual({
         launch_mac_app: { appPath: '/Applications/MyApp.app' },
@@ -137,7 +131,7 @@ describe('get_mac_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Could not extract bundle ID from Info.plist');
       expect(text).toContain('Command failed');
       expect(text).toContain(
@@ -164,7 +158,7 @@ describe('get_mac_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Could not extract bundle ID from Info.plist');
       expect(text).toContain('Custom error message');
       expect(text).toContain(
@@ -191,7 +185,7 @@ describe('get_mac_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Could not extract bundle ID from Info.plist');
       expect(text).toContain('String error');
       expect(text).toContain(

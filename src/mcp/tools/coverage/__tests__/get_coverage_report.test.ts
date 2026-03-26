@@ -1,8 +1,3 @@
-/**
- * Tests for get_coverage_report tool
- * Covers happy-path, target filtering, showFiles, and failure paths
- */
-
 import { afterEach, describe, it, expect } from 'vitest';
 import { createMockExecutor, createMockFileSystemExecutor } from '../../../../test-utils/mock-executors.ts';
 import {
@@ -10,15 +5,8 @@ import {
   __setTestFileSystemExecutorOverride,
   __clearTestExecutorOverrides,
 } from '../../../../utils/execution/index.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
 import { schema, handler, get_coverage_reportLogic } from '../get_coverage_report.ts';
-
-function allText(result: ToolResponse): string {
-  return result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
-    .map((c) => c.text)
-    .join('\n');
-}
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 const sampleTargets = [
   { name: 'MyApp.app', coveredLines: 100, executableLines: 200, lineCoverage: 0.5 },

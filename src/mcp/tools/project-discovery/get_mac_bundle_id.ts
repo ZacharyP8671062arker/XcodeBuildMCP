@@ -37,10 +37,11 @@ export async function get_mac_bundle_idLogic(
   fileSystemExecutor: FileSystemExecutor,
 ): Promise<ToolResponse> {
   const appPath = params.appPath;
+  const headerEvent = header('Get macOS Bundle ID', [{ label: 'App', value: appPath }]);
 
   if (!fileSystemExecutor.existsSync(appPath)) {
     return toolResponse([
-      header('Get macOS Bundle ID', [{ label: 'App', value: appPath }]),
+      headerEvent,
       statusLine('error', `File not found: '${appPath}'. Please check the path and try again.`),
     ]);
   }
@@ -70,25 +71,19 @@ export async function get_mac_bundle_idLogic(
 
     log('info', `Extracted macOS bundle ID: ${bundleId}`);
 
-    return toolResponse(
-      [
-        header('Get macOS Bundle ID', [{ label: 'App', value: appPath }]),
-        statusLine('success', `Bundle ID: ${bundleId}`),
-      ],
-      {
-        nextStepParams: {
-          launch_mac_app: { appPath },
-          build_macos: { scheme: 'SCHEME_NAME' },
-        },
+    return toolResponse([headerEvent, statusLine('success', `Bundle ID: ${bundleId}`)], {
+      nextStepParams: {
+        launch_mac_app: { appPath },
+        build_macos: { scheme: 'SCHEME_NAME' },
       },
-    );
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error extracting macOS bundle ID: ${errorMessage}`);
 
     return toolResponse([
-      header('Get macOS Bundle ID', [{ label: 'App', value: appPath }]),
-      statusLine('error', `${errorMessage}`),
+      headerEvent,
+      statusLine('error', errorMessage),
       statusLine('info', 'Make sure the path points to a valid macOS app bundle (.app directory).'),
     ]);
   }

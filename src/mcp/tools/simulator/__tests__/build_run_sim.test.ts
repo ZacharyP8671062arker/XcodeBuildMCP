@@ -1,8 +1,3 @@
-/**
- * Tests for build_run_sim plugin (unified)
- * Following the canonical pending pipeline pattern from build_run_macos.
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {

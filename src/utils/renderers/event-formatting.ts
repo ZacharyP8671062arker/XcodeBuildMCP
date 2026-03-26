@@ -358,42 +358,27 @@ export function formatGroupedCompilerErrors(
   return lines.join('\n');
 }
 
+const BUILD_STAGE_LABEL: Record<Exclude<BuildStageEvent['stage'], 'COMPLETED'>, string> = {
+  RESOLVING_PACKAGES: 'Resolving packages',
+  COMPILING: 'Compiling',
+  LINKING: 'Linking',
+  PREPARING_TESTS: 'Preparing tests',
+  RUN_TESTS: 'Running tests',
+  ARCHIVING: 'Archiving',
+};
+
 export function formatBuildStageEvent(event: BuildStageEvent): string {
-  switch (event.stage) {
-    case 'RESOLVING_PACKAGES':
-      return '\u203A Resolving packages';
-    case 'COMPILING':
-      return '\u203A Compiling';
-    case 'LINKING':
-      return '\u203A Linking';
-    case 'PREPARING_TESTS':
-      return '\u203A Preparing tests';
-    case 'RUN_TESTS':
-      return '\u203A Running tests';
-    case 'ARCHIVING':
-      return '\u203A Archiving';
-    case 'COMPLETED':
-      return event.message;
+  if (event.stage === 'COMPLETED') {
+    return event.message;
   }
+  return `\u203A ${BUILD_STAGE_LABEL[event.stage]}`;
 }
 
 export function formatTransientBuildStageEvent(event: BuildStageEvent): string {
-  switch (event.stage) {
-    case 'RESOLVING_PACKAGES':
-      return 'Resolving packages...';
-    case 'COMPILING':
-      return 'Compiling...';
-    case 'LINKING':
-      return 'Linking...';
-    case 'PREPARING_TESTS':
-      return 'Preparing tests...';
-    case 'RUN_TESTS':
-      return 'Running tests...';
-    case 'ARCHIVING':
-      return 'Archiving...';
-    case 'COMPLETED':
-      return event.message;
+  if (event.stage === 'COMPLETED') {
+    return event.message;
   }
+  return `${BUILD_STAGE_LABEL[event.stage]}...`;
 }
 
 export function formatHumanCompilerWarningEvent(
@@ -416,11 +401,7 @@ export function formatGroupedWarnings(
   const lines = [heading, ''];
 
   for (const event of events) {
-    const diagnostic = parseHumanDiagnostic(event, 'warning', options);
-    lines.push(`  \u{26A0} ${event.message}`);
-    if (diagnostic.location) {
-      lines.push(`    ${diagnostic.location}`);
-    }
+    lines.push(formatHumanCompilerWarningEvent(event, options));
     lines.push('');
   }
 

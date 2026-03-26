@@ -72,14 +72,6 @@ function formatBuildRunStepLabel(step: string): string {
   }
 }
 
-function mapNoticeLevelToStatusLineLevel(
-  level: NoticeLevel,
-): 'success' | 'error' | 'info' | 'warning' {
-  if (level === 'success') return 'success';
-  if (level === 'warning') return 'warning';
-  return 'info';
-}
-
 export function createNoticeEvent(
   operation: XcodebuildOperation,
   message: string,
@@ -103,10 +95,12 @@ export function createNoticeEvent(
     };
   }
 
+  const statusLevel = level === 'success' || level === 'warning' ? level : 'info';
+
   return {
     type: 'status-line',
     timestamp: new Date().toISOString(),
-    level: mapNoticeLevelToStatusLineLevel(level),
+    level: statusLevel,
     message,
   };
 }
@@ -158,13 +152,7 @@ function createNextStepsEvent(steps: NextStep[]): PipelineEvent | null {
   return {
     type: 'next-steps',
     timestamp: new Date().toISOString(),
-    steps: steps.map(({ label, tool, workflow, cliTool, params }) => ({
-      label,
-      tool,
-      workflow,
-      cliTool,
-      params,
-    })),
+    steps,
   };
 }
 

@@ -42,6 +42,7 @@ export async function sessionSetDefaultsLogic(
   params: Params,
   context: SessionSetDefaultsContext,
 ): Promise<ToolResponse> {
+  const headerEvent = header('Set Defaults');
   const notices: string[] = [];
   let activeProfile = sessionStore.getActiveProfile();
   const {
@@ -55,16 +56,13 @@ export async function sessionSetDefaultsLogic(
   if (rawProfile !== undefined) {
     const profile = rawProfile.trim();
     if (profile.length === 0) {
-      return toolResponse([
-        header('Set Defaults'),
-        statusLine('error', 'Profile name cannot be empty.'),
-      ]);
+      return toolResponse([headerEvent, statusLine('error', 'Profile name cannot be empty.')]);
     }
 
     const profileExists = sessionStore.listProfiles().includes(profile);
     if (!profileExists && !createIfNotExists) {
       return toolResponse([
-        header('Set Defaults'),
+        headerEvent,
         statusLine(
           'error',
           `Profile "${profile}" does not exist. Pass createIfNotExists=true to create it.`,
@@ -211,7 +209,7 @@ export async function sessionSetDefaultsLogic(
   }
 
   const updated = sessionStore.getAll();
-  const events: PipelineEvent[] = [header('Set Defaults')];
+  const events: PipelineEvent[] = [headerEvent];
 
   const items = Object.entries(updated)
     .filter(([, v]) => v !== undefined)

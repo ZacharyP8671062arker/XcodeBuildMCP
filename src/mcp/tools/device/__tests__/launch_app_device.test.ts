@@ -1,12 +1,3 @@
-/**
- * Pure dependency injection test for launch_app_device plugin (device-shared)
- *
- * Tests plugin structure and app launching functionality including parameter validation,
- * command generation, file operations, and response formatting.
- *
- * Uses createMockExecutor for command execution and manual stubs for file operations.
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {
@@ -15,6 +6,7 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, launch_app_deviceLogic } from '../launch_app_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('launch_app_device plugin (device-shared)', () => {
   beforeEach(() => {
@@ -198,13 +190,6 @@ describe('launch_app_device plugin (device-shared)', () => {
   });
 
   describe('Success Path Tests', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return successful launch response without process ID', async () => {
       const mockExecutor = createMockExecutor({
         success: true,
@@ -221,7 +206,7 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Launch App');
       expect(text).toContain('test-device-123');
       expect(text).toContain('io.sentry.app');
@@ -244,7 +229,7 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Launch App');
       expect(text).toContain('App launched successfully');
     });
@@ -277,7 +262,7 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Launch App');
       expect(text).toContain('Process ID: 12345');
       expect(text).toContain('App launched successfully');
@@ -302,20 +287,13 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Launch App');
       expect(text).toContain('App launched successfully');
     });
   });
 
   describe('Error Handling', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('should return launch failure response', async () => {
       const mockExecutor = createMockExecutor({
         success: false,
@@ -332,7 +310,7 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to launch app: Launch failed: App not found');
     });
 
@@ -352,7 +330,7 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to launch app: Device not found: test-device-invalid');
     });
 
@@ -369,7 +347,7 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to launch app on device: Network error');
     });
 
@@ -386,7 +364,7 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to launch app on device: String error');
     });
   });

@@ -1,9 +1,3 @@
-/**
- * Tests for swift_package_clean plugin
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
-
 import { describe, it, expect } from 'vitest';
 import {
   createMockExecutor,

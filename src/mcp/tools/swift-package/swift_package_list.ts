@@ -89,8 +89,6 @@ export const schema = swiftPackageListSchema.shape;
 
 export const handler = createTypedTool(
   swiftPackageListSchema,
-  (params: SwiftPackageListParams) => {
-    return swift_package_listLogic(params);
-  },
+  (params: SwiftPackageListParams) => swift_package_listLogic(params),
   getDefaultCommandExecutor,
 );

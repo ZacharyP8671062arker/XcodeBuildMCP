@@ -20,7 +20,6 @@ import { getMcpBridgeAvailability } from '../../../integrations/xcode-tools-brid
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section, detailTree } from '../../../utils/tool-event-builders.ts';
 
-// Constants
 const LOG_PREFIX = '[Doctor]';
 const USER_HOME_PATH_PATTERN = /\/Users\/[^/\s]+/g;
 const SENSITIVE_KEY_PATTERN =
@@ -168,7 +167,6 @@ async function getXcodeToolsBridgeDoctorInfo(
 export async function runDoctor(
   params: DoctorParams,
   deps: DoctorDependencies,
-  showAsciiLogo = false,
 ): Promise<ToolResponse> {
   const prevSilence = process.env.XCODEBUILDMCP_SILENCE_LOGS;
   process.env.XCODEBUILDMCP_SILENCE_LOGS = 'true';
@@ -356,12 +354,12 @@ export async function runDoctor(
   events.push(section('UI Automation (axe)', axeLines));
 
   // Incremental Builds
-  const makefileStatus =
-    doctorInfo.features.xcodemake.makefileExists === null
-      ? '(not checked: incremental builds disabled)'
-      : doctorInfo.features.xcodemake.makefileExists
-        ? 'Yes'
-        : 'No';
+  let makefileStatus: string;
+  if (doctorInfo.features.xcodemake.makefileExists === null) {
+    makefileStatus = '(not checked: incremental builds disabled)';
+  } else {
+    makefileStatus = doctorInfo.features.xcodemake.makefileExists ? 'Yes' : 'No';
+  }
   events.push(
     section('Incremental Builds', [
       `Enabled: ${doctorInfo.features.xcodemake.enabled ? 'Yes' : 'No'}`,
@@ -446,12 +444,14 @@ export async function runDoctor(
 
   // Tool Availability Summary
   const buildToolsAvailable = !('error' in doctorInfo.xcode);
-  const incrementalStatus =
-    doctorInfo.features.xcodemake.binaryAvailable && doctorInfo.features.xcodemake.enabled
-      ? 'Available & Enabled'
-      : doctorInfo.features.xcodemake.binaryAvailable
-        ? 'Available but Disabled'
-        : 'Not available';
+  let incrementalStatus: string;
+  if (doctorInfo.features.xcodemake.binaryAvailable && doctorInfo.features.xcodemake.enabled) {
+    incrementalStatus = 'Available & Enabled';
+  } else if (doctorInfo.features.xcodemake.binaryAvailable) {
+    incrementalStatus = 'Available but Disabled';
+  } else {
+    incrementalStatus = 'Not available';
+  }
   events.push(
     section('Tool Availability Summary', [
       `Build Tools: ${buildToolsAvailable ? 'Available' : 'Not available'}`,
@@ -492,22 +492,13 @@ export async function runDoctor(
 export async function doctorLogic(
   params: DoctorParams,
   executor: CommandExecutor,
-  showAsciiLogo = false,
 ): Promise<ToolResponse> {
   const deps = createDoctorDependencies(executor);
-  return runDoctor(params, deps, showAsciiLogo);
+  return runDoctor(params, deps);
 }
 
-// MCP wrapper that ensures ASCII logo is never shown for MCP server calls
-async function doctorMcpHandler(
-  params: DoctorParams,
-  executor: CommandExecutor,
-): Promise<ToolResponse> {
-  return doctorLogic(params, executor, false); // Always false for MCP
-}
+export const schema = doctorSchema.shape;
 
-export const schema = doctorSchema.shape; // MCP SDK compatibility
-
-export const handler = createTypedTool(doctorSchema, doctorMcpHandler, getDefaultCommandExecutor);
+export const handler = createTypedTool(doctorSchema, doctorLogic, getDefaultCommandExecutor);
 
 export type { DoctorDependencies } from './lib/doctor.deps.ts';

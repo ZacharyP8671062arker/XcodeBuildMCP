@@ -1,8 +1,3 @@
-/**
- * Tests for test_macos plugin (unified project/workspace)
- * Following CLAUDE.md testing standards with literal validation
- * Using dependency injection for deterministic testing
- */
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import {

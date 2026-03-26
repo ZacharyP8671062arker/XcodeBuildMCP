@@ -78,7 +78,7 @@ export async function get_mac_app_pathLogic(
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
   const configuration = params.configuration ?? 'Debug';
-  const headerParams = buildHeaderParams(params, configuration);
+  const headerEvent = header('Get App Path', buildHeaderParams(params, configuration));
 
   log('info', `Getting app path for scheme ${params.scheme} on platform macOS`);
 
@@ -110,15 +110,12 @@ export async function get_mac_app_pathLogic(
     const result = await executor(command, 'Get App Path', false);
 
     if (!result.success) {
-      return toolResponse([
-        header('Get App Path', headerParams),
-        statusLine('error', result.error ?? 'Unknown error'),
-      ]);
+      return toolResponse([headerEvent, statusLine('error', result.error ?? 'Unknown error')]);
     }
 
     if (!result.output) {
       return toolResponse([
-        header('Get App Path', headerParams),
+        headerEvent,
         statusLine('error', 'Failed to extract build settings output from the result'),
       ]);
     }
@@ -128,7 +125,7 @@ export async function get_mac_app_pathLogic(
 
     if (!builtProductsDirMatch || !fullProductNameMatch) {
       return toolResponse([
-        header('Get App Path', headerParams),
+        headerEvent,
         statusLine('error', 'Could not extract app path from build settings'),
       ]);
     }
@@ -139,7 +136,7 @@ export async function get_mac_app_pathLogic(
 
     return toolResponse(
       [
-        header('Get App Path', headerParams),
+        headerEvent,
         detailTree([{ label: 'App Path', value: appPath }]),
         statusLine('success', 'App path resolved.'),
       ],
@@ -153,7 +150,7 @@ export async function get_mac_app_pathLogic(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error retrieving app path: ${errorMessage}`);
-    return toolResponse([header('Get App Path', headerParams), statusLine('error', errorMessage)]);
+    return toolResponse([headerEvent, statusLine('error', errorMessage)]);
   }
 }
 

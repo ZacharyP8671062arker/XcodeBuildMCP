@@ -3,15 +3,9 @@ import * as z from 'zod';
 import { createMockExecutor, type CommandExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, showBuildSettingsLogic } from '../show_build_settings.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('show_build_settings plugin', () => {
-  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-    return result.content
-      .filter((i) => i.type === 'text')
-      .map((i) => i.text)
-      .join('\n');
-  }
-
   beforeEach(() => {
     sessionStore.clear();
   });
@@ -43,7 +37,7 @@ describe('show_build_settings plugin', () => {
         mockExecutor,
       );
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Show Build Settings');
       expect(text).toContain('Scheme: MyScheme');
     });
@@ -108,7 +102,7 @@ Build settings for action build and target MyApp:
       ]);
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Show Build Settings');
       expect(text).toContain('Scheme: MyScheme');
       expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
@@ -143,7 +137,7 @@ Build settings for action build and target MyApp:
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Show Build Settings');
       expect(text).toContain(
         'The workspace named "App" does not contain a scheme named "InvalidScheme".',
@@ -165,7 +159,7 @@ Build settings for action build and target MyApp:
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Show Build Settings');
       expect(text).toContain('Command execution failed');
       expect(result.nextStepParams).toBeUndefined();
@@ -206,7 +200,7 @@ Build settings for action build and target MyApp:
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Show Build Settings');
       expect(text).toContain('Scheme: MyScheme');
     });
@@ -223,7 +217,7 @@ Build settings for action build and target MyApp:
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Show Build Settings');
       expect(text).toContain('Workspace:');
     });

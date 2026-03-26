@@ -18,14 +18,15 @@ export async function stop_mac_appLogic(
   params: StopMacAppParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
-  const target = params.processId ? `PID ${params.processId}` : params.appName;
-
   if (!params.appName && !params.processId) {
     return toolResponse([
       header('Stop macOS App'),
       statusLine('error', 'Either appName or processId must be provided.'),
     ]);
   }
+
+  const target = params.processId ? `PID ${params.processId}` : params.appName!;
+  const headerEvent = header('Stop macOS App', [{ label: 'Target', value: target }]);
 
   log('info', `Stopping macOS app: ${target}`);
 
@@ -44,15 +45,12 @@ export async function stop_mac_appLogic(
 
     await executor(command, 'Stop macOS App');
 
-    return toolResponse([
-      header('Stop macOS App', [{ label: 'Target', value: target! }]),
-      statusLine('success', 'App stopped successfully.'),
-    ]);
+    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully.')]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error stopping macOS app: ${errorMessage}`);
     return toolResponse([
-      header('Stop macOS App', [{ label: 'Target', value: target! }]),
+      headerEvent,
       statusLine('error', `Stop macOS app operation failed: ${errorMessage}`),
     ]);
   }

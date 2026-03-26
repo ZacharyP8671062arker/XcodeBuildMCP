@@ -1,13 +1,3 @@
-/**
- * Test for get_app_bundle_id plugin - Dependency Injection Architecture
- *
- * Tests the plugin structure and exported components for get_app_bundle_id tool.
- * Uses pure dependency injection with createMockFileSystemExecutor.
- * NO VITEST MOCKING ALLOWED - Only createMockFileSystemExecutor
- *
- * Plugin location: plugins/project-discovery/get_app_bundle_id.ts
- */
-
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { schema, handler, get_app_bundle_idLogic } from '../get_app_bundle_id.ts';
@@ -15,15 +5,9 @@ import {
   createMockFileSystemExecutor,
   createCommandMatchingMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('get_app_bundle_id plugin', () => {
-  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-    return result.content
-      .filter((i) => i.type === 'text')
-      .map((i) => i.text)
-      .join('\n');
-  }
-
   const createMockExecutorForCommands = (results: Record<string, string | Error>) => {
     return createCommandMatchingMockExecutor(
       Object.fromEntries(
@@ -79,7 +63,7 @@ describe('get_app_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Get Bundle ID');
       expect(text).toContain("File not found: '/path/to/MyApp.app'");
     });
@@ -99,7 +83,7 @@ describe('get_app_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Get Bundle ID');
       expect(text).toContain('Bundle ID: io.sentry.MyApp');
       expect(result.nextStepParams).toEqual({
@@ -129,7 +113,7 @@ describe('get_app_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Bundle ID: io.sentry.MyApp');
       expect(result.nextStepParams).toEqual({
         install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath: '/path/to/MyApp.app' },
@@ -158,7 +142,7 @@ describe('get_app_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Could not extract bundle ID from Info.plist: Command failed');
       expect(text).toContain('Make sure the path points to a valid app bundle (.app directory).');
     });
@@ -182,7 +166,7 @@ describe('get_app_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Could not extract bundle ID from Info.plist: Custom error message');
       expect(text).toContain('Make sure the path points to a valid app bundle (.app directory).');
     });
@@ -206,7 +190,7 @@ describe('get_app_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Could not extract bundle ID from Info.plist: String error');
       expect(text).toContain('Make sure the path points to a valid app bundle (.app directory).');
     });

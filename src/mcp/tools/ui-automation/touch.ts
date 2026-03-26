@@ -13,17 +13,15 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
-import {
-  getAxePath,
-  getBundledAxeEnvironment,
-  AXE_NOT_AVAILABLE_MESSAGE,
-} from '../../../utils/axe-helpers.ts';
+import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../utils/axe-helpers.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { getSnapshotUiWarning } from './shared/snapshot-ui-state.ts';
+import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
+import type { AxeHelpers } from './shared/axe-command.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
@@ -44,17 +42,12 @@ type TouchParams = z.infer<typeof touchSchema>;
 
 const publicSchemaObject = z.strictObject(touchSchema.omit({ simulatorId: true } as const).shape);
 
-interface AxeHelpers {
-  getAxePath: () => string | null;
-  getBundledAxeEnvironment: () => Record<string, string>;
-}
-
 const LOG_PREFIX = '[AXe]';
 
 export async function touchLogic(
   params: TouchParams,
   executor: CommandExecutor,
-  axeHelpers?: AxeHelpers,
+  axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
 ): Promise<ToolResponse> {
   const toolName = 'touch';
@@ -100,13 +93,11 @@ export async function touchLogic(
 
     const coordinateWarning = getSnapshotUiWarning(simulatorId);
     const warnings = [guard.warningText, coordinateWarning].filter(Boolean);
-    const events = [
+    return toolResponse([
       headerEvent,
       statusLine('success', `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`),
       ...warnings.map((w) => statusLine('warning' as const, w)),
-    ];
-
-    return toolResponse(events);
+    ]);
   } catch (error) {
     log(
       'error',
@@ -150,70 +141,3 @@ export const handler = createSessionAwareTool<TouchParams>({
   getExecutor: getDefaultCommandExecutor,
   requirements: [{ allOf: ['simulatorId'], message: 'simulatorId is required' }],
 });
-
-// Helper function for executing axe commands (inlined from src/tools/axe/index.ts)
-async function executeAxeCommand(
-  commandArgs: string[],
-  simulatorId: string,
-  commandName: string,
-  executor: CommandExecutor = getDefaultCommandExecutor(),
-  axeHelpers?: AxeHelpers,
-): Promise<void> {
-  // Use injected helpers or default to imported functions
-  const helpers = axeHelpers ?? { getAxePath, getBundledAxeEnvironment };
-
-  // Get the appropriate axe binary path
-  const axeBinary = helpers.getAxePath();
-  if (!axeBinary) {
-    throw new DependencyError('AXe binary not found');
-  }
-
-  // Add --udid parameter to all commands
-  const fullArgs = [...commandArgs, '--udid', simulatorId];
-
-  // Construct the full command array with the axe binary as the first element
-  const fullCommand = [axeBinary, ...fullArgs];
-
-  try {
-    // Determine environment variables for bundled AXe
-    const axeEnv = axeBinary !== 'axe' ? helpers.getBundledAxeEnvironment() : undefined;
-
-    const result = await executor(
-      fullCommand,
-      `${LOG_PREFIX}: ${commandName}`,
-      false,
-      axeEnv ? { env: axeEnv } : undefined,
-    );
-
-    if (!result.success) {
-      throw new AxeError(
-        `axe command '${commandName}' failed.`,
-        commandName,
-        result.error ?? result.output,
-        simulatorId,
-      );
-    }
-
-    // Check for stderr output in successful commands
-    if (result.error) {
-      log(
-        'warn',
-        `${LOG_PREFIX}: Command '${commandName}' produced stderr output but exited successfully. Output: ${result.error}`,
-      );
-    }
-
-    // Function now returns void - the calling code creates its own response
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error instanceof AxeError) {
-        throw error;
-      }
-
-      // Otherwise wrap it in a SystemError
-      throw new SystemError(`Failed to execute axe command: ${error.message}`, error);
-    }
-
-    // For any other type of error
-    throw new SystemError(`Failed to execute axe command: ${String(error)}`);
-  }
-}

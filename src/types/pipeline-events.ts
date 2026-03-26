@@ -154,10 +154,6 @@ export type PipelineEvent =
   | TestProgressEvent
   | TestFailureEvent;
 
-// --- Backward compatibility alias ---
-
-export type XcodebuildEvent = PipelineEvent;
-
 // --- Build-run notice types (used by xcodebuild pipeline internals) ---
 
 export type NoticeLevel = 'info' | 'success' | 'warning';

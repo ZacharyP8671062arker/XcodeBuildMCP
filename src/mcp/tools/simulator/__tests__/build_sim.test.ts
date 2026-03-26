@@ -7,7 +7,6 @@ import {
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 
-// Import the named exports and logic function
 import { schema, handler, build_simLogic } from '../build_sim.ts';
 
 function expectPendingBuildResponse(
@@ -47,17 +46,14 @@ describe('build_sim tool', () => {
     it('should have correct public schema (only non-session fields)', () => {
       const schemaObj = z.strictObject(schema);
 
-      // Public schema should allow empty input
       expect(schemaObj.safeParse({}).success).toBe(true);
 
-      // Valid public inputs
       expect(
         schemaObj.safeParse({
           extraArgs: ['--verbose'],
         }).success,
       ).toBe(true);
 
-      // Invalid types or unknown fields on public inputs
       expect(schemaObj.safeParse({ derivedDataPath: '/path/to/derived' }).success).toBe(false);
       expect(schemaObj.safeParse({ extraArgs: [123] }).success).toBe(false);
       expect(schemaObj.safeParse({ preferXcodebuild: false }).success).toBe(false);
@@ -146,7 +142,6 @@ describe('build_sim tool', () => {
     it('should handle both simulatorId and simulatorName provided', async () => {
       const mockExecutor = createMockExecutor({ success: true, output: 'Build succeeded' });
 
-      // Should fail with XOR validation
       const result = await handler({
         workspacePath: '/path/to/workspace',
         scheme: 'MyScheme',

@@ -7,9 +7,8 @@
 
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
-import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { log } from '../../../utils/logging/index.ts';
-import { validateFileExists } from '../../../utils/validation/index.ts';
+import { validateFileExists } from '../../../utils/validation.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from '../../../utils/execution/index.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
@@ -168,13 +167,11 @@ export async function get_coverage_reportLogic(
     }
   }
 
-  const events: PipelineEvent[] = [
+  return toolResponse([
     headerEvent,
     statusLine('info', `Overall: ${overallPct.toFixed(1)}% (${totalCovered}/${totalExecutable} lines)`),
     section('Targets', targetLines),
-  ];
-
-  return toolResponse(events, {
+  ], {
     nextStepParams: {
       get_file_coverage: { xcresultPath },
     },

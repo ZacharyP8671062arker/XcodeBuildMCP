@@ -1,16 +1,8 @@
-/**
- * Pure dependency injection test for discover_projs plugin
- *
- * Tests the plugin structure and project discovery functionality
- * including parameter validation, file system operations, and response formatting.
- *
- * Uses createMockFileSystemExecutor for file system operations.
- */
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import { schema, handler, discover_projsLogic, discoverProjects } from '../discover_projs.ts';
 import { createMockFileSystemExecutor } from '../../../../test-utils/mock-executors.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('discover_projs plugin', () => {
   let mockFileSystemExecutor: any;
@@ -58,13 +50,6 @@ describe('discover_projs plugin', () => {
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
-    function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-      return result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-    }
-
     it('returns structured discovery results for setup flows', async () => {
       mockFileSystemExecutor.stat = async () => ({ isDirectory: () => true, mtimeMs: 0 });
       mockFileSystemExecutor.readdir = async () => [
@@ -90,7 +75,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Discover Projects');
       expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
@@ -110,7 +95,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Discover Projects');
       expect(text).toContain(
         'Failed to access scan path: /workspace. Error: ENOENT: no such file or directory',
@@ -130,7 +115,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Scan path is not a directory: /workspace');
     });
 
@@ -148,7 +133,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
@@ -169,7 +154,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Found 1 project(s) and 1 workspace(s).');
       expect(text).toContain('/workspace/MyApp.xcodeproj');
       expect(text).toContain('/workspace/MyWorkspace.xcworkspace');
@@ -193,7 +178,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to access scan path: /workspace. Error: Permission denied');
     });
 
@@ -212,7 +197,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to access scan path: /workspace. Error: String error');
     });
 
@@ -228,7 +213,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
@@ -246,7 +231,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
@@ -269,7 +254,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Failed to access scan path: /workspace. Error: Access denied');
     });
 
@@ -301,7 +286,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
@@ -324,7 +309,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
 
@@ -346,7 +331,7 @@ describe('discover_projs plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = textOf(result);
+      const text = allText(result);
       expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
     });
   });

@@ -9,6 +9,7 @@ import {
   schema,
   sessionUseDefaultsProfileLogic,
 } from '../session_use_defaults_profile.ts';
+import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('session-use-defaults-profile tool', () => {
   beforeEach(() => {
@@ -24,13 +25,6 @@ describe('session-use-defaults-profile tool', () => {
     expect(schema).toBeDefined();
     expect(typeof schema).toBe('object');
   });
-
-  function textOf(result: { content: Array<{ type: string; text: string }> }): string {
-    return result.content
-      .filter((i) => i.type === 'text')
-      .map((i) => i.text)
-      .join('\n');
-  }
 
   it('activates an existing named profile', async () => {
     sessionStore.setActiveProfile('ios');
@@ -52,25 +46,25 @@ describe('session-use-defaults-profile tool', () => {
   it('returns error when both global and profile are provided', async () => {
     const result = await sessionUseDefaultsProfileLogic({ global: true, profile: 'ios' });
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toContain('either global=true or profile');
+    expect(allText(result)).toContain('either global=true or profile');
   });
 
   it('returns error when profile does not exist', async () => {
     const result = await sessionUseDefaultsProfileLogic({ profile: 'macos' });
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toContain('does not exist');
+    expect(allText(result)).toContain('does not exist');
   });
 
   it('returns error when profile name is blank after trimming', async () => {
     const result = await sessionUseDefaultsProfileLogic({ profile: '   ' });
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toContain('Profile name cannot be empty');
+    expect(allText(result)).toContain('Profile name cannot be empty');
   });
 
   it('returns status for empty args', async () => {
     const result = await sessionUseDefaultsProfileLogic({});
     expect(result.isError).toBeFalsy();
-    expect(textOf(result)).toContain('Active profile: global');
+    expect(allText(result)).toContain('Active profile: global');
   });
 
   it('persists active profile when persist=true', async () => {
@@ -89,7 +83,7 @@ describe('session-use-defaults-profile tool', () => {
 
     const result = await sessionUseDefaultsProfileLogic({ profile: 'ios', persist: true });
     expect(result.isError).toBeFalsy();
-    expect(textOf(result)).toContain('Persisted active profile selection');
+    expect(allText(result)).toContain('Persisted active profile selection');
     expect(writes).toHaveLength(1);
     const parsed = parseYaml(writes[0].content) as { activeSessionDefaultsProfile?: string };
     expect(parsed.activeSessionDefaultsProfile).toBe('ios');

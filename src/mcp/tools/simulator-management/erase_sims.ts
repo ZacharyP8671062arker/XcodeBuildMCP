@@ -10,14 +10,12 @@ import {
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 
-const eraseSimsBaseSchema = z
+const eraseSimsSchema = z
   .object({
     simulatorId: z.uuid().describe('UDID of the simulator to erase.'),
     shutdownFirst: z.boolean().optional(),
   })
   .passthrough();
-
-const eraseSimsSchema = eraseSimsBaseSchema;
 
 type EraseSimsParams = z.infer<typeof eraseSimsSchema>;
 

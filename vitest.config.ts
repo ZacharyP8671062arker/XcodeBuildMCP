@@ -21,6 +21,7 @@ export default defineConfig({
       '**/__pycache__/**',
       '**/dist/**',
       'src/smoke-tests/**',
+      'src/snapshot-tests/**',
     ],
     pool: 'threads',
     poolOptions: {

@@ -124,17 +124,21 @@ export async function debug_attach_simLogic(
         await debuggerManager.resumeSession(session.id);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        try {
-          await debuggerManager.detachSession(session.id);
-        } catch (detachError) {
-          const detachMessage =
-            detachError instanceof Error ? detachError.message : String(detachError);
-          log('warn', `Failed to detach debugger session after resume failure: ${detachMessage}`);
+        if (/not\s*stopped/i.test(message)) {
+          log('debug', 'Process already running after attach, no resume needed');
+        } else {
+          try {
+            await debuggerManager.detachSession(session.id);
+          } catch (detachError) {
+            const detachMessage =
+              detachError instanceof Error ? detachError.message : String(detachError);
+            log('warn', `Failed to detach debugger session after resume failure: ${detachMessage}`);
+          }
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Failed to resume debugger after attach: ${message}`),
+          ]);
         }
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Failed to resume debugger after attach: ${message}`),
-        ]);
       }
     }
 
@@ -142,8 +146,11 @@ export async function debug_attach_simLogic(
     const currentText = isCurrent
       ? 'This session is now the current debug session.'
       : 'This session is not set as the current session.';
-    const resumeText = shouldContinue
-      ? 'Execution resumed after attach.'
+
+    const execState = await debuggerManager.getExecutionState(session.id);
+    const isRunning = execState.status === 'running' || execState.status === 'unknown';
+    const resumeText = isRunning
+      ? 'Execution is running. App is responsive to UI interaction.'
       : 'Execution is paused. Use debug_continue to resume before UI automation.';
 
     const events = [

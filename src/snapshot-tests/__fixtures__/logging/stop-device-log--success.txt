@@ -8,7 +8,7 @@
 Captured Logs
 
   --- Device log capture for bundle ID: io.sentry.calculatorapp on device: <UUID> ---
-  21:59:31  Acquired usage assertion.
+  09:50:59  Acquired usage assertion.
   Launched application with io.sentry.calculatorapp bundle identifier.
   Waiting for the application to terminate…
   App terminated due to signal 15.

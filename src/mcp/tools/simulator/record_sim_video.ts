@@ -99,10 +99,7 @@ export async function record_sim_videoLogic(
     if (!startRes.started) {
       return toolResponse([
         headerEvent,
-        statusLine(
-          'error',
-          `Failed to start video recording: ${startRes.error ?? 'Unknown error'}`,
-        ),
+        statusLine('error', `Failed to start video recording: ${startRes.error}`),
       ]);
     }
 
@@ -149,7 +146,7 @@ export async function record_sim_videoLogic(
   if (!stopRes.stopped) {
     return toolResponse([
       headerEvent,
-      statusLine('error', `Failed to stop video recording: ${stopRes.error ?? 'Unknown error'}`),
+      statusLine('error', `Failed to stop video recording: ${stopRes.error}`),
     ]);
   }
 
@@ -201,7 +198,7 @@ export async function record_sim_videoLogic(
 
   const response = toolResponse(stopEvents);
   if (finalSavedPath) {
-    (response as Record<string, unknown>)._meta = { outputFile: finalSavedPath };
+    return { ...response, _meta: { outputFile: finalSavedPath } };
   }
   return response;
 }

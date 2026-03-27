@@ -14,6 +14,7 @@ import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
 // Constants
 const DEFAULT_MAX_DEPTH = 5;
@@ -239,7 +240,7 @@ export async function discover_projsLogic(
     `Discovery finished. Found ${results.projects.length} projects and ${results.workspaces.length} workspaces.`,
   );
 
-  const events = [
+  const events: PipelineEvent[] = [
     headerEvent,
     statusLine(
       'success',

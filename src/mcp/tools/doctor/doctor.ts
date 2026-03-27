@@ -263,7 +263,7 @@ export async function runDoctor(
     : (sanitizeValue(doctorInfoRaw, '', projectNames, piiTerms) as typeof doctorInfoRaw);
 
   const events: PipelineEvent[] = [
-    header('Doctor', [
+    header('XcodeBuildMCP Doctor', [
       { label: 'Generated', value: doctorInfo.timestamp },
       { label: 'Server Version', value: doctorInfo.serverVersion },
       {

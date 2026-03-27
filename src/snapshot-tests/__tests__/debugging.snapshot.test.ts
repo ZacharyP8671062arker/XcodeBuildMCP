@@ -181,5 +181,27 @@ describe('debugging workflow', () => {
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'detach--success');
     }, 30_000);
+
+    it('attach - success (continue on attach)', async () => {
+      execSync(
+        `xcrun simctl launch --terminate-running-process ${simulatorUdid} ${BUNDLE_ID}`,
+        { encoding: 'utf8', stdio: 'pipe' },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      const { text, isError } = await harness.invoke('debugging', 'attach', {
+        simulatorId: simulatorUdid,
+        bundleId: BUNDLE_ID,
+        continueOnAttach: true,
+      });
+      expect(isError).toBe(false);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'attach--success-continue');
+    }, 30_000);
+
+    it('detach after continue-on-attach', async () => {
+      const { isError } = await harness.invoke('debugging', 'detach', {});
+      expect(isError).toBe(false);
+    }, 30_000);
   });
 });

@@ -21,4 +21,4 @@
 
 Next steps:
 1. Capture device logs: xcodebuildmcp device start-device-log-capture --device-id "<UUID>" --bundle-id "io.sentry.calculatorapp"
-2. Stop app on device: xcodebuildmcp device stop --device-id "<UUID>" --process-id "21293"
+2. Stop app on device: xcodebuildmcp device stop --device-id "<UUID>" --process-id "22761"

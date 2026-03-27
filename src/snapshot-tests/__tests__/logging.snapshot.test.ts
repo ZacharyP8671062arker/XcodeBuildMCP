@@ -39,6 +39,8 @@ describe('logging workflow', () => {
       expect(text.length).toBeGreaterThan(0);
       expectMatchesFixture(text, __filename, 'start-sim-log--success');
     }, 30_000);
+
+
   });
 
   describe('stop-simulator-log-capture', () => {

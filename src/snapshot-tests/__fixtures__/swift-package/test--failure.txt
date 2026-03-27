@@ -1,0 +1,12 @@
+
+🧪 Swift Package Test
+
+   Scheme: spm
+   Configuration: debug
+   Platform: Swift Package
+
+  ✗ Expected failure: Expectation failed: true == false
+This test should fail, and is for simulating a test failure
+    SimpleTests.swift:48
+
+❌ Test failed. (<TEST_COUNTS>, ⏱️ <DURATION>)

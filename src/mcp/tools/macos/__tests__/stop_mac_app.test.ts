@@ -66,11 +66,7 @@ describe('stop_mac_app plugin', () => {
       );
 
       expect(calls).toHaveLength(1);
-      expect(calls[0].command).toEqual([
-        'sh',
-        '-c',
-        'pkill -f "Calculator" || osascript -e \'tell application "Calculator" to quit\'',
-      ]);
+      expect(calls[0].command).toEqual(['pkill', '-f', 'Calculator']);
     });
 
     it('should prioritize processId over appName', async () => {

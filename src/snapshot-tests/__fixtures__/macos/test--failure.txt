@@ -1,0 +1,11 @@
+
+🧪 Test
+
+   Scheme: MCPTest
+   Configuration: Debug
+   Platform: macOS
+
+  ✗ deliberateFailure(): Expectation failed: 1 == 2: This test is designed to fail for snapshot testing
+    MCPTestTests.swift:11
+
+❌ Test failed. (<TEST_COUNTS>, ⏱️ <DURATION>)

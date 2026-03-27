@@ -8,6 +8,11 @@ const DURATION_REGEX = /\d+\.\d+s\b/g;
 const PID_NUMBER_REGEX = /pid:\s*\d+/gi;
 const PID_JSON_REGEX = /"pid"\s*:\s*\d+/g;
 const PROCESS_ID_REGEX = /Process ID: \d+/g;
+const PROCESS_INLINE_PID_REGEX = /process \d+/g;
+const THREAD_ID_REGEX = /Thread \d{5,}/g;
+const HEX_ADDRESS_REGEX = /0x[0-9a-fA-F]{8,}/g;
+const LLDB_MODULE_DYLIB_REGEX = /CalculatorApp[^\s`]*/g;
+const LLDB_FRAME_OFFSET_REGEX = /(`[^`]+):(\d+)$/gm;
 const DERIVED_DATA_HASH_REGEX = /(DerivedData\/[A-Za-z0-9_]+)-[a-z]{28}\b/g;
 const PROGRESS_LINE_REGEX = /^›.*\n*/gm;
 const WARNINGS_BLOCK_REGEX = /Warnings \(\d+\):\n(?:\n? *⚠[^\n]*\n?)*/g;
@@ -24,6 +29,7 @@ const SWIFT_TESTING_DURATION_REGEX = /after \d+\.\d+ seconds/g;
 const TEST_SUMMARY_COUNTS_REGEX =
   /\(Total: \d+(?:, Passed: \d+)?(?:, Failed: \d+)?(?:, Skipped: \d+)?, /g;
 const COVERAGE_CALL_COUNT_REGEX = /called \d+x\)/g;
+const RESULT_BUNDLE_LINE_REGEX = /\S+\[\d+:\d+\] Writing error result bundle to \S+/g;
 const TRAILING_WHITESPACE_REGEX = /[ \t]+$/gm;
 
 function sortLinesInBlock(text: string, marker: RegExp): string {
@@ -76,6 +82,12 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(PID_NUMBER_REGEX, (match) => match.replace(/\d+/, '<PID>'));
   normalized = normalized.replace(PID_JSON_REGEX, '"pid" : <PID>');
   normalized = normalized.replace(PROCESS_ID_REGEX, 'Process ID: <PID>');
+  normalized = normalized.replace(PROCESS_INLINE_PID_REGEX, 'process <PID>');
+  normalized = normalized.replace(THREAD_ID_REGEX, 'Thread <THREAD_ID>');
+  normalized = normalized.replace(HEX_ADDRESS_REGEX, '<ADDR>');
+  normalized = normalized.replace(LLDB_MODULE_DYLIB_REGEX, '<APP_MODULE>');
+  normalized = normalized.replace(LLDB_FRAME_OFFSET_REGEX, '$1:<OFFSET>');
+  normalized = normalized.replace(RESULT_BUNDLE_LINE_REGEX, '<RESULT_BUNDLE_ERROR>');
   normalized = normalized.replace(PROGRESS_LINE_REGEX, '');
   normalized = normalized.replace(WARNINGS_BLOCK_REGEX, '');
   normalized = normalized.replace(XCODE_INFRA_ERRORS_REGEX, '');

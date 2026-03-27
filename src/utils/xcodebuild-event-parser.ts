@@ -12,6 +12,13 @@ import {
   parseFailureDiagnostic,
   parseBuildErrorDiagnostic,
 } from './xcodebuild-line-parsers.ts';
+import {
+  parseXcodebuildSwiftTestingLine,
+  parseSwiftTestingIssueLine,
+  parseSwiftTestingResultLine,
+  parseSwiftTestingRunSummary,
+  parseSwiftTestingContinuationLine,
+} from './swift-testing-line-parsers.ts';
 
 function resolveStageFromLine(line: string): XcodebuildStage | null {
   if (packageResolutionPatterns.some((pattern) => pattern.test(line))) {
@@ -23,7 +30,7 @@ function resolveStageFromLine(line: string): XcodebuildStage | null {
   if (linkPatterns.some((pattern) => pattern.test(line))) {
     return 'LINKING';
   }
-  if (/^Testing started$/u.test(line) || /^Test Suite .+ started/u.test(line)) {
+  if (/^Testing started$/u.test(line) || /^Test Suite .+ started/u.test(line) || /^[◇] Test run started/u.test(line)) {
     return 'RUN_TESTS';
   }
   return null;
@@ -69,6 +76,7 @@ export interface XcodebuildEventParser {
   onStdout(chunk: string): void;
   onStderr(chunk: string): void;
   flush(): void;
+  xcresultPath: string | null;
 }
 
 export function createXcodebuildEventParser(options: EventParserOptions): XcodebuildEventParser {
@@ -79,6 +87,7 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
   let completedCount = 0;
   let failedCount = 0;
   let skippedCount = 0;
+  let detectedXcresultPath: string | null = null;
 
   let pendingError: {
     message: string;
@@ -86,6 +95,29 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
     rawLines: string[];
     timestamp: string;
   } | null = null;
+
+  let pendingSwiftTestingIssue: {
+    testName?: string;
+    message: string;
+    location?: string;
+  } | null = null;
+
+  function flushPendingSwiftTestingIssue(): void {
+    if (!pendingSwiftTestingIssue) {
+      return;
+    }
+    if (operation === 'TEST') {
+      onEvent({
+        type: 'test-failure',
+        timestamp: now(),
+        operation: 'TEST',
+        test: pendingSwiftTestingIssue.testName,
+        message: pendingSwiftTestingIssue.message,
+        location: pendingSwiftTestingIssue.location,
+      });
+    }
+    pendingSwiftTestingIssue = null;
+  }
 
   function flushPendingError(): void {
     if (!pendingError) {
@@ -105,9 +137,19 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
   function processLine(rawLine: string): void {
     const line = rawLine.trim();
     if (!line) {
+      flushPendingSwiftTestingIssue();
       flushPendingError();
       return;
     }
+
+    // Swift Testing continuation line (↳) appends context to pending issue
+    const stContinuation = parseSwiftTestingContinuationLine(line);
+    if (stContinuation && pendingSwiftTestingIssue) {
+      pendingSwiftTestingIssue.message += `\n${stContinuation}`;
+      return;
+    }
+
+    flushPendingSwiftTestingIssue();
 
     if (pendingError && /^\s/u.test(rawLine)) {
       pendingError.message += `\n${line}`;
@@ -174,6 +216,81 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       return;
     }
 
+    // xcodebuild Swift Testing: Test case 'Suite/test()' passed on 'device' (0.000 seconds)
+    const xcodebuildST = parseXcodebuildSwiftTestingLine(line);
+    if (xcodebuildST) {
+      completedCount += 1;
+      if (xcodebuildST.status === 'failed') {
+        failedCount += 1;
+      }
+      if (xcodebuildST.status === 'skipped') {
+        skippedCount += 1;
+      }
+      if (operation === 'TEST') {
+        onEvent({
+          type: 'test-progress',
+          timestamp: now(),
+          operation: 'TEST',
+          completed: completedCount,
+          failed: failedCount,
+          skipped: skippedCount,
+        });
+      }
+      return;
+    }
+
+    // Swift Testing issue: ✘ Test "Name" recorded an issue at file:line:col: message
+    const stIssue = parseSwiftTestingIssueLine(line);
+    if (stIssue) {
+      pendingSwiftTestingIssue = {
+        testName: stIssue.testName,
+        message: stIssue.message,
+        location: stIssue.location,
+      };
+      return;
+    }
+
+    // Swift Testing result: ✔/✘ Test "Name" passed/failed after X seconds
+    const stResult = parseSwiftTestingResultLine(line);
+    if (stResult) {
+      completedCount += 1;
+      if (stResult.status === 'failed') {
+        failedCount += 1;
+      }
+      if (stResult.status === 'skipped') {
+        skippedCount += 1;
+      }
+      if (operation === 'TEST') {
+        onEvent({
+          type: 'test-progress',
+          timestamp: now(),
+          operation: 'TEST',
+          completed: completedCount,
+          failed: failedCount,
+          skipped: skippedCount,
+        });
+      }
+      return;
+    }
+
+    // Swift Testing run summary: ✔/✘ Test run with N tests...
+    const stSummary = parseSwiftTestingRunSummary(line);
+    if (stSummary) {
+      completedCount = stSummary.executed;
+      failedCount = stSummary.failed;
+      if (operation === 'TEST') {
+        onEvent({
+          type: 'test-progress',
+          timestamp: now(),
+          operation: 'TEST',
+          completed: completedCount,
+          failed: failedCount,
+          skipped: skippedCount,
+        });
+      }
+      return;
+    }
+
     const stage = resolveStageFromLine(line);
     if (stage) {
       onEvent({
@@ -213,6 +330,13 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
     if (/^Test Suite /u.test(line)) {
       return;
     }
+
+    // Capture xcresult path from xcodebuild output
+    const xcresultMatch = line.match(/^\s*(\S+\.xcresult)\s*$/u);
+    if (xcresultMatch) {
+      detectedXcresultPath = xcresultMatch[1];
+      return;
+    }
   }
 
   function drainLines(buffer: string, chunk: string): string {
@@ -239,9 +363,13 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       if (stderrBuffer.trim()) {
         processLine(stderrBuffer);
       }
+      flushPendingSwiftTestingIssue();
       flushPendingError();
       stdoutBuffer = '';
       stderrBuffer = '';
+    },
+    get xcresultPath(): string | null {
+      return detectedXcresultPath;
     },
   };
 }

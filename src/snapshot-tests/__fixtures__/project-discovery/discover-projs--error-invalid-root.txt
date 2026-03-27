@@ -1,0 +1,4 @@
+
+🔍 Discover Projects
+
+❌ Failed to access scan path: /nonexistent/path. Error: ENOENT: no such file or directory, stat '/nonexistent/path'

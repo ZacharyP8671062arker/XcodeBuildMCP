@@ -42,3 +42,8 @@ func optionalTest() {
     #expect(nilValue == nil)
     #expect(someValue! == 42)
 }
+
+@Test("Expected failure")
+func testFail() {
+    #expect(true == false, "This test should fail, and is for simulating a test failure")
+}

@@ -1,6 +1,6 @@
 
 🛑 Stop macOS App
 
-   Target: NonExistentXBMTestApp
+   App: PID 999999
 
-✅ App stopped successfully.
+❌ Stop macOS app operation failed: kill: 999999: No such process

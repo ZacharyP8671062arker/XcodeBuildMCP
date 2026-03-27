@@ -40,6 +40,7 @@ export interface XcodebuildPipeline {
     options?: PipelineFinalizeOptions,
   ): PipelineResult;
   highestStageRank(): number;
+  xcresultPath: string | null;
 }
 
 export interface StartedPipeline {
@@ -172,6 +173,10 @@ export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPi
 
     highestStageRank(): number {
       return runState.highestStageRank();
+    },
+
+    get xcresultPath(): string | null {
+      return parser.xcresultPath;
     },
   };
 }

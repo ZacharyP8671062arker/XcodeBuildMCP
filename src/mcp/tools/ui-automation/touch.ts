@@ -92,11 +92,13 @@ export async function touchLogic(
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
     const coordinateWarning = getSnapshotUiWarning(simulatorId);
-    const warnings = [guard.warningText, coordinateWarning].filter(Boolean);
+    const warnings = [guard.warningText, coordinateWarning].filter(
+      (w): w is string => typeof w === 'string' && w.length > 0,
+    );
     return toolResponse([
       headerEvent,
       statusLine('success', `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`),
-      ...warnings.map((w) => statusLine('warning' as const, w)),
+      ...warnings.map((w) => statusLine('warning', w)),
     ]);
   } catch (error) {
     log(

@@ -26,7 +26,7 @@ export async function stop_mac_appLogic(
   }
 
   const target = params.processId ? `PID ${params.processId}` : params.appName!;
-  const headerEvent = header('Stop macOS App', [{ label: 'Target', value: target }]);
+  const headerEvent = header('Stop macOS App', [{ label: 'App', value: target }]);
 
   log('info', `Stopping macOS app: ${target}`);
 
@@ -36,14 +36,17 @@ export async function stop_mac_appLogic(
     if (params.processId) {
       command = ['kill', String(params.processId)];
     } else {
-      command = [
-        'sh',
-        '-c',
-        `pkill -f "${params.appName}" || osascript -e 'tell application "${params.appName}" to quit'`,
-      ];
+      command = ['pkill', '-f', params.appName!];
     }
 
-    await executor(command, 'Stop macOS App');
+    const result = await executor(command, 'Stop macOS App');
+
+    if (!result.success) {
+      return toolResponse([
+        headerEvent,
+        statusLine('error', `Stop macOS app operation failed: ${result.error ?? 'Unknown error'}`),
+      ]);
+    }
 
     return toolResponse([headerEvent, statusLine('success', 'App stopped successfully.')]);
   } catch (error) {

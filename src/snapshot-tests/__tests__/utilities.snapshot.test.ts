@@ -26,5 +26,14 @@ describe('utilities workflow', () => {
       expect(text.length).toBeGreaterThan(10);
       expectMatchesFixture(text, __filename, 'clean--success');
     }, 120000);
+
+    it('error - wrong scheme', async () => {
+      const { text, isError } = await harness.invoke('utilities', 'clean', {
+        workspacePath: WORKSPACE,
+        scheme: 'NONEXISTENT',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'clean--error-wrong-scheme');
+    }, 120000);
   });
 });

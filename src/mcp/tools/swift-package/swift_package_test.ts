@@ -9,7 +9,10 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
+import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
+import { displayPath } from '../../../utils/build-preflight.ts';
 
 const baseSchemaObject = z.object({
   packagePath: z.string(),
@@ -72,21 +75,33 @@ export async function swift_package_testLogic(
   }
 
   log('info', `Running swift ${swiftArgs.join(' ')}`);
-  try {
-    const result = await executor(['swift', ...swiftArgs], 'Swift Package Test', false);
-    if (!result.success) {
-      const errorMessage = result.error || result.output || 'Unknown error';
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Swift package tests failed: ${errorMessage}`),
-      ]);
-    }
 
-    return toolResponse([
-      headerEvent,
-      ...(result.output ? [section('Output', [result.output])] : []),
-      statusLine('success', 'Swift package tests completed'),
-    ]);
+  const configText = `Swift Package Test\n  Package: ${displayPath(resolvedPath)}`;
+  const started = startBuildPipeline({
+    operation: 'TEST',
+    toolName: 'swift_package_test',
+    params: {
+      scheme: params.testProduct ?? path.basename(resolvedPath),
+      configuration: params.configuration ?? 'debug',
+      platform: 'Swift Package',
+      preflight: configText,
+    },
+    message: configText,
+  });
+
+  const { pipeline } = started;
+
+  try {
+    const result = await executor(['swift', ...swiftArgs], 'Swift Package Test', false, {
+      onStdout: (chunk: string) => pipeline.onStdout(chunk),
+      onStderr: (chunk: string) => pipeline.onStderr(chunk),
+    });
+
+    const response: ToolResponse = result.success
+      ? { content: [], isError: false }
+      : { content: [{ type: 'text', text: result.error || result.output || 'Unknown error' }], isError: true };
+
+    return createPendingXcodebuildResponse(started, response);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log('error', `Swift package test failed: ${message}`);

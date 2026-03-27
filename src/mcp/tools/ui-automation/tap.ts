@@ -161,11 +161,13 @@ export async function tapLogic(
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
     const coordinateWarning = usesCoordinates ? getSnapshotUiWarning(simulatorId) : null;
-    const warnings = [guard.warningText, coordinateWarning].filter(Boolean);
+    const warnings = [guard.warningText, coordinateWarning].filter(
+      (w): w is string => typeof w === 'string' && w.length > 0,
+    );
     return toolResponse([
       headerEvent,
       statusLine('success', `${actionDescription} simulated successfully.`),
-      ...warnings.map((w) => statusLine('warning' as const, w)),
+      ...warnings.map((w) => statusLine('warning', w)),
     ]);
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);

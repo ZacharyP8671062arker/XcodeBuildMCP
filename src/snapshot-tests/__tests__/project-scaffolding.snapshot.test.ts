@@ -72,5 +72,26 @@ describe('project-scaffolding workflow', () => {
       expect(text.length).toBeGreaterThan(10);
       expectMatchesFixture(normalizeTmpDir(text, tmpDir), __filename, 'scaffold-macos--success');
     }, 120000);
+
+    it('error - existing project', async () => {
+      const outputPath = join(tmpDir, 'macos-existing');
+      mkdirSync(outputPath, { recursive: true });
+
+      await harness.invoke('project-scaffolding', 'scaffold-macos', {
+        projectName: 'SnapshotTestMacApp',
+        outputPath,
+      });
+
+      const { text, isError } = await harness.invoke('project-scaffolding', 'scaffold-macos', {
+        projectName: 'SnapshotTestMacApp',
+        outputPath,
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(
+        normalizeTmpDir(text, tmpDir),
+        __filename,
+        'scaffold-macos--error-existing',
+      );
+    }, 120000);
   });
 });

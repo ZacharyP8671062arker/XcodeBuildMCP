@@ -1,0 +1,8 @@
+
+🔍 Show Build Settings
+
+   Scheme: NONEXISTENT
+   Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+
+❌ <TIMESTAMP> xcodebuild[44409:16961675] Writing error result bundle to /var/folders/_t/2njffz894t57qpp76v1sw__h0000gn/T/ResultBundle_2026-27-03_09-49-0013.xcresult
+xcodebuild: error: The workspace named "CalculatorApp" does not contain a scheme named "NONEXISTENT". The "-list" option can be used to find the names of the schemes in the workspace.

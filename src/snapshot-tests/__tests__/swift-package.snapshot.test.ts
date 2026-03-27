@@ -40,11 +40,29 @@ describe('swift-package workflow', () => {
     it('success', async () => {
       const { text, isError } = await harness.invoke('swift-package', 'test', {
         packagePath: PACKAGE_PATH,
+        filter: 'basicTruthTest',
       });
       expect(isError).toBe(false);
       expect(text.length).toBeGreaterThan(10);
       expectMatchesFixture(text, __filename, 'test--success');
     }, 120_000);
+
+    it('failure - intentional test failure', async () => {
+      const { text, isError } = await harness.invoke('swift-package', 'test', {
+        packagePath: PACKAGE_PATH,
+      });
+      expect(isError).toBe(true);
+      expect(text.length).toBeGreaterThan(10);
+      expectMatchesFixture(text, __filename, 'test--failure');
+    }, 120_000);
+
+    it('error - bad path', async () => {
+      const { text, isError } = await harness.invoke('swift-package', 'test', {
+        packagePath: 'example_projects/NONEXISTENT',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'test--error-bad-path');
+    });
   });
 
   describe('clean', () => {
@@ -54,6 +72,14 @@ describe('swift-package workflow', () => {
       });
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'clean--success');
+    });
+
+    it('error - bad path', async () => {
+      const { text, isError } = await harness.invoke('swift-package', 'clean', {
+        packagePath: 'example_projects/NONEXISTENT',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'clean--error-bad-path');
     });
   });
 
@@ -66,6 +92,15 @@ describe('swift-package workflow', () => {
       expect(isError).toBe(false);
       expect(text.length).toBeGreaterThan(0);
       expectMatchesFixture(text, __filename, 'run--success');
+    }, 120_000);
+
+    it('error - bad executable', async () => {
+      const { text, isError } = await harness.invoke('swift-package', 'run', {
+        packagePath: PACKAGE_PATH,
+        executableName: 'nonexistent-executable',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'run--error-bad-executable');
     }, 120_000);
   });
 

@@ -20,6 +20,7 @@ import {
 import { join } from 'path';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { formatDeviceId } from '../../../utils/device-name-resolver.ts';
 
 type LaunchDataResponse = {
@@ -105,16 +106,20 @@ export async function launch_app_deviceLogic(
       await fileSystem.rm(tempJsonPath, { force: true }).catch(() => {});
     }
 
-    const events = [headerEvent];
-    events.push(statusLine('success', 'App launched successfully.'));
+    const events: PipelineEvent[] = [
+      headerEvent,
+      statusLine('success', 'App launched successfully.'),
+    ];
 
-    if (processId) {
+    if (processId !== undefined) {
       events.push(detailTree([{ label: 'Process ID', value: processId.toString() }]));
     }
 
     return toolResponse(
       events,
-      processId ? { nextStepParams: { stop_app_device: { deviceId, processId } } } : undefined,
+      processId !== undefined
+        ? { nextStepParams: { stop_app_device: { deviceId, processId } } }
+        : undefined,
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

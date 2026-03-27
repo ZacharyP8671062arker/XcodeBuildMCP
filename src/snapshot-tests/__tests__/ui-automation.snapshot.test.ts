@@ -44,6 +44,14 @@ describe('ui-automation workflow', () => {
       expect(text.length).toBeGreaterThan(100);
       expectMatchesFixture(text, __filename, 'snapshot-ui--success');
     });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('ui-automation', 'snapshot-ui', {
+        simulatorId: INVALID_SIMULATOR_ID,
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'snapshot-ui--error-no-simulator');
+    });
   });
 
   describe('tap', () => {
@@ -80,6 +88,18 @@ describe('ui-automation workflow', () => {
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'touch--success');
     });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('ui-automation', 'touch', {
+        simulatorId: INVALID_SIMULATOR_ID,
+        x: 100,
+        y: 400,
+        down: true,
+        up: true,
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'touch--error-no-simulator');
+    });
   });
 
   describe('long-press', () => {
@@ -92,6 +112,17 @@ describe('ui-automation workflow', () => {
       });
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'long-press--success');
+    });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('ui-automation', 'long-press', {
+        simulatorId: INVALID_SIMULATOR_ID,
+        x: 100,
+        y: 400,
+        duration: 500,
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'long-press--error-no-simulator');
     });
   });
 
@@ -107,6 +138,18 @@ describe('ui-automation workflow', () => {
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'swipe--success');
     });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('ui-automation', 'swipe', {
+        simulatorId: INVALID_SIMULATOR_ID,
+        x1: 200,
+        y1: 400,
+        x2: 200,
+        y2: 200,
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'swipe--error-no-simulator');
+    });
   });
 
   describe('gesture', () => {
@@ -117,6 +160,15 @@ describe('ui-automation workflow', () => {
       });
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'gesture--success');
+    });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('ui-automation', 'gesture', {
+        simulatorId: INVALID_SIMULATOR_ID,
+        preset: 'scroll-down',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'gesture--error-no-simulator');
     });
   });
 
@@ -129,6 +181,15 @@ describe('ui-automation workflow', () => {
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'button--success');
     });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('ui-automation', 'button', {
+        simulatorId: INVALID_SIMULATOR_ID,
+        buttonType: 'home',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'button--error-no-simulator');
+    });
   });
 
   describe('key-press', () => {
@@ -139,6 +200,15 @@ describe('ui-automation workflow', () => {
       });
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'key-press--success');
+    });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('ui-automation', 'key-press', {
+        simulatorId: INVALID_SIMULATOR_ID,
+        keyCode: 4,
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'key-press--error-no-simulator');
     });
   });
 
@@ -151,6 +221,15 @@ describe('ui-automation workflow', () => {
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'key-sequence--success');
     });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('ui-automation', 'key-sequence', {
+        simulatorId: INVALID_SIMULATOR_ID,
+        keyCodes: [4, 5, 6],
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'key-sequence--error-no-simulator');
+    });
   });
 
   describe('type-text', () => {
@@ -161,6 +240,15 @@ describe('ui-automation workflow', () => {
       });
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'type-text--success');
+    });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('ui-automation', 'type-text', {
+        simulatorId: INVALID_SIMULATOR_ID,
+        text: 'hello',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'type-text--error-no-simulator');
     });
   });
 });

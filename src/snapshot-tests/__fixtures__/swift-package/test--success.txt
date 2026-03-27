@@ -1,25 +1,8 @@
 
 🧪 Swift Package Test
 
-   Package: <ROOT>/example_projects/spm
+   Scheme: spm
+   Configuration: debug
+   Platform: Swift Package
 
-Output
-  Test Suite 'All tests' started at <TIMESTAMP>.
-Test Suite 'All tests' passed at <TIMESTAMP>.
-	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (<DURATION>) seconds
-◇ Test run started.
-↳ Testing Library Version: 1743
-↳ Target Platform: arm64e-apple-macos14.0
-◇ Test "Array operations" started.
-◇ Test "Basic math operations" started.
-◇ Test "Basic truth assertions" started.
-◇ Test "Optional handling" started.
-◇ Test "String operations" started.
-✔ Test "Array operations" passed after <DURATION> seconds.
-✔ Test "Basic math operations" passed after <DURATION> seconds.
-✔ Test "Basic truth assertions" passed after <DURATION> seconds.
-✔ Test "Optional handling" passed after <DURATION> seconds.
-✔ Test "String operations" passed after <DURATION> seconds.
-✔ Test run with 5 tests in 0 suites passed after <DURATION> seconds.
-
-✅ Swift package tests completed
+✅ Test succeeded. (<TEST_COUNTS>, ⏱️ <DURATION>)

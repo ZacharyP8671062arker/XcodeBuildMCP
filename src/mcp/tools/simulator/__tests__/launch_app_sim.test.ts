@@ -97,7 +97,7 @@ describe('launch_app_sim tool', () => {
         sequencedExecutor,
       );
 
-      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
       expect(text).toContain('Launch App');
       expect(text).toContain('App launched successfully');
       expect(text).toContain('test-uuid-123');
@@ -181,7 +181,7 @@ describe('launch_app_sim tool', () => {
         sequencedExecutor,
       );
 
-      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
       expect(text).toContain('Launch App');
       expect(text).toContain('App launched successfully');
       expect(text).toContain('"iPhone 17" (resolved-uuid)');
@@ -224,7 +224,7 @@ describe('launch_app_sim tool', () => {
         mockExecutor,
       );
 
-      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
       expect(text).toContain('App is not installed on the simulator');
       expect(text).toContain('install_app_sim');
       expect(result.isError).toBe(true);
@@ -251,7 +251,7 @@ describe('launch_app_sim tool', () => {
         mockExecutor,
       );
 
-      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
       expect(text).toContain('App is not installed on the simulator (check failed)');
       expect(text).toContain('install_app_sim');
       expect(result.isError).toBe(true);
@@ -285,7 +285,7 @@ describe('launch_app_sim tool', () => {
         mockExecutor,
       );
 
-      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
       expect(text).toContain('Launch app in simulator operation failed');
       expect(text).toContain('Launch failed');
       expect(result.isError).toBe(true);

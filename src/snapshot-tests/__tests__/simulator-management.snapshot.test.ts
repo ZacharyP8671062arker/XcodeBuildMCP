@@ -51,6 +51,15 @@ describe('simulator-management workflow', () => {
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'set-appearance--success');
     });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('simulator-management', 'set-appearance', {
+        simulatorId: '00000000-0000-0000-0000-000000000000',
+        mode: 'dark',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'set-appearance--error-invalid-simulator');
+    });
   });
 
   describe('set-location', () => {
@@ -63,6 +72,16 @@ describe('simulator-management workflow', () => {
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'set-location--success');
     });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('simulator-management', 'set-location', {
+        simulatorId: '00000000-0000-0000-0000-000000000000',
+        latitude: 37.7749,
+        longitude: -122.4194,
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'set-location--error-invalid-simulator');
+    });
   });
 
   describe('reset-location', () => {
@@ -72,6 +91,14 @@ describe('simulator-management workflow', () => {
       });
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'reset-location--success');
+    });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('simulator-management', 'reset-location', {
+        simulatorId: '00000000-0000-0000-0000-000000000000',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'reset-location--error-invalid-simulator');
     });
   });
 
@@ -84,9 +111,26 @@ describe('simulator-management workflow', () => {
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'statusbar--success');
     });
+
+    it('error - invalid simulator', async () => {
+      const { text, isError } = await harness.invoke('simulator-management', 'statusbar', {
+        simulatorId: '00000000-0000-0000-0000-000000000000',
+        dataNetwork: 'wifi',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'statusbar--error-invalid-simulator');
+    });
   });
 
   describe('erase', () => {
-    it.skip('destructive - erases simulator content', () => {});
+    it('error - invalid id', async () => {
+      const { text, isError } = await harness.invoke('simulator-management', 'erase', {
+        simulatorId: '00000000-0000-0000-0000-000000000000',
+      });
+      expect(isError).toBe(true);
+      expectMatchesFixture(text, __filename, 'erase--error-invalid-id');
+    });
+
+    it.skip('success - destructive, requires throwaway simulator', () => {});
   });
 });

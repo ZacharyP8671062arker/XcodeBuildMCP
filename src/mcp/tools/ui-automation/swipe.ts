@@ -109,14 +109,16 @@ export async function swipeLogic(
     log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
     const coordinateWarning = getSnapshotUiWarning(simulatorId);
-    const warnings = [guard.warningText, coordinateWarning].filter(Boolean);
+    const warnings = [guard.warningText, coordinateWarning].filter(
+      (w): w is string => typeof w === 'string' && w.length > 0,
+    );
     return toolResponse([
       headerEvent,
       statusLine(
         'success',
         `Swipe from (${x1}, ${y1}) to (${x2}, ${y2})${optionsText} simulated successfully.`,
       ),
-      ...warnings.map((w) => statusLine('warning' as const, w)),
+      ...warnings.map((w) => statusLine('warning', w)),
     ]);
   } catch (error) {
     log('error', `${LOG_PREFIX}/${toolName}: Failed - ${error}`);

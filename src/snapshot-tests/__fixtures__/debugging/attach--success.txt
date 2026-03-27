@@ -1,7 +1,7 @@
 
 🐛 Attach Debugger
 
-✅ Attached DAP debugger to simulator process 76138 (<UUID>)
+✅ Attached DAP debugger to simulator process <PID> (<UUID>)
 
   ├ Debug session ID: <UUID>
   ├ Status: This session is now the current debug session.

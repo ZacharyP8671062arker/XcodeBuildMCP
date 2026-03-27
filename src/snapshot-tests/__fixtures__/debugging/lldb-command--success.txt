@@ -7,6 +7,8 @@
 
 Output
   Current breakpoints:
-  1: file = 'ContentView.swift', line = 42, exact_match = 0, locations = 0 (pending)
+  1: file = 'ContentView.swift', line = 42, exact_match = 0, locations = 1, resolved = 1, hit count = 0
     Names:
       dap
+
+    1.1: where = <APP_MODULE>`closure #1 in closure #1 in closure #1 in ContentView.body.getter + 1428 at ContentView.swift:42:31, address = <ADDR>, resolved, hit count = 0

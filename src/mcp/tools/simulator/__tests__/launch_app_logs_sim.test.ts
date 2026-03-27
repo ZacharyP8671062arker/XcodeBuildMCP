@@ -77,7 +77,7 @@ describe('launch_app_logs_sim tool', () => {
         logCaptureStub,
       );
 
-      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
       expect(text).toContain('Launch App');
       expect(text).toContain('App launched successfully');
       expect(text).toContain('test-uuid-123');
@@ -208,7 +208,7 @@ describe('launch_app_logs_sim tool', () => {
         logCaptureStub,
       );
 
-      const text = result.content.map((c: { text: string }) => c.text).join('\n');
+      const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
       expect(text).toContain('Failed to launch app with log capture');
       expect(text).toContain('Failed to start log capture');
       expect(result.isError).toBe(true);

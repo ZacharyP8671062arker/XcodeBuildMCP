@@ -1,0 +1,7 @@
+
+🔍 List Schemes
+
+   Workspace: /nonexistent/path/Fake.xcworkspace
+
+❌ <TIMESTAMP> xcodebuild[44362:16961447] Writing error result bundle to /var/folders/_t/2njffz894t57qpp76v1sw__h0000gn/T/ResultBundle_2026-27-03_09-49-0011.xcresult
+xcodebuild: error: '/nonexistent/path/Fake.xcworkspace' does not exist.

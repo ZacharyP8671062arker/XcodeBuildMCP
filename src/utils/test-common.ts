@@ -13,6 +13,7 @@ import { log } from './logger.ts';
 import type { XcodePlatform } from './xcode.ts';
 import { executeXcodeBuildCommand } from './build/index.ts';
 import { toolResponse } from './tool-response.ts';
+import { extractTestFailuresFromXcresult } from './xcresult-test-failures.ts';
 import { header, statusLine } from './tool-event-builders.ts';
 import { normalizeTestRunnerEnv } from './environment.ts';
 import type { ToolResponse } from '../types/common.ts';
@@ -26,7 +27,18 @@ import {
 import { formatToolPreflight } from './build-preflight.ts';
 import { createSimulatorTwoPhaseExecutionPlan } from './simulator-test-execution.ts';
 import { startBuildPipeline } from './xcodebuild-pipeline.ts';
+import type { XcodebuildPipeline } from './xcodebuild-pipeline.ts';
 import { createPendingXcodebuildResponse } from './xcodebuild-output.ts';
+
+function emitXcresultFailures(pipeline: XcodebuildPipeline): void {
+  const xcresultPath = pipeline.xcresultPath;
+  if (xcresultPath) {
+    const failures = extractTestFailuresFromXcresult(xcresultPath);
+    for (const event of failures) {
+      pipeline.emitEvent(event);
+    }
+  }
+}
 
 export function resolveTestProgressEnabled(progress: boolean | undefined): boolean {
   if (typeof progress === 'boolean') {
@@ -161,7 +173,7 @@ export async function handleTestLogic(
       }
 
       pipeline.emitEvent({
-        type: 'status',
+        type: 'build-stage',
         timestamp: new Date().toISOString(),
         operation: 'TEST',
         stage: 'PREPARING_TESTS',
@@ -178,6 +190,8 @@ export async function handleTestLogic(
         pipeline,
       );
 
+      emitXcresultFailures(pipeline);
+
       return createPendingXcodebuildResponse(started, testWithoutBuildingResult, {
         extras: preflightExtras,
       });
@@ -192,6 +206,8 @@ export async function handleTestLogic(
       execOpts,
       pipeline,
     );
+
+    emitXcresultFailures(pipeline);
 
     return createPendingXcodebuildResponse(started, singlePhaseResult, {
       extras: preflightExtras,

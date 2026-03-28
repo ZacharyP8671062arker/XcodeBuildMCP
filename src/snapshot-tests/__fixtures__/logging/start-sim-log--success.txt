@@ -3,11 +3,10 @@
 
    Simulator: <UUID>
    Bundle ID: io.sentry.calculatorapp
+   Filter: Structured logs only
 
 ✅ Log capture started.
-
-  ├ Session ID: <UUID>
-  └ Filter: Only structured logs from the app subsystem are being captured.
+  └ Session ID: <UUID>
 
 Next steps:
 1. Stop capture and retrieve logs: stop_sim_log_cap({ logSessionId: "<UUID>" })

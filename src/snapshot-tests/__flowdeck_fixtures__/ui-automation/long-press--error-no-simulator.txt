@@ -1,0 +1,2 @@
+⚠️ Last UI snapshot was taken on a different simulator. Coordinates may be stale.
+Simulator not found: 00000000-0000-0000-0000-000000000000

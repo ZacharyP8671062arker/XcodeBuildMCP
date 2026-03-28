@@ -1,0 +1,14 @@
+🚀 Build Started
+
+   Workspace: CalculatorApp.xcworkspace
+   Scheme: CalculatorApp
+   Configuration: Debug
+   Platform: iOS Simulator
+   Simulator: 01DA97D9-3856-46C5-A75E-DDD48100B2DB
+   Derived Data: /Users/cameroncooke/Library/Developer/FlowDeck/DerivedData/XcodeBuildMCP-21505d5e586f
+
+   → Resolving Package Graph...
+   → Compiling...
+
+[38;2;100;200;100m✓[0m Build Completed
+

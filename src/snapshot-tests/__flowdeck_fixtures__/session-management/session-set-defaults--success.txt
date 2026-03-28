@@ -1,0 +1,6 @@
+✓ Project configuration saved
+
+  Workspace: CalculatorApp.xcworkspace
+  Scheme: CalculatorApp
+  Target: My Mac
+  Configuration: Debug

@@ -1,0 +1,1 @@
+[38;2;220;80;80m✗[0m Failed to set simulator appearance: Invalid device: 00000000-0000-0000-0000-000000000000

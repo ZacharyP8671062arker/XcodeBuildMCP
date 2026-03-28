@@ -1,6 +1,7 @@
 import type {
   CompilerErrorEvent,
   CompilerWarningEvent,
+  TestFailureEvent,
   PipelineEvent,
 } from '../../types/pipeline-events.ts';
 import { createCliProgressReporter } from '../cli-progress-reporter.ts';
@@ -19,7 +20,7 @@ import {
   formatFileRefEvent,
   formatGroupedCompilerErrors,
   formatGroupedWarnings,
-  formatTestFailureEvent,
+  formatGroupedTestFailures,
   formatSummaryEvent,
   formatNextStepsEvent,
 } from './event-formatting.ts';
@@ -36,6 +37,7 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
   const reporter = createCliProgressReporter();
   const groupedCompilerErrors: CompilerErrorEvent[] = [];
   const groupedWarnings: CompilerWarningEvent[] = [];
+  const groupedTestFailures: TestFailureEvent[] = [];
   let pendingTransientRuntimeLine: string | null = null;
   let diagnosticBaseDir: string | null = null;
   let hasDurableRuntimeContent = false;
@@ -87,7 +89,7 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
             break;
           }
 
-          writeDurable(formatStatusLineEvent(event));
+          writeSection(formatStatusLineEvent(event));
           break;
         }
 
@@ -107,7 +109,7 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
         }
 
         case 'file-ref': {
-          writeDurable(formatFileRefEvent(event));
+          writeSection(formatFileRefEvent(event));
           break;
         }
 
@@ -135,14 +137,18 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
         }
 
         case 'test-failure': {
-          flushPendingTransientRuntimeLine();
-          writeDurable(formatTestFailureEvent(event, { baseDir: diagnosticBaseDir ?? undefined }));
+          groupedTestFailures.push(event);
           break;
         }
 
         case 'summary': {
           const diagOpts = { baseDir: diagnosticBaseDir ?? undefined };
           const diagnosticSections: string[] = [];
+
+          if (groupedTestFailures.length > 0) {
+            diagnosticSections.push(formatGroupedTestFailures(groupedTestFailures, diagOpts));
+            groupedTestFailures.length = 0;
+          }
 
           if (groupedWarnings.length > 0) {
             diagnosticSections.push(formatGroupedWarnings(groupedWarnings, diagOpts));

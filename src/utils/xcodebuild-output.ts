@@ -23,6 +23,8 @@ interface PendingXcodebuildState {
   fallbackContent: ToolResponseContent[];
   tailEvents: PipelineEvent[];
   errorFallbackPolicy: ErrorFallbackPolicy;
+  includeBuildLogFileRef: boolean;
+  includeParserDebugFileRef: boolean;
 }
 
 function createPipelineOutputMeta(
@@ -131,6 +133,10 @@ export function createBuildRunResultEvents(data: BuildRunResultNoticeData): Pipe
     items.push({ label: 'Process ID', value: String(data.processId) });
   }
 
+  if (data.buildLogPath) {
+    items.push({ label: 'Build Logs', value: data.buildLogPath });
+  }
+
   if (data.launchState !== 'requested') {
     items.push({ label: 'Launch', value: 'Running' });
   }
@@ -194,6 +200,8 @@ interface PendingXcodebuildResponseOptions {
   emitSummary?: boolean;
   tailEvents?: PipelineEvent[];
   errorFallbackPolicy?: ErrorFallbackPolicy;
+  includeBuildLogFileRef?: boolean;
+  includeParserDebugFileRef?: boolean;
 }
 
 export function createPendingXcodebuildResponse(
@@ -214,6 +222,8 @@ export function createPendingXcodebuildResponse(
         fallbackContent: response.isError ? response.content : [],
         tailEvents: options.tailEvents ?? [],
         errorFallbackPolicy: options.errorFallbackPolicy ?? 'always',
+        includeBuildLogFileRef: options.includeBuildLogFileRef ?? true,
+        includeParserDebugFileRef: options.includeParserDebugFileRef ?? false,
       } satisfies PendingXcodebuildState,
     },
   };
@@ -251,6 +261,8 @@ export function finalizePendingXcodebuildResponse(
   const pipelineResult = pending.started.pipeline.finalize(!response.isError, durationMs, {
     emitSummary: pending.emitSummary,
     tailEvents,
+    includeBuildLogFileRef: pending.includeBuildLogFileRef,
+    includeParserDebugFileRef: pending.includeParserDebugFileRef,
   });
 
   const hasStructuredDiagnostics =

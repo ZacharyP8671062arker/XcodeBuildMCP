@@ -4,4 +4,4 @@
    Simulator: <UUID>
    Mode: dark
 
-✅ Appearance set to dark mode
+✅ Appearance successfully set to dark mode

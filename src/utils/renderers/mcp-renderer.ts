@@ -1,6 +1,7 @@
 import type {
   CompilerErrorEvent,
   CompilerWarningEvent,
+  TestFailureEvent,
   PipelineEvent,
 } from '../../types/pipeline-events.ts';
 import type { ToolResponseContent } from '../../types/common.ts';
@@ -17,7 +18,7 @@ import {
   formatFileRefEvent,
   formatGroupedCompilerErrors,
   formatGroupedWarnings,
-  formatTestFailureEvent,
+  formatGroupedTestFailures,
   formatTestDiscoveryEvent,
   formatSummaryEvent,
   formatNextStepsEvent,
@@ -26,14 +27,15 @@ import {
 export function createMcpRenderer(): XcodebuildRenderer & {
   getContent(): ToolResponseContent[];
 } {
-  const content: ToolResponseContent[] = [];
+  const contentParts: string[] = [];
   const suppressWarnings = sessionStore.get('suppressWarnings');
   const groupedCompilerErrors: CompilerErrorEvent[] = [];
   const groupedWarnings: CompilerWarningEvent[] = [];
+  const groupedTestFailures: TestFailureEvent[] = [];
   let diagnosticBaseDir: string | null = null;
 
   function pushText(text: string): void {
-    content.push({ type: 'text', text });
+    contentParts.push(text);
   }
 
   function pushSection(text: string): void {
@@ -55,7 +57,7 @@ export function createMcpRenderer(): XcodebuildRenderer & {
         }
 
         case 'status-line': {
-          pushText(formatStatusLineEvent(event));
+          pushSection(formatStatusLineEvent(event));
           break;
         }
 
@@ -75,7 +77,7 @@ export function createMcpRenderer(): XcodebuildRenderer & {
         }
 
         case 'file-ref': {
-          pushText(formatFileRefEvent(event));
+          pushSection(formatFileRefEvent(event));
           break;
         }
 
@@ -102,13 +104,17 @@ export function createMcpRenderer(): XcodebuildRenderer & {
         }
 
         case 'test-failure': {
-          pushText(formatTestFailureEvent(event, { baseDir: diagnosticBaseDir ?? undefined }));
+          groupedTestFailures.push(event);
           break;
         }
 
         case 'summary': {
           const diagOpts = { baseDir: diagnosticBaseDir ?? undefined };
           const diagnosticSections: string[] = [];
+          if (groupedTestFailures.length > 0) {
+            diagnosticSections.push(formatGroupedTestFailures(groupedTestFailures, diagOpts));
+            groupedTestFailures.length = 0;
+          }
           if (groupedWarnings.length > 0) {
             diagnosticSections.push(formatGroupedWarnings(groupedWarnings, diagOpts));
             groupedWarnings.length = 0;
@@ -137,7 +143,11 @@ export function createMcpRenderer(): XcodebuildRenderer & {
     },
 
     getContent(): ToolResponseContent[] {
-      return [...content];
+      if (contentParts.length === 0) {
+        return [];
+      }
+
+      return [{ type: 'text', text: contentParts.join('') }];
     },
   };
 }

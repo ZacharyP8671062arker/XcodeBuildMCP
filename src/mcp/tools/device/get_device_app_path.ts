@@ -5,6 +5,7 @@
  * Accepts mutually exclusive `projectPath` or `workspacePath`.
  */
 
+import path from 'node:path';
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
@@ -15,9 +16,13 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { mapDevicePlatform, resolveAppPathFromBuildSettings } from './build-settings.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
+import { mapDevicePlatform } from './build-settings.ts';
+import { formatToolPreflight } from '../../../utils/build-preflight.ts';
+import { formatQueryError, formatQueryFailureSummary } from '../../../utils/xcodebuild-error-utils.ts';
+import {
+  extractAppPathFromBuildSettingsOutput,
+  getBuildSettingsDestination,
+} from '../../../utils/app-path-resolver.ts';
 
 // Unified schema: XOR between projectPath and workspacePath, sharing common options
 const baseOptions = {
@@ -53,65 +58,93 @@ const publicSchemaObject = baseSchemaObject.omit({
   platform: true,
 } as const);
 
-function buildHeaderParams(
-  params: GetDeviceAppPathParams,
-  configuration: string,
-  platform: string,
-) {
-  const headerParams: Array<{ label: string; value: string }> = [
-    { label: 'Scheme', value: params.scheme },
-  ];
-  if (params.workspacePath) {
-    headerParams.push({ label: 'Workspace', value: params.workspacePath });
-  } else if (params.projectPath) {
-    headerParams.push({ label: 'Project', value: params.projectPath });
-  }
-  headerParams.push({ label: 'Configuration', value: configuration });
-  headerParams.push({ label: 'Platform', value: platform });
-  return headerParams;
-}
-
 export async function get_device_app_pathLogic(
   params: GetDeviceAppPathParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
   const platform = mapDevicePlatform(params.platform);
   const configuration = params.configuration ?? 'Debug';
-  const headerEvent = header('Get App Path', buildHeaderParams(params, configuration, platform));
+  const preflightText = formatToolPreflight({
+    operation: 'Get App Path',
+    scheme: params.scheme,
+    workspacePath: params.workspacePath,
+    projectPath: params.projectPath,
+    configuration,
+    platform,
+  });
 
   log('info', `Getting app path for scheme ${params.scheme} on platform ${platform}`);
 
   try {
-    const appPath = await resolveAppPathFromBuildSettings(
-      {
-        projectPath: params.projectPath,
-        workspacePath: params.workspacePath,
-        scheme: params.scheme,
-        configuration,
-        platform,
-      },
-      executor,
+    const command = ['xcodebuild', '-showBuildSettings'];
+
+    const projectPath = params.projectPath ? path.resolve(process.cwd(), params.projectPath) : undefined;
+    const workspacePath = params.workspacePath ? path.resolve(process.cwd(), params.workspacePath) : undefined;
+
+    if (projectPath) {
+      command.push('-project', projectPath);
+    } else if (workspacePath) {
+      command.push('-workspace', workspacePath);
+    }
+
+    command.push('-scheme', params.scheme);
+    command.push('-configuration', configuration);
+    command.push('-destination', getBuildSettingsDestination(platform));
+
+    const workingDirectory = projectPath
+      ? path.dirname(projectPath)
+      : workspacePath
+        ? path.dirname(workspacePath)
+        : undefined;
+
+    const result = await executor(
+      command,
+      'Get App Path',
+      false,
+      workingDirectory ? { cwd: workingDirectory } : undefined,
     );
 
-    return toolResponse(
-      [
-        headerEvent,
-        statusLine('success', 'App path resolved.'),
-        detailTree([{ label: 'App Path', value: appPath }]),
-      ],
-      {
-        nextStepParams: {
-          get_app_bundle_id: { appPath },
-          install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-          launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
+    if (!result.success) {
+      const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `\n${preflightText}${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const appPath = extractAppPathFromBuildSettingsOutput(result.output);
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `\n${preflightText}  └ App Path: ${appPath}`,
         },
+      ],
+      nextStepParams: {
+        get_app_bundle_id: { appPath },
+        install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
       },
-    );
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error retrieving app path: ${errorMessage}`);
 
-    return toolResponse([headerEvent, statusLine('error', errorMessage)]);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `\n${preflightText}${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
+        },
+      ],
+      isError: true,
+    };
   }
 }
 

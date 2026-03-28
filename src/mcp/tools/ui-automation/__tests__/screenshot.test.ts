@@ -700,11 +700,14 @@ describe('Screenshot Plugin', () => {
         { v4: () => 'test-uuid' },
       );
 
-      // Should have: screenshot, list devices, orientation detection, optimization (no rotation)
-      expect(capturedCommands.length).toBe(4);
+      // Should have: screenshot, list devices, orientation detection, optimization, dimensions (no rotation)
+      expect(capturedCommands.length).toBe(5);
       // Fourth command should be optimization, not rotation
       expect(capturedCommands[3][0]).toBe('sips');
       expect(capturedCommands[3]).toContain('-Z');
+      // Fifth command should be dimensions
+      expect(capturedCommands[4][0]).toBe('sips');
+      expect(capturedCommands[4][1]).toBe('-g');
     });
 
     it('should continue without rotation if orientation detection fails', async () => {
@@ -764,8 +767,8 @@ describe('Screenshot Plugin', () => {
 
       // Should still succeed
       expect(result.isError).toBeFalsy();
-      // Should have: screenshot, list devices, failed orientation detection, optimization
-      expect(capturedCommands.length).toBe(4);
+      // Should have: screenshot, list devices, failed orientation detection, optimization, dimensions
+      expect(capturedCommands.length).toBe(5);
     });
 
     it('should continue if rotation fails but still return image', async () => {

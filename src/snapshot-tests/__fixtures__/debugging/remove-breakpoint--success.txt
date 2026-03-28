@@ -3,5 +3,5 @@
 
 ✅ Breakpoint 1 removed
 
-Output
+Output:
   Removed breakpoint 1.

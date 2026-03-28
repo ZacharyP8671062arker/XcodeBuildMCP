@@ -151,8 +151,12 @@ export async function build_run_simLogic(
       toolName: 'build_run_sim',
       params: {
         scheme: params.scheme,
+        workspacePath: params.workspacePath,
+        projectPath: params.projectPath,
         configuration,
         platform: displayPlatform,
+        simulatorName: params.simulatorName,
+        simulatorId: params.simulatorId,
         preflight: preflightText,
       },
       message: preflightText,
@@ -439,6 +443,7 @@ export async function build_run_simLogic(
       data: { step: 'launch-app', status: 'started', appPath: appBundlePath },
     });
 
+    let processId: number | undefined;
     try {
       log('info', `Launching app with bundle ID: ${bundleId} on simulator: ${simulatorId}`);
       const launchResult = await executor(
@@ -447,6 +452,11 @@ export async function build_run_simLogic(
       );
       if (!launchResult.success) {
         throw new Error(launchResult.error ?? 'Failed to launch app');
+      }
+      const pidMatch = launchResult.output?.match(/:\s*(\d+)\s*$/);
+      if (pidMatch) {
+        processId = parseInt(pidMatch[1], 10);
+        log('info', `Launched with PID: ${processId}`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -482,7 +492,10 @@ export async function build_run_simLogic(
           appPath: appBundlePath,
           bundleId,
           launchState: 'requested',
+          processId,
+          buildLogPath: started.pipeline.logPath,
         }),
+        includeBuildLogFileRef: false,
       },
     );
   } catch (error) {

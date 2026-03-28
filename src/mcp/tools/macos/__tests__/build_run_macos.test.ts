@@ -146,6 +146,7 @@ describe('build_run_macos', () => {
               type: 'detail-tree',
               items: expect.arrayContaining([
                 expect.objectContaining({ label: 'App Path', value: '/path/to/build/MyApp.app' }),
+                expect.objectContaining({ label: 'Build Logs', value: expect.stringContaining('build_run_macos_') }),
               ]),
             }),
           ],

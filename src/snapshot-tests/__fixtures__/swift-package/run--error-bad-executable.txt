@@ -4,9 +4,9 @@
    Package: <ROOT>/example_projects/spm
    Executable: nonexistent-executable
 
-Output
-  (no output)
-Errors:
-error: no executable product named 'nonexistent-executable'
+Errors (1):
 
-❌ Swift executable failed
+  ✗ no executable product named 'nonexistent-executable'
+
+❌ Run failed. (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/build_sim_2026-03-28T08-18-09-055Z.log

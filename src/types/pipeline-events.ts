@@ -183,6 +183,7 @@ export interface BuildRunResultNoticeData {
   bundleId?: string;
   appId?: string;
   processId?: number;
+  buildLogPath?: string;
 }
 
 export type NoticeCode = 'build-run-step' | 'build-run-result';

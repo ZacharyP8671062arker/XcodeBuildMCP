@@ -85,7 +85,7 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(capturedCommands).toHaveLength(4);
+      expect(capturedCommands).toHaveLength(5);
 
       expect(capturedCommands[0]).toEqual([
         'xcrun',
@@ -117,6 +117,9 @@ describe('screenshot plugin', () => {
         '--out',
         '/tmp/screenshot_optimized_mock-uuid-123.jpg',
       ]);
+
+      expect(capturedCommands[4][0]).toBe('sips');
+      expect(capturedCommands[4][1]).toBe('-g');
     });
 
     it('should generate correct path with different uuid', async () => {
@@ -159,7 +162,7 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(capturedCommands).toHaveLength(4);
+      expect(capturedCommands).toHaveLength(5);
 
       expect(capturedCommands[0]).toEqual([
         'xcrun',
@@ -191,6 +194,9 @@ describe('screenshot plugin', () => {
         '--out',
         '/tmp/screenshot_optimized_different-uuid-456.jpg',
       ]);
+
+      expect(capturedCommands[4][0]).toBe('sips');
+      expect(capturedCommands[4][1]).toBe('-g');
     });
 
     it('should use default dependencies when not provided', async () => {
@@ -222,8 +228,8 @@ describe('screenshot plugin', () => {
         mockFileSystemExecutor,
       );
 
-      // Should execute all commands in sequence: screenshot, list devices, orientation detection, optimization
-      expect(capturedCommands).toHaveLength(4);
+      // Should execute all commands in sequence: screenshot, list devices, orientation detection, optimization, dimensions
+      expect(capturedCommands).toHaveLength(5);
 
       const firstCommand = capturedCommands[0];
       expect(firstCommand).toHaveLength(6);
@@ -286,6 +292,7 @@ describe('screenshot plugin', () => {
       const text = allText(result);
       expect(text).toContain('Screenshot');
       expect(text).toContain('Screenshot captured.');
+      expect(text).toContain('Format: image/jpeg');
       const imageContent = result.content.find((c) => c.type === 'image');
       expect(imageContent).toEqual({
         type: 'image',
@@ -425,7 +432,7 @@ describe('screenshot plugin', () => {
         mockUuidDeps,
       );
 
-      expect(capturedArgs).toHaveLength(4);
+      expect(capturedArgs).toHaveLength(5);
 
       expect(capturedArgs[0]).toEqual([
         ['xcrun', 'simctl', 'io', 'test-uuid', 'screenshot', '/tmp/screenshot_mock-uuid-123.png'],
@@ -462,6 +469,10 @@ describe('screenshot plugin', () => {
         '[Screenshot]: optimize image',
         false,
       ]);
+
+      expect(capturedArgs[4][0][0]).toBe('sips');
+      expect(capturedArgs[4][0][1]).toBe('-g');
+      expect(capturedArgs[4][1]).toBe('[Screenshot]: get dimensions');
     });
 
     it('should handle SystemError exceptions', async () => {

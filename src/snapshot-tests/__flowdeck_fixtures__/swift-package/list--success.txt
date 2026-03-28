@@ -1,0 +1,7 @@
+Running Apps (1):
+
+  🟢 io.sentry.calculatorapp
+     ID: 3FA6B156 | Target: Simulator
+     PID: 12824 | Uptime: 18s
+     Scheme: CalculatorApp | Type: simulator
+

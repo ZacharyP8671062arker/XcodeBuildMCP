@@ -1,0 +1,3 @@
+Stopping app: ACFBF7F0
+[38;2;100;200;100m✓[0m Stopped io.sentry.MCPTest (ACFBF7F0)
+   Killed: app process, launch process

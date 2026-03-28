@@ -1,0 +1,3 @@
+✓ Project configuration reset
+
+Run: flowdeck config set -w <workspace> -s <scheme>

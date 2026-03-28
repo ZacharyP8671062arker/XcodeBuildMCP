@@ -30,7 +30,11 @@ function resolveStageFromLine(line: string): XcodebuildStage | null {
   if (linkPatterns.some((pattern) => pattern.test(line))) {
     return 'LINKING';
   }
-  if (/^Testing started$/u.test(line) || /^Test Suite .+ started/u.test(line) || /^[◇] Test run started/u.test(line)) {
+  if (
+    /^Testing started$/u.test(line) ||
+    /^Test Suite .+ started/u.test(line) ||
+    /^[◇] Test run started/u.test(line)
+  ) {
     return 'RUN_TESTS';
   }
   return null;
@@ -63,6 +67,29 @@ function parseWarningLine(line: string): { location?: string; message: string } 
   return null;
 }
 
+const IGNORED_NOISE_PATTERNS = [
+  /^Command line invocation:$/u,
+  /^\s*\/Applications\/Xcode[^\s]+\/Contents\/Developer\/usr\/bin\/xcodebuild\b/u,
+  /^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+\s+xcodebuild\[.+\]\s+Writing error result bundle to\s+/u,
+  /^Build settings from command line:$/u,
+  /^(?:COMPILER_INDEX_STORE_ENABLE|ONLY_ACTIVE_ARCH)\s*=\s*.+$/u,
+  /^Resolve Package Graph$/u,
+  /^Resolved source packages:$/u,
+  /^\s*[A-Za-z0-9_.-]+:\s+.+$/u,
+  /^--- xcodebuild: WARNING: Using the first of multiple matching destinations:$/u,
+  /^\{\s*platform:.+\}$/u,
+  /^(?:ComputePackagePrebuildTargetDependencyGraph|Prepare packages|CreateBuildRequest|SendProjectDescription|CreateBuildOperation|ComputeTargetDependencyGraph|GatherProvisioningInputs|CreateBuildDescription)$/u,
+  /^Target '.+' in project '.+' \(no dependencies\)$/u,
+  /^(?:Build description signature|Build description path):\s+.+$/u,
+  /^(?:ExecuteExternalTool|ClangStatCache|CopySwiftLibs|builtin-infoPlistUtility|builtin-swiftStdLibTool)\b/u,
+  /^cd\s+.+$/u,
+  /^\*\* BUILD SUCCEEDED \*\*$/u,
+];
+
+function isIgnoredNoiseLine(line: string): boolean {
+  return IGNORED_NOISE_PATTERNS.some((pattern) => pattern.test(line));
+}
+
 function now(): string {
   return new Date().toISOString();
 }
@@ -70,6 +97,7 @@ function now(): string {
 export interface EventParserOptions {
   operation: XcodebuildOperation;
   onEvent: (event: PipelineEvent) => void;
+  onUnrecognizedLine?: (line: string) => void;
 }
 
 export interface XcodebuildEventParser {
@@ -80,7 +108,7 @@ export interface XcodebuildEventParser {
 }
 
 export function createXcodebuildEventParser(options: EventParserOptions): XcodebuildEventParser {
-  const { operation, onEvent } = options;
+  const { operation, onEvent, onUnrecognizedLine } = options;
 
   let stdoutBuffer = '';
   let stderrBuffer = '';
@@ -331,11 +359,19 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       return;
     }
 
+    if (isIgnoredNoiseLine(line)) {
+      return;
+    }
+
     // Capture xcresult path from xcodebuild output
     const xcresultMatch = line.match(/^\s*(\S+\.xcresult)\s*$/u);
     if (xcresultMatch) {
       detectedXcresultPath = xcresultMatch[1];
       return;
+    }
+
+    if (onUnrecognizedLine) {
+      onUnrecognizedLine(line);
     }
   }
 

@@ -1,45 +1,27 @@
 
 📱 List Devices
 
-🟢 Cameron’s Apple Watch
+iOS Devices:
 
-  ├ UDID: <UUID>
-  ├ Model: Watch4,2
-  ├ Product Type: Watch4,2
-  ├ Platform: Unknown 10.6.1
-  ├ CPU Architecture: arm64_32
-  ├ Connection:
-  └ Developer Mode: disabled
+  📱 [✓] Cameron’s iPhone 16 Pro Max
+    OS: 26.3.1 (a)
+    UDID: <UUID>
 
-🟢 Cameron’s Apple Watch
+  📱 [✗] iPhone
+    OS: 26.1
+    UDID: <UUID>
 
-  ├ UDID: <UUID>
-  ├ Model: Watch7,20
-  ├ Product Type: Watch7,20
-  ├ Platform: Unknown 26.3
-  ├ CPU Architecture: arm64e
-  ├ Connection: localNetwork
-  └ Developer Mode: disabled
+watchOS Devices:
 
-🟢 Cameron’s iPhone 16 Pro Max
+  ⌚️ [✗] Cameron’s Apple Watch
+    OS: 10.6.1
+    UDID: <UUID>
 
-  ├ UDID: <UUID>
-  ├ Model: iPhone17,2
-  ├ Product Type: iPhone17,2
-  ├ Platform: Unknown 26.3.1 (a)
-  ├ CPU Architecture: arm64e
-  ├ Connection: localNetwork
-  └ Developer Mode: enabled
+  ⌚️ [✓] Cameron’s Apple Watch
+    OS: 26.3
+    UDID: <UUID>
 
-🟢 iPhone
-
-  ├ UDID: <UUID>
-  ├ Model: iPhone99,11
-  ├ Product Type: iPhone99,11
-  ├ Platform: Unknown 26.1
-  ├ CPU Architecture: arm64e
-  └ Connection:
-✅ Devices discovered.
+✅ 4 physical devices discovered (2 iOS, 2 watchOS).
 
 Hints
   Use the device ID/UDID from above when required by other tools.

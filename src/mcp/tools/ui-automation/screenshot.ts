@@ -24,9 +24,31 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
 const LOG_PREFIX = '[Screenshot]';
+
+async function getImageDimensions(
+  imagePath: string,
+  executor: CommandExecutor,
+): Promise<string | null> {
+  try {
+    const result = await executor(
+      ['sips', '-g', 'pixelWidth', '-g', 'pixelHeight', imagePath],
+      `${LOG_PREFIX}: get dimensions`,
+      false,
+    );
+    if (!result.success || !result.output) return null;
+    const widthMatch = result.output.match(/pixelWidth:\s*(\d+)/);
+    const heightMatch = result.output.match(/pixelHeight:\s*(\d+)/);
+    if (widthMatch && heightMatch) {
+      return `${widthMatch[1]}x${heightMatch[1]}`;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Type for simctl device list response
@@ -271,10 +293,11 @@ export async function screenshotLogic(
 
         return toolResponse([
           headerEvent,
-          statusLine(
-            'success',
-            `Screenshot captured: ${screenshotPath} (image/png, optimization failed)`,
-          ),
+          statusLine('success', 'Screenshot captured.'),
+          detailTree([
+            { label: 'Screenshot', value: screenshotPath },
+            { label: 'Format', value: 'image/png (optimization failed)' },
+          ]),
         ]);
       }
 
@@ -282,6 +305,7 @@ export async function screenshotLogic(
 
       if (returnFormat === 'base64') {
         const base64Image = await fileSystemExecutor.readFile(optimizedPath, 'base64');
+        const base64Dims = await getImageDimensions(optimizedPath, executor);
 
         log('info', `${LOG_PREFIX}/screenshot: Successfully encoded image as Base64`);
 
@@ -295,6 +319,12 @@ export async function screenshotLogic(
         const textResponse = toolResponse([
           headerEvent,
           statusLine('success', 'Screenshot captured.'),
+          detailTree(
+            [
+              { label: 'Format', value: 'image/jpeg' },
+              ...(base64Dims ? [{ label: 'Size', value: base64Dims }] : []),
+            ] as Array<{ label: string; value: string }>,
+          ),
         ]);
         textResponse.content.push(createImageContent(base64Image, 'image/jpeg'));
         return textResponse;
@@ -306,9 +336,17 @@ export async function screenshotLogic(
         log('warn', `${LOG_PREFIX}/screenshot: Failed to delete temp file: ${err}`);
       }
 
+      const dims = await getImageDimensions(optimizedPath, executor);
       return toolResponse([
         headerEvent,
-        statusLine('success', `Screenshot captured: ${optimizedPath} (image/jpeg)`),
+        statusLine('success', 'Screenshot captured.'),
+        detailTree(
+          [
+            { label: 'Screenshot', value: optimizedPath },
+            { label: 'Format', value: 'image/jpeg' },
+            ...(dims ? [{ label: 'Size', value: dims }] : []),
+          ] as Array<{ label: string; value: string }>,
+        ),
       ]);
     } catch (fileError) {
       log('error', `${LOG_PREFIX}/screenshot: Failed to process image file: ${fileError}`);

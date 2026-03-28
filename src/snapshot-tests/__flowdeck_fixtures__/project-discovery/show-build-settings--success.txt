@@ -1,0 +1,6 @@
+Build Configurations in /Users/cameroncooke/.codex/worktrees/43f4/XcodeBuildMCP/example_projects/iOS_Calculator/CalculatorApp.xcworkspace:
+
+  Debug
+  Release
+
+Found 2 configuration(s)

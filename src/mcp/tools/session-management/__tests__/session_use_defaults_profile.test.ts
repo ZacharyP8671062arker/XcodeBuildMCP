@@ -64,7 +64,7 @@ describe('session-use-defaults-profile tool', () => {
   it('returns status for empty args', async () => {
     const result = await sessionUseDefaultsProfileLogic({});
     expect(result.isError).toBeFalsy();
-    expect(allText(result)).toContain('Active profile: global');
+    expect(allText(result)).toContain('Active profile: global defaults');
   });
 
   it('persists active profile when persist=true', async () => {

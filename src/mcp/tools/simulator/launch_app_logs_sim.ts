@@ -100,11 +100,11 @@ export async function launch_app_logs_simLogic(
   return toolResponse(
     [
       headerEvent,
-      detailTree([{ label: 'Log Session ID', value: sessionId }]),
       statusLine(
         'success',
         `App launched successfully in simulator ${params.simulatorId} with log capture enabled`,
       ),
+      detailTree([{ label: 'Log Session ID', value: sessionId }]),
     ],
     {
       nextStepParams: {

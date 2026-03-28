@@ -11,7 +11,7 @@ const PROCESS_ID_REGEX = /Process ID: \d+/g;
 const PROCESS_INLINE_PID_REGEX = /process \d+/g;
 const THREAD_ID_REGEX = /Thread \d{5,}/g;
 const HEX_ADDRESS_REGEX = /0x[0-9a-fA-F]{8,}/g;
-const LLDB_MODULE_DYLIB_REGEX = /CalculatorApp[^\s`]*/g;
+
 const LLDB_FRAME_OFFSET_REGEX = /(`[^`]+):(\d+)$/gm;
 const DERIVED_DATA_HASH_REGEX = /(DerivedData\/[A-Za-z0-9_]+)-[a-z]{28}\b/g;
 const PROGRESS_LINE_REGEX = /^›.*\n*/gm;
@@ -85,7 +85,6 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(PROCESS_INLINE_PID_REGEX, 'process <PID>');
   normalized = normalized.replace(THREAD_ID_REGEX, 'Thread <THREAD_ID>');
   normalized = normalized.replace(HEX_ADDRESS_REGEX, '<ADDR>');
-  normalized = normalized.replace(LLDB_MODULE_DYLIB_REGEX, '<APP_MODULE>');
   normalized = normalized.replace(LLDB_FRAME_OFFSET_REGEX, '$1:<OFFSET>');
   normalized = normalized.replace(RESULT_BUNDLE_LINE_REGEX, '<RESULT_BUNDLE_ERROR>');
   normalized = normalized.replace(PROGRESS_LINE_REGEX, '');

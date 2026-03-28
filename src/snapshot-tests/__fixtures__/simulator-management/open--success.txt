@@ -1,4 +1,4 @@
 
 📱 Open Simulator
 
-✅ Simulator app opened
+✅ Simulator opened successfully

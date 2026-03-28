@@ -1,0 +1,6 @@
+Current project configuration:
+  Workspace: /Users/cameroncooke/.codex/worktrees/43f4/XcodeBuildMCP/example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  Scheme: CalculatorApp
+  Configuration: Debug
+  Target: My Mac
+  Target Type: macOS

@@ -5,4 +5,5 @@
    Path: <TMPDIR>/macos
    Platform: macOS
 
-✅ Project scaffolded successfully at <TMPDIR>/macos.
+✅ Project scaffolded successfully
+  └ <TMPDIR>/ios

@@ -296,7 +296,9 @@ describe('get_device_app_path plugin', () => {
       expect(text).toContain('Get App Path');
       expect(text).toContain('Scheme: MyScheme');
       expect(text).toContain('Project: /path/to/nonexistent.xcodeproj');
-      expect(text).toContain('The project does not exist.');
+      expect(text).toContain('Errors (1):');
+      expect(text).toContain('✗ The project does not exist.');
+      expect(text).toContain('Query failed.');
       expect(result.nextStepParams).toBeUndefined();
     });
 

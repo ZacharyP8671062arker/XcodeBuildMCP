@@ -5,9 +5,14 @@ import { header, detailTree, statusLine } from '../../../utils/tool-event-builde
 
 export const schema = {};
 
+function formatActiveProfileLabel(activeProfile: string | null): string {
+  return activeProfile ?? 'global defaults';
+}
+
 export const handler = async (): Promise<ToolResponse> => {
   const current = sessionStore.getAll();
   const activeProfile = sessionStore.getActiveProfile();
+  const activeProfileLabel = formatActiveProfileLabel(activeProfile);
 
   const items = Object.entries(current)
     .filter(([, v]) => v !== undefined)
@@ -18,13 +23,13 @@ export const handler = async (): Promise<ToolResponse> => {
       header('Show Defaults'),
       statusLine(
         'info',
-        `No session defaults are set. Active profile: ${activeProfile ?? 'global'}`,
+        `No session defaults are set. Active profile: ${activeProfileLabel}`,
       ),
     ]);
   }
 
   return toolResponse([
-    header('Show Defaults', [{ label: 'Active Profile', value: activeProfile ?? 'global' }]),
+    header('Show Defaults', [{ label: 'Active Profile', value: activeProfileLabel }]),
     detailTree(items),
   ]);
 };

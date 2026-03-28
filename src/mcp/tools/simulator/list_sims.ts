@@ -169,6 +169,14 @@ export async function listSimulators(executor: CommandExecutor): Promise<ListedS
   return listed;
 }
 
+function formatRuntimeName(runtime: string): string {
+  const match = runtime.match(/SimRuntime\.(.+)$/);
+  if (match) {
+    return match[1].replace(/-/g, '.').replace(/\.(\d)/, ' $1');
+  }
+  return runtime;
+}
+
 export async function list_simsLogic(
   _params: ListSimsParams,
   executor: CommandExecutor,
@@ -196,7 +204,7 @@ export async function list_simsLogic(
         UUID: d.udid,
         State: d.state,
       }));
-      tables.push(table(['Name', 'UUID', 'State'], rows, runtime));
+      tables.push(table(['Name', 'UUID', 'State'], rows, formatRuntimeName(runtime)));
     }
 
     return toolResponse(

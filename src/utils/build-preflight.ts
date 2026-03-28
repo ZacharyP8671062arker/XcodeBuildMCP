@@ -51,46 +51,46 @@ export function formatToolPreflight(params: ToolPreflightParams): string {
   const lines: string[] = [`${emoji} ${params.operation}`, ''];
 
   if (params.scheme) {
-    lines.push(`  Scheme: ${params.scheme}`);
+    lines.push(`   Scheme: ${params.scheme}`);
   }
 
   if (params.workspacePath) {
-    lines.push(`  Workspace: ${displayPath(params.workspacePath)}`);
+    lines.push(`   Workspace: ${displayPath(params.workspacePath)}`);
   } else if (params.projectPath) {
-    lines.push(`  Project: ${displayPath(params.projectPath)}`);
+    lines.push(`   Project: ${displayPath(params.projectPath)}`);
   }
 
   if (params.configuration) {
-    lines.push(`  Configuration: ${params.configuration}`);
+    lines.push(`   Configuration: ${params.configuration}`);
   }
   if (params.platform) {
-    lines.push(`  Platform: ${params.platform}`);
+    lines.push(`   Platform: ${params.platform}`);
   }
 
   if (params.simulatorName) {
-    lines.push(`  Simulator: ${params.simulatorName}`);
+    lines.push(`   Simulator: ${params.simulatorName}`);
   } else if (params.simulatorId) {
-    lines.push(`  Simulator: ${params.simulatorId}`);
+    lines.push(`   Simulator: ${params.simulatorId}`);
   }
 
   if (params.deviceId) {
-    lines.push(`  Device: ${params.deviceId}`);
+    lines.push(`   Device: ${params.deviceId}`);
   }
 
   if (params.arch) {
-    lines.push(`  Architecture: ${params.arch}`);
+    lines.push(`   Architecture: ${params.arch}`);
   }
 
   if (params.xcresultPath) {
-    lines.push(`  xcresult: ${displayPath(params.xcresultPath)}`);
+    lines.push(`   xcresult: ${displayPath(params.xcresultPath)}`);
   }
 
   if (params.file) {
-    lines.push(`  File: ${params.file}`);
+    lines.push(`   File: ${params.file}`);
   }
 
   if (params.targetFilter) {
-    lines.push(`  Target Filter: ${params.targetFilter}`);
+    lines.push(`   Target Filter: ${params.targetFilter}`);
   }
 
   lines.push('');

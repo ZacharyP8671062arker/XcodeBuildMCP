@@ -5,7 +5,15 @@
    Configuration: Debug
    Platform: macOS
 
-  ✗ deliberateFailure(): Expectation failed: 1 == 2: This test is designed to fail for snapshot testing
-    MCPTestTests.swift:11
+MCPTestsXCTests
+  ✗ testCalculatorServiceFailure (⏱️ <DURATION>):
+      - XCTAssertTrue failed - This test is designed to fail for snapshot testing
+        example_projects/macOS/MCPTestTests/MCPTestTests.swift:11
 
-❌ Test failed. (<TEST_COUNTS>, ⏱️ <DURATION>)
+MCPTestTests
+  ✗ appNameIsCorrect() (⏱️ <DURATION>):
+    - Expectation failed: 1 == 2: This test is designed to fail for snapshot testing
+      example_projects/macOS/MCPTestTests/MCPTestsXCTests.swift:11
+
+❌ 1 test failed, 1 passed, 0 skipped (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/test_macos_2026-03-28T08-18-25-423Z.log

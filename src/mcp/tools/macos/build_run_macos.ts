@@ -94,6 +94,8 @@ export async function buildRunMacOSLogic(
       toolName: 'build_run_macos',
       params: {
         scheme: params.scheme,
+        workspacePath: params.workspacePath,
+        projectPath: params.projectPath,
         configuration,
         platform: 'macOS',
         preflight: preflightText,
@@ -186,7 +188,9 @@ export async function buildRunMacOSLogic(
           target: 'macOS',
           appPath,
           launchState: 'requested',
+          buildLogPath: started.pipeline.logPath,
         }),
+        includeBuildLogFileRef: false,
       },
     );
   } catch (error) {

@@ -429,7 +429,9 @@ FULL_PRODUCT_NAME = MyApp.app
       const text = allText(result);
       expect(text).toContain('Get App Path');
       expect(text).toContain('Scheme: MyScheme');
-      expect(text).toContain('No such scheme');
+      expect(text).toContain('Errors (1):');
+      expect(text).toContain('✗ No such scheme');
+      expect(text).toContain('Query failed.');
       expect(result.nextStepParams).toBeUndefined();
     });
 

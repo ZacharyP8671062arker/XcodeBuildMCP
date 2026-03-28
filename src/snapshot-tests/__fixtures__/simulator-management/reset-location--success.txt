@@ -3,4 +3,4 @@
 
    Simulator: <UUID>
 
-✅ Location reset to default
+✅ Location successfully reset to default

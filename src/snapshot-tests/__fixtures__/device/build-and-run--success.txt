@@ -14,7 +14,6 @@
 
 ✅ Build succeeded. (⏱️ <DURATION>)
 ✅ Build & Run complete
-
   ├ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphoneos/CalculatorApp.app
   ├ Bundle ID: io.sentry.calculatorapp
   └ Process ID: <PID>

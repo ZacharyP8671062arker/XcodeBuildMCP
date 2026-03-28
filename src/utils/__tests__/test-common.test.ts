@@ -123,8 +123,8 @@ describe('handleTestLogic (pipeline)', () => {
     expect(renderedText).toContain('Resolving packages');
     expect(renderedText).toContain('Compiling');
     expect(renderedText).toContain('Running tests');
-    expect(renderedText).toContain('AppTests/testFailure: XCTAssertEqual failed');
-    expect(renderedText).toContain('XCTAssertEqual failed');
+    expect(renderedText).toContain('AppTests');
+    expect(renderedText).toContain('testFailure: XCTAssertEqual failed');
     expect(renderedText).toContain('Test failed.');
     expect(renderedText).toContain('Total: 1');
     expect(renderedText).toContain('Failed: 1');

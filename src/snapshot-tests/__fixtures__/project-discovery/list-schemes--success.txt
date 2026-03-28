@@ -3,8 +3,8 @@
 
    Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
 
-✅ Found 2 scheme(s).
+✅ Found 2 schemes
 
-Schemes
+Schemes:
   CalculatorApp
   CalculatorAppFeature

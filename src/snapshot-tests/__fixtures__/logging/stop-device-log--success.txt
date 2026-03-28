@@ -4,8 +4,9 @@
    Session ID: <UUID>
 
 ✅ Log capture stopped.
+  └ Logs: <TMPDIR>/logs/io.sentry.calculatorapp_2026-03-28T08-19-54-221Z.log
 
-Captured Logs
+Captured Logs:
 
   --- Device log capture for bundle ID: io.sentry.calculatorapp on device: <UUID> ---
   09:50:59  Acquired usage assertion.

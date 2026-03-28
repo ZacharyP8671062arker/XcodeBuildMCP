@@ -4,4 +4,4 @@
    Device: <DEVICE> (<UUID>)
    PID: <PID>
 
-✅ App stopped successfully.
+✅ App stopped successfully

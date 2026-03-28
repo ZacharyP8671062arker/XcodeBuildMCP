@@ -82,6 +82,8 @@ export async function buildDeviceLogic(
 
   const pipelineParams = {
     scheme: params.scheme,
+    workspacePath: params.workspacePath,
+    projectPath: params.projectPath,
     configuration: processedParams.configuration,
     platform: 'iOS',
     preflight: preflightText,

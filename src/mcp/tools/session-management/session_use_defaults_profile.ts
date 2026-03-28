@@ -23,6 +23,10 @@ const schemaObj = z.object({
 
 type Params = z.input<typeof schemaObj>;
 
+function formatActiveProfileLabel(activeProfile: string | null): string {
+  return activeProfile ?? 'global defaults';
+}
+
 function resolveProfileToActivate(params: Params): string | null | undefined {
   if (params.global === true) return null;
   if (params.profile === undefined) return undefined;
@@ -64,7 +68,7 @@ export async function sessionUseDefaultsProfileLogic(params: Params): Promise<To
     notices.push(`Persisted active profile selection to ${path}`);
   }
 
-  const activeLabel = active ?? 'global';
+  const activeLabel = formatActiveProfileLabel(active);
   const profiles = sessionStore.listProfiles();
   const current = sessionStore.getAll();
 

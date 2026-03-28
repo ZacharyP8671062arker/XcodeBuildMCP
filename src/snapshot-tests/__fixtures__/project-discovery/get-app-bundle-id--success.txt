@@ -3,4 +3,5 @@
 
    App: <TMPDIR>/BundleTest.app
 
-✅ Bundle ID: com.test.snapshot
+✅ Bundle ID
+  └ com.test.snapshot

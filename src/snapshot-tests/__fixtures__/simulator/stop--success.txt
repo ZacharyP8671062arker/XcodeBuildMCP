@@ -4,4 +4,4 @@
    Simulator: <UUID>
    Bundle ID: io.sentry.calculatorapp
 
-✅ App io.sentry.calculatorapp stopped successfully in simulator <UUID>
+✅ App stopped successfully

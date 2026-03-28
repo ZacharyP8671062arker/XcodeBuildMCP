@@ -496,3 +496,49 @@ export function formatTestDiscoveryEvent(event: TestDiscoveryEvent): string {
 export function formatNextStepsEvent(event: NextStepsEvent, runtime: 'cli' | 'mcp'): string {
   return renderNextStepsSection(event.steps, runtime);
 }
+
+export function formatGroupedTestFailures(
+  events: TestFailureEvent[],
+  options?: DiagnosticFormattingOptions,
+): string {
+  if (events.length === 0) return '';
+
+  const groupedSuites = new Map<string, Map<string, TestFailureEvent[]>>();
+  for (const event of events) {
+    const suiteKey = event.suite ?? '(Unknown Suite)';
+    const testKey = event.test ?? '(unknown test)';
+    const suiteGroup = groupedSuites.get(suiteKey) ?? new Map<string, TestFailureEvent[]>();
+    const testGroup = suiteGroup.get(testKey) ?? [];
+    testGroup.push(event);
+    suiteGroup.set(testKey, testGroup);
+    groupedSuites.set(suiteKey, suiteGroup);
+  }
+
+  const lines: string[] = [`Test Failures (${events.length}):`, ''];
+
+  for (const [suite, tests] of groupedSuites.entries()) {
+    lines.push(`  ${suite}`);
+    for (const [testName, failures] of tests.entries()) {
+      lines.push(`    ✗ ${testName}`);
+      for (const failure of failures) {
+        lines.push(`      ${failure.message}`);
+        if (failure.location) {
+          const locParts = failure.location.match(/^(.+?)(:(?:\d+)(?::\d+)?)$/);
+          if (locParts) {
+            const filePath = formatDiagnosticFilePath(locParts[1], options);
+            lines.push(`        ${filePath}${locParts[2]}`);
+          } else {
+            lines.push(`        ${failure.location}`);
+          }
+        }
+      }
+    }
+    lines.push('');
+  }
+
+  while (lines.at(-1) === '') {
+    lines.pop();
+  }
+
+  return lines.join('\n');
+}

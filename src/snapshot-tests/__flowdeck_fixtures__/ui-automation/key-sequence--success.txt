@@ -1,0 +1,1 @@
+[38;2;100;200;100m✓[0m Pressed key sequence: [4, 5, 6]

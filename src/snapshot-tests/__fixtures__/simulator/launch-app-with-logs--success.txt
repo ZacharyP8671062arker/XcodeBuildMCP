@@ -5,8 +5,8 @@
    Bundle ID: io.sentry.calculatorapp
    Log Capture: enabled
 
-  └ Log Session ID: <UUID>
 ✅ App launched successfully in simulator <UUID> with log capture enabled
+  └ Log Session ID: <UUID>
 
 Next steps:
 1. Stop capture and retrieve logs: stop_sim_log_cap({ logSessionId: "<UUID>" })

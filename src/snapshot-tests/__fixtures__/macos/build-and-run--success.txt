@@ -2,6 +2,7 @@
 🚀 Build & Run
 
    Scheme: MCPTest
+   Project: example_projects/macOS/MCPTest.xcodeproj
    Configuration: Debug
    Platform: macOS
 
@@ -12,8 +13,10 @@
 
 ✅ Build succeeded. (⏱️ <DURATION>)
 ✅ Build & Run complete
-
-  └ App Path: <HOME>/Library/Developer/Xcode/DerivedData/MCPTest-<HASH>/Build/Products/Debug/MCPTest.app
+  ├ App Path: <HOME>/Library/Developer/Xcode/DerivedData/MCPTest-<HASH>/Build/Products/Debug/MCPTest.app
+  ├ Bundle ID: io.sentry.calculatorapp
+  ├ Process ID: <PID>
+  └ Build Logs: <TMPDIR>/logs/build_run_macos_2026-03-28T08-19-06-319Z.log
 
 Next steps:
 1. Interact with the launched app in the foreground

@@ -2,10 +2,12 @@
 🔨 Build
 
    Scheme: CalculatorApp
+   Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
    Configuration: Debug
    Platform: iOS
 
 ✅ Build succeeded. (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/build_device_2026-03-28T08-19-54-221Z.log
 
 Next steps:
 1. Get built device app path: xcodebuildmcp device get-app-path --scheme "CalculatorApp"

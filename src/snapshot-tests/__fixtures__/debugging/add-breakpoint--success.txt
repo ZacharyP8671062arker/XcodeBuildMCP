@@ -3,5 +3,5 @@
 
 ✅ Breakpoint 1 set
 
-Output
+Output:
   Set breakpoint 1 at ContentView.swift:42

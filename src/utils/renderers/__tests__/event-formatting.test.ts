@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   extractGroupedCompilerError,
   formatGroupedCompilerErrors,
+  formatGroupedTestFailures,
   formatHumanCompilerErrorEvent,
   formatHumanCompilerWarningEvent,
   formatHeaderEvent,
@@ -219,5 +220,34 @@ describe('event formatting', () => {
         items: [{ label: 'App Path', value: '/tmp/build/MyApp.app' }],
       }),
     ).toBe('  \u2514 App Path: /tmp/build/MyApp.app');
+  });
+
+  it('groups test failures by test case within a suite', () => {
+    const rendered = formatGroupedTestFailures([
+      {
+        type: 'test-failure',
+        timestamp: '2026-03-20T12:00:00.000Z',
+        operation: 'TEST',
+        suite: 'MathTests',
+        test: 'testAdd',
+        message: 'XCTAssertEqual failed',
+        location: '/tmp/MathTests.swift:12',
+      },
+      {
+        type: 'test-failure',
+        timestamp: '2026-03-20T12:00:01.000Z',
+        operation: 'TEST',
+        suite: 'MathTests',
+        test: 'testAdd',
+        message: 'Expected 4, got 5',
+        location: '/tmp/MathTests.swift:13',
+      },
+    ]);
+
+    expect(rendered).toContain('Test Failures (2):');
+    expect(rendered).toContain('  MathTests');
+    expect(rendered).toContain('    ✗ testAdd');
+    expect(rendered).toContain('      XCTAssertEqual failed');
+    expect(rendered).toContain('      Expected 4, got 5');
   });
 });

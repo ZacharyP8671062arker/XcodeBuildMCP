@@ -1,0 +1,4 @@
+🗑️  Erasing simulator 00000000-0000-0000-0000-000000000000...
+⚠️  This will delete all data and settings from the simulator.
+Simulator operation failed: Failed to erase simulator: Invalid device: 00000000-0000-0000-0000-000000000000
+

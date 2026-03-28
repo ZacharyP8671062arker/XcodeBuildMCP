@@ -136,8 +136,12 @@ async function _handleSimulatorBuildLogic(
 
   const pipelineParams = {
     scheme: params.scheme,
+    workspacePath: params.workspacePath,
+    projectPath: params.projectPath,
     configuration: sharedBuildParams.configuration,
     platform: String(detectedPlatform),
+    simulatorName: params.simulatorName,
+    simulatorId: params.simulatorId,
     preflight: preflightText,
   };
 

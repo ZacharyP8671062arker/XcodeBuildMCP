@@ -16,7 +16,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, section, detailTree } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine, section, table } from '../../../utils/tool-event-builders.ts';
 
 const listDevicesSchema = z.object({});
 
@@ -29,7 +29,7 @@ function isAvailableState(state: string): boolean {
 function getPlatformLabel(platformIdentifier?: string): string {
   const platformId = platformIdentifier?.toLowerCase() ?? '';
 
-  if (platformId.includes('ios') || platformId.includes('iphone')) {
+  if (platformId.includes('iphone') || platformId.includes('ios')) {
     return 'iOS';
   }
   if (platformId.includes('ipad')) {
@@ -38,11 +38,14 @@ function getPlatformLabel(platformIdentifier?: string): string {
   if (platformId.includes('watch')) {
     return 'watchOS';
   }
-  if (platformId.includes('tv') || platformId.includes('apple tv')) {
+  if (platformId.includes('appletv') || platformId.includes('tvos') || platformId.includes('apple tv')) {
     return 'tvOS';
   }
-  if (platformId.includes('vision')) {
+  if (platformId.includes('xros') || platformId.includes('vision')) {
     return 'visionOS';
+  }
+  if (platformId.includes('mac')) {
+    return 'macOS';
   }
 
   return 'Unknown';
@@ -228,48 +231,47 @@ export async function list_devicesLogic(
     const unpairedDevices = uniqueDevices.filter((d) => d.state === 'Unpaired');
 
     if (availableDevices.length > 0) {
-      for (const device of availableDevices) {
-        const items: Array<{ label: string; value: string }> = [
-          { label: 'UDID', value: device.identifier },
-          { label: 'Model', value: device.model ?? 'Unknown' },
-        ];
-        if (device.productType) {
-          items.push({ label: 'Product Type', value: device.productType });
-        }
-        items.push({
-          label: 'Platform',
-          value: `${device.platform} ${device.osVersion ?? ''}`.trim(),
-        });
-        if (device.cpuArchitecture) {
-          items.push({ label: 'CPU Architecture', value: device.cpuArchitecture });
-        }
-        items.push({ label: 'Connection', value: device.connectionType ?? 'Unknown' });
-        if (device.developerModeStatus) {
-          items.push({ label: 'Developer Mode', value: device.developerModeStatus });
-        }
-        events.push(section(device.name, [], { icon: 'green-circle' }), detailTree(items));
-      }
+      events.push(
+        table(
+          ['Name', 'Identifier', 'Platform', 'Model', 'Connection', 'Developer Mode'],
+          availableDevices.map((device) => ({
+            Name: device.name,
+            Identifier: device.identifier,
+            Platform: `${device.platform} ${device.osVersion ?? ''}`.trim(),
+            Model: device.model ?? device.productType ?? 'Unknown',
+            Connection: device.connectionType || 'Unknown',
+            'Developer Mode': device.developerModeStatus ?? 'Unknown',
+          })),
+          'Available Devices',
+        ),
+      );
     }
 
     if (pairedDevices.length > 0) {
-      for (const device of pairedDevices) {
-        events.push(
-          section(device.name, [], { icon: 'yellow-circle' }),
-          detailTree([
-            { label: 'UDID', value: device.identifier },
-            { label: 'Model', value: device.model ?? 'Unknown' },
-            { label: 'Platform', value: `${device.platform} ${device.osVersion ?? ''}`.trim() },
-          ]),
-        );
-      }
+      events.push(
+        table(
+          ['Name', 'Identifier', 'Platform', 'Model'],
+          pairedDevices.map((device) => ({
+            Name: device.name,
+            Identifier: device.identifier,
+            Platform: `${device.platform} ${device.osVersion ?? ''}`.trim(),
+            Model: device.model ?? device.productType ?? 'Unknown',
+          })),
+          'Paired Devices',
+        ),
+      );
     }
 
     if (unpairedDevices.length > 0) {
       events.push(
-        section(
+        table(
+          ['Name', 'Identifier', 'Platform'],
+          unpairedDevices.map((device) => ({
+            Name: device.name,
+            Identifier: device.identifier,
+            Platform: `${device.platform} ${device.osVersion ?? ''}`.trim(),
+          })),
           'Unpaired Devices',
-          unpairedDevices.map((d) => `${d.name} (${d.identifier})`),
-          { icon: 'red-circle' },
         ),
       );
     }

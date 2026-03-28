@@ -2,11 +2,14 @@
 🔨 Build
 
    Scheme: NONEXISTENT
+   Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
    Configuration: Debug
    Platform: iOS Simulator
+   Simulator: iPhone 17
 
 Errors (1):
 
   ✗ The workspace named "CalculatorApp" does not contain a scheme named "NONEXISTENT". The "-list" option can be used to find the names of the schemes in the workspace.
 
 ❌ Build failed. (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/build_sim_2026-03-28T08-18-09-055Z.log

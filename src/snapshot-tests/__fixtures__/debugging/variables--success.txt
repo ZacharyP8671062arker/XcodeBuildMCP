@@ -3,7 +3,7 @@
 
 ✅ Variables retrieved
 
-Values
+Values:
   Locals:
     (no variables)
 

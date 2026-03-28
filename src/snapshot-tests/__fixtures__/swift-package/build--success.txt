@@ -3,8 +3,5 @@
 
    Package: <ROOT>/example_projects/spm
 
-Output
-  [0/1] Planning build
-Build complete! (<DURATION>)
-
-✅ Swift package build succeeded
+✅ Build succeeded. (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/build_spm_2026-03-28T08-18-03-808Z.log

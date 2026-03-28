@@ -101,6 +101,8 @@ export async function build_run_deviceLogic(
       toolName: 'build_run_device',
       params: {
         scheme: params.scheme,
+        workspacePath: params.workspacePath,
+        projectPath: params.projectPath,
         configuration,
         platform: String(platform),
         deviceId: params.deviceId,
@@ -307,7 +309,9 @@ export async function build_run_deviceLogic(
           bundleId,
           launchState: 'requested',
           ...(processId !== undefined ? { processId } : {}),
+          buildLogPath: started.pipeline.logPath,
         }),
+        includeBuildLogFileRef: false,
       },
     );
   } catch (error) {

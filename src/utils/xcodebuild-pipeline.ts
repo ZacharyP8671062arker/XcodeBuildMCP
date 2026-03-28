@@ -11,6 +11,8 @@ import { resolveRenderers } from './renderers/index.ts';
 import type { XcodebuildRenderer } from './renderers/index.ts';
 import { displayPath } from './build-preflight.ts';
 import { formatDeviceId } from './device-name-resolver.ts';
+import { createLogCapture, createParserDebugCapture } from './xcodebuild-log-capture.ts';
+import { log as appLog } from './logging/index.ts';
 
 export interface PipelineOptions {
   operation: XcodebuildOperation;
@@ -28,6 +30,8 @@ export interface PipelineResult {
 export interface PipelineFinalizeOptions {
   emitSummary?: boolean;
   tailEvents?: PipelineEvent[];
+  includeBuildLogFileRef?: boolean;
+  includeParserDebugFileRef?: boolean;
 }
 
 export interface XcodebuildPipeline {
@@ -41,11 +45,60 @@ export interface XcodebuildPipeline {
   ): PipelineResult;
   highestStageRank(): number;
   xcresultPath: string | null;
+  logPath: string;
 }
 
 export interface StartedPipeline {
   pipeline: XcodebuildPipeline;
   startedAt: number;
+}
+
+function buildLogDetailTreeEvent(logPath: string): PipelineEvent {
+  return {
+    type: 'detail-tree',
+    timestamp: new Date().toISOString(),
+    items: [{ label: 'Build Logs', value: logPath }],
+  };
+}
+
+function injectBuildLogIntoTailEvents(
+  tailEvents: PipelineEvent[],
+  logPath: string,
+): PipelineEvent[] {
+  const existingBuildLogTreeIndex = tailEvents.findIndex(
+    (event) =>
+      event.type === 'detail-tree' &&
+      event.items.some((item) => item.label === 'Build Logs'),
+  );
+  if (existingBuildLogTreeIndex !== -1) {
+    return tailEvents;
+  }
+
+  const detailTreeIndex = tailEvents.findIndex((event) => event.type === 'detail-tree');
+  if (detailTreeIndex !== -1) {
+    const detailTreeEvent = tailEvents[detailTreeIndex];
+    if (detailTreeEvent.type !== 'detail-tree') {
+      return tailEvents;
+    }
+
+    const updatedTailEvents = [...tailEvents];
+    updatedTailEvents[detailTreeIndex] = {
+      ...detailTreeEvent,
+      items: [...detailTreeEvent.items, { label: 'Build Logs', value: logPath }],
+    };
+    return updatedTailEvents;
+  }
+
+  const nextStepsIndex = tailEvents.findIndex((event) => event.type === 'next-steps');
+  if (nextStepsIndex === -1) {
+    return [...tailEvents, buildLogDetailTreeEvent(logPath)];
+  }
+
+  return [
+    ...tailEvents.slice(0, nextStepsIndex),
+    buildLogDetailTreeEvent(logPath),
+    ...tailEvents.slice(nextStepsIndex),
+  ];
 }
 
 function buildHeaderParams(
@@ -118,6 +171,8 @@ export function startBuildPipeline(
 
 export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPipeline {
   const { renderers, mcpRenderer } = resolveRenderers();
+  const logCapture = createLogCapture(options.toolName);
+  const debugCapture = createParserDebugCapture(options.toolName);
 
   const runState = createXcodebuildRunState({
     operation: options.operation,
@@ -134,14 +189,19 @@ export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPi
     onEvent: (event: PipelineEvent) => {
       runState.push(event);
     },
+    onUnrecognizedLine: (line: string) => {
+      debugCapture.addUnrecognizedLine(line);
+    },
   });
 
   return {
     onStdout(chunk: string): void {
+      logCapture.write(chunk);
       parser.onStdout(chunk);
     },
 
     onStderr(chunk: string): void {
+      logCapture.write(chunk);
       parser.onStderr(chunk);
     },
 
@@ -155,9 +215,38 @@ export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPi
       finalizeOptions?: PipelineFinalizeOptions,
     ): PipelineResult {
       parser.flush();
+      logCapture.close();
+
+      const tailEvents =
+        finalizeOptions?.includeBuildLogFileRef === false
+          ? [...(finalizeOptions?.tailEvents ?? [])]
+          : injectBuildLogIntoTailEvents(finalizeOptions?.tailEvents ?? [], logCapture.path);
+
+      const debugPath = debugCapture.flush();
+      if (debugPath) {
+        appLog(
+          'info',
+          `[Pipeline] ${debugCapture.count} unrecognized parser lines written to ${debugPath}`,
+        );
+        if (finalizeOptions?.includeParserDebugFileRef !== false) {
+          runState.push({
+            type: 'status-line',
+            timestamp: new Date().toISOString(),
+            level: 'warning',
+            message: 'Parsing issue detected - debug log:',
+          });
+          runState.push({
+            type: 'file-ref',
+            timestamp: new Date().toISOString(),
+            label: 'Parser Debug Log',
+            path: debugPath,
+          });
+        }
+      }
+
       const finalState = runState.finalize(succeeded, durationMs, {
         emitSummary: finalizeOptions?.emitSummary,
-        tailEvents: finalizeOptions?.tailEvents,
+        tailEvents,
       });
 
       for (const renderer of renderers) {
@@ -177,6 +266,10 @@ export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPi
 
     get xcresultPath(): string | null {
       return parser.xcresultPath;
+    },
+
+    get logPath(): string {
+      return logCapture.path;
     },
   };
 }

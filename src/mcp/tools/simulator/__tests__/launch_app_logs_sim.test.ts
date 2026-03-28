@@ -83,6 +83,9 @@ describe('launch_app_logs_sim tool', () => {
       expect(text).toContain('test-uuid-123');
       expect(text).toContain('log capture enabled');
       expect(text).toContain('test-session-123');
+      expect(text.indexOf('App launched successfully')).toBeLessThan(
+        text.indexOf('Log Session ID: test-session-123'),
+      );
       expect(result.nextStepParams).toEqual({
         stop_sim_log_cap: { logSessionId: 'test-session-123' },
       });

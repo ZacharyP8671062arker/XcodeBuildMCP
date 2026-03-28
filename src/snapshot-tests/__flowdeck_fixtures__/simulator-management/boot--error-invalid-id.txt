@@ -1,0 +1,3 @@
+🚀 Booting simulator (00000000-0000-0000-0000-000000000000)...
+Simulator operation failed: Failed to boot simulator: Invalid device or device pair: 00000000-0000-0000-0000-000000000000
+

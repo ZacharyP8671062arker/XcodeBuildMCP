@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['src/snapshot-tests/__tests__/**/*.test.ts'],
+    exclude: ['src/snapshot-tests/__tests__/**/*.flowdeck.test.ts'],
     pool: 'forks',
     poolOptions: {
       forks: {

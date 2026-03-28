@@ -93,6 +93,8 @@ export async function buildMacOSLogic(
 
   const pipelineParams = {
     scheme: params.scheme,
+    workspacePath: params.workspacePath,
+    projectPath: params.projectPath,
     configuration: processedParams.configuration,
     platform: 'macOS',
     preflight: preflightText,

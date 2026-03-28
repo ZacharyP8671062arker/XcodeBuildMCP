@@ -1,7 +1,6 @@
 
 ⚙️ Use Defaults Profile
 
-   Active Profile: global
-   Known Profiles: (none)
+   Current profile: (default)
 
-✅ Active profile: global
+✅ Activated profile (MyCustomProfile profile)

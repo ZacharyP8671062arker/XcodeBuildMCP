@@ -1,4 +1,12 @@
 
-📦 Swift Package List
+📦 Swift Package Processes
 
-ℹ️ No Swift Package processes currently running.
+Running Processes (2):
+
+  🟢 long-server
+     PID: 12345 | Uptime: 10s
+     Package: <ROOT>/example_projects/spm
+
+  🟢 quick-task
+     PID: 12346 | Uptime: 3s
+     Package: <ROOT>/example_projects/spm

@@ -1,0 +1,12 @@
+🚀 Build Started
+
+   Workspace: MCPTest.xcodeproj
+   Scheme: MCPTest
+   Configuration: Debug
+   Platform: macOS
+   Derived Data: /Users/cameroncooke/Library/Developer/FlowDeck/DerivedData/XcodeBuildMCP-21505d5e586f
+
+   → Compiling...
+
+[38;2;100;200;100m✓[0m Build Completed
+

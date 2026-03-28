@@ -128,6 +128,8 @@ export async function cleanLogic(
 
   const pipelineParams = {
     scheme: typedParams.scheme,
+    workspacePath: params.workspacePath as string | undefined,
+    projectPath: params.projectPath as string | undefined,
     configuration: typedParams.configuration,
     platform: String(cleanPlatform),
     preflight: preflightText,

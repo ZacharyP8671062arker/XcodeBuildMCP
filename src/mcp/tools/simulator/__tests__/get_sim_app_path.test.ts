@@ -185,7 +185,9 @@ describe('get_sim_app_path tool', () => {
       const text = result.content.map((c) => c.text).join('\n');
       expect(text).toContain('Get App Path');
       expect(text).toContain('MyScheme');
-      expect(text).toContain('Failed to get build settings');
+      expect(text).toContain('Errors (1):');
+      expect(text).toContain('✗ Failed to run xcodebuild');
+      expect(text).toContain('Query failed.');
       expect(result.nextStepParams).toBeUndefined();
     });
   });

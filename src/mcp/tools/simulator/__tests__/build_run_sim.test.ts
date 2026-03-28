@@ -250,6 +250,7 @@ describe('build_run_sim tool', () => {
               items: expect.arrayContaining([
                 expect.objectContaining({ label: 'App Path', value: '/path/to/build/MyApp.app' }),
                 expect.objectContaining({ label: 'Bundle ID', value: 'io.sentry.MyApp' }),
+                expect.objectContaining({ label: 'Build Logs', value: expect.stringContaining('build_run_sim_') }),
               ]),
             }),
           ],

@@ -1,0 +1,13 @@
+[38;2;220;80;80m✗[0m Missing required parameter: --scheme
+
+Usage:
+  flowdeck run -w <workspace> -s <scheme> -S <simulator>
+  flowdeck run -w <workspace> -s <scheme> -D <device>
+
+Examples:
+  flowdeck run -w App.xcworkspace -s MyApp -S "iPhone 16"
+  flowdeck run -w App.xcworkspace -s MyApp -D "My Mac"
+  flowdeck run -w App.xcworkspace -s MyApp -S "iPhone 16" --log
+  flowdeck run -w App.xcworkspace -s MyApp -S "iPhone 16" --no-build
+
+Tip: Use 'flowdeck context --json' to discover schemes

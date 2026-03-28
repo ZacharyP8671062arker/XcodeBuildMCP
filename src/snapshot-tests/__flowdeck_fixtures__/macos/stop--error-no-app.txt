@@ -1,0 +1,2 @@
+[38;2;220;80;80m✗[0m App Not Found: com.nonexistent.app
+[38;2;220;80;80m✗[0m The operation couldn’t be completed. (ArgumentParser.ExitCode error 1.)

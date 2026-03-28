@@ -1,0 +1,31 @@
+
+macOS
+--------------------------------------------------
+  💻 [[38;2;100;200;100m✓[0m] My Mac
+     Build and run as native macOS app
+  💻 [[38;2;100;200;100m✓[0m] My Mac Catalyst
+     Build and run iOS app via Mac Catalyst
+
+iOS Devices:
+--------------------------------------------------
+  🔌 [[38;2;100;200;100m✓[0m] Cameron’s iPhone 16 Pro Max
+     OS: 26.3.1 (a) | Type: iPhone
+     UDID: 00008140-000278A438E3C01C
+     Connection: USB
+  🔌 [[38;2;100;200;100m✓[0m] iPhone
+     OS: 26.1 | Type: iPhone
+     UDID: 0000FE01-E7A450D374E02B18
+     Connection: USB
+
+watchOS Devices:
+--------------------------------------------------
+  🔌 [[38;2;100;200;100m✓[0m] Cameron’s Apple Watch
+     OS: 10.6.1 | Type: appleWatch
+     UDID: 00008006-001202302EA2002E
+     Connection: USB
+  📡 [[38;2;100;200;100m✓[0m] Cameron’s Apple Watch
+     OS: 26.3 | Type: appleWatch
+     UDID: 00008310-001268591A00E01E
+     Connection: Network
+
+Found 4 device(s) physical devices

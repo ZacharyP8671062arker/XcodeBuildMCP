@@ -5,4 +5,5 @@
    Configuration: Debug
    Platform: macOS
 
-✅ Test succeeded. (<TEST_COUNTS>, ⏱️ <DURATION>)
+✅ 2 tests passed, 0 skipped (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/test_macos_2026-03-28T08-19-10-003Z.log

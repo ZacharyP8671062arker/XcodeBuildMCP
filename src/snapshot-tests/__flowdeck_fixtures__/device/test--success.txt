@@ -1,0 +1,47 @@
+Using scheme test configuration: Debug
+🧪 Test: CalculatorApp
+  Workspace: /Users/cameroncooke/.codex/worktrees/43f4/XcodeBuildMCP/example_projects/iOS_Calculator/CalculatorApp.xcworkspace
+  Configuration: Debug
+  Target: Unknown
+
+   → 🔗 Resolving Package Graph
+
+[31mError[0m
+
+  [31merror: Unable to find a destination matching the provided destination specifier:[0m
+  [31m		{ id:0000FE01-E7A450D374E02B18 }[0m
+  [31m	Available destinations for the "CalculatorApp" scheme:[0m
+  [31m		{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00006040-001849590220801C, name:My Mac }[0m
+  [31m		{ platform:iOS, arch:arm64, id:00008140-000278A438E3C01C, name:Cameron’s iPhone 16 Pro Max }[0m
+  [31m		{ platform:iOS, id:dvtdevice-DVTiPhonePlaceholder-iphoneos:placeholder, name:Any iOS Device }[0m
+  [31m		{ platform:iOS Simulator, id:dvtdevice-DVTiOSDeviceSimulatorPlaceholder-iphonesimulator:placeholder, name:Any iOS Simulator Device }[0m
+  [31m		{ platform:visionOS Simulator, arch:arm64, variant:Designed for [iPad,iPhone], id:CE3C0D03-8F60-497A-A3B9-6A80BA997FC2, OS:26.2, name:Apple Vision Pro }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:F57BAB36-B6CD-48D2-859C-80A800F74A0F, OS:26.2, name:iPad (A16) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:A29F4D19-7093-4C7F-AB11-6B35B79FB628, OS:26.4, name:iPad (A16) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:F8A5DC33-877D-4822-B2FB-575FA6E5D498, OS:26.2, name:iPad Air 11-inch (M3) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:AA14371A-F88F-4E79-BC61-29DEEC777D04, OS:26.4, name:iPad Air 11-inch (M4) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:491E8F59-046E-4086-9CDF-00199C278129, OS:26.2, name:iPad Air 13-inch (M3) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:5104B6B7-C0EC-464E-B7A2-E4DFCADC8C44, OS:26.4, name:iPad Air 13-inch (M4) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:FB22CCA5-651D-48B5-BA1E-B36C7EE5D76D, OS:26.2, name:iPad Pro 11-inch (M5) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:6A7E4E66-A156-41C0-9EFA-F23BFC0A20E9, OS:26.4, name:iPad Pro 11-inch (M5) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:D1B07075-6396-4D6E-B94F-8BD5182AC5F5, OS:26.2, name:iPad Pro 13-inch (M5) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:DFA87889-6433-4F86-9CE9-5BC24B835631, OS:26.4, name:iPad Pro 13-inch (M5) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:17218729-C154-4094-8FBF-B61CE7B47017, OS:26.2, name:iPad mini (A17 Pro) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:EA43D962-29D3-4997-814F-B167BEA2AE50, OS:26.4, name:iPad mini (A17 Pro) }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:5A6209BA-E989-46EE-BC3A-2E65C53D5E79, OS:26.2, name:iPhone 16e }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:E5D1716B-28D3-45FC-A1DD-41FB13CD58C9, OS:26.2, name:iPhone 17 }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:01DA97D9-3856-46C5-A75E-DDD48100B2DB, OS:26.4, name:iPhone 17 }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:B38FE93D-578B-454B-BE9A-C6FA0CE5F096, OS:26.2, name:iPhone 17 Pro }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:A2C64636-37E9-4B68-B872-E7F0A82A5670, OS:26.4, name:iPhone 17 Pro }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:023BBD4A-62FC-4E96-8B95-845F53F6F0B4, OS:26.2, name:iPhone 17 Pro Max }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:5213C8D8-61D0-4CD7-B468-B463C6206C7D, OS:26.4, name:iPhone 17 Pro Max }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:576E3635-AAB6-481B-9C33-7EAA20B1083F, OS:26.4, name:iPhone 17e }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:BCB58C03-288E-4DFD-A2E8-4E852E91426D, OS:26.2, name:iPhone Air }[0m
+  [31m		{ platform:iOS Simulator, arch:arm64, id:3C76234F-F3E7-4991-85C1-FB302127D84E, OS:26.4, name:iPhone Air }[0m
+  [31mHint: No matching destination found[0m
+  [31m  - Check available simulators: flowdeck simulator list[0m
+  [31m  - Create a simulator: flowdeck simulator create --name 'iPhone 16' --device-type 'iPhone 16' --runtime 'iOS 18.0'[0m
+  [31m  - Install missing runtime: flowdeck simulator runtimes install iOS[0m
+  [31m  - Use --simulator 'iPhone 16' or --simulator none for macOS[0m
+  [31m[0m
+

@@ -4,7 +4,12 @@
    Package: <ROOT>/example_projects/spm
    Executable: spm
 
+✅ Build succeeded. (⏱️ <DURATION>)
+✅ Build & Run complete
+  ├ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphonesimulator/CalculatorApp.app
+  ├ Bundle ID: io.sentry.calculatorapp
+  ├ Process ID: <PID>
+  └ Build Logs: <TMPDIR>/logs/build_run_spm_2026-03-28T08-18-10-408Z.log
+
 Output
   Hello, world!
-
-✅ Swift executable completed successfully

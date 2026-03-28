@@ -5,8 +5,14 @@
    Configuration: debug
    Platform: Swift Package
 
-  ✗ Expected failure: Expectation failed: true == false
-This test should fail, and is for simulating a test failure
-    SimpleTests.swift:48
+CalculatorAppTests
+  ✗ testCalculatorServiceFailure (⏱️ <DURATION>):
+      - XCTAssertEqual failed: ("0") is not equal to ("999") - This test should fail - display should be 0, not 999
+        example_projects/iOS_Calculator/CalculatorAppTests/CalculatorAppTests.swift:52
 
-❌ Test failed. (<TEST_COUNTS>, ⏱️ <DURATION>)
+This test should fail to verify error reporting
+  ✗ test (⏱️ <DURATION>):
+    - Test failed
+
+❌ 2 tests failed, 53 passed, 0 skipped (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/test_sim_2026-03-28T08-18-25-423Z.log

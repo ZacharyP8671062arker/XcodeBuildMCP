@@ -1,15 +1,34 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import { createSnapshotHarness } from '../harness.ts';
 import { expectMatchesFixture } from '../fixture-io.ts';
 import type { SnapshotHarness } from '../harness.ts';
+import { sessionStore } from '../../utils/session-store.ts';
 
 const WORKSPACE = 'example_projects/iOS_Calculator/CalculatorApp.xcworkspace';
 
 describe('session-management workflow', () => {
   let harness: SnapshotHarness;
 
+  function seedSessionDefaults(): void {
+    sessionStore.clearAll();
+    sessionStore.setDefaults({
+      workspacePath: WORKSPACE,
+      scheme: 'CalculatorApp',
+    });
+    sessionStore.setActiveProfile('MyCustomProfile');
+    sessionStore.setDefaults({
+      workspacePath: WORKSPACE,
+      scheme: 'CalculatorApp',
+    });
+    sessionStore.setActiveProfile(null);
+  }
+
   beforeAll(async () => {
     harness = await createSnapshotHarness();
+  });
+
+  beforeEach(() => {
+    seedSessionDefaults();
   });
 
   afterAll(() => {
@@ -47,7 +66,7 @@ describe('session-management workflow', () => {
   describe('session-use-defaults-profile', () => {
     it('success', async () => {
       const { text } = await harness.invoke('session-management', 'use-defaults-profile', {
-        global: true,
+        profile: 'MyCustomProfile',
       });
       expect(text.length).toBeGreaterThan(0);
       expectMatchesFixture(text, __filename, 'session-use-defaults-profile--success');

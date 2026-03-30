@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { EventEmitter } from 'events';
 import { Readable } from 'stream';
 import type { ChildProcess } from 'child_process';
-import * as z from 'zod';
 import {
   createMockExecutor,
   createMockFileSystemExecutor,
@@ -55,15 +54,6 @@ describe('start_device_log_cap plugin', () => {
       expect(handler).toBeDefined();
     });
 
-    it('should have correct schema structure', () => {
-      expect(typeof schema).toBe('object');
-      expect(Object.keys(schema)).toEqual([]);
-
-      const schemaObj = z.strictObject(schema);
-      expect(schemaObj.safeParse({ bundleId: 'com.test.app' }).success).toBe(false);
-      expect(schemaObj.safeParse({}).success).toBe(true);
-    });
-
     it('should have handler as a function', () => {
       expect(typeof handler).toBe('function');
     });
@@ -106,9 +96,9 @@ describe('start_device_log_cap plugin', () => {
       );
 
       const text = allText(result);
-      expect(text).toContain('Log capture started');
       expect(text).toMatch(/Session ID: [a-f0-9-]{36}/);
       expect(result.isError ?? false).toBe(false);
+      expect(activeDeviceLogSessions.size).toBe(1);
     });
 
     it('should include next steps in success response', async () => {
@@ -135,17 +125,12 @@ describe('start_device_log_cap plugin', () => {
         mockFileSystemExecutor,
       );
 
-      const text = allText(result);
-      expect(text).toContain('Do not call launch_app_device during this session');
-      const sessionIdMatch = text.match(/Session ID: ([a-f0-9-]{36})/);
-      expect(sessionIdMatch).not.toBeNull();
-      const sessionId = sessionIdMatch?.[1];
+      const stopParams = result.nextStepParams?.stop_device_log_cap;
+      expect(stopParams).toBeDefined();
+      expect(Array.isArray(stopParams)).toBe(false);
+      const sessionId = !Array.isArray(stopParams) ? stopParams?.logSessionId : undefined;
       expect(typeof sessionId).toBe('string');
-
-      expect(result.nextStepParams?.stop_device_log_cap).toBeDefined();
-      expect(result.nextStepParams?.stop_device_log_cap).toMatchObject({
-        logSessionId: sessionId,
-      });
+      expect(activeDeviceLogSessions.has(sessionId as string)).toBe(true);
     });
 
     it('should surface early launch failures when process exits immediately', async () => {

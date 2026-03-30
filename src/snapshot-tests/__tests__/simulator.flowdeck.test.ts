@@ -24,14 +24,26 @@ describe('simulator workflow (flowdeck)', () => {
   describe('build', () => {
     it('success', () => {
       const result = harness.run([
-        'build', '-w', WORKSPACE, '-s', 'CalculatorApp', '-S', simulatorUdid,
+        'build',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'CalculatorApp',
+        '-S',
+        simulatorUdid,
       ]);
       writeFlowdeckFixture(__filename, 'build--success', result.text);
     }, 120_000);
 
     it('error - wrong scheme', () => {
       const result = harness.run([
-        'build', '-w', WORKSPACE, '-s', 'NONEXISTENT', '-S', simulatorUdid,
+        'build',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'NONEXISTENT',
+        '-S',
+        simulatorUdid,
       ]);
       writeFlowdeckFixture(__filename, 'build--error-wrong-scheme', result.text);
     }, 120_000);
@@ -40,14 +52,26 @@ describe('simulator workflow (flowdeck)', () => {
   describe('build-and-run', () => {
     it('success', () => {
       const result = harness.run([
-        'run', '-w', WORKSPACE, '-s', 'CalculatorApp', '-S', simulatorUdid,
+        'run',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'CalculatorApp',
+        '-S',
+        simulatorUdid,
       ]);
       writeFlowdeckFixture(__filename, 'build-and-run--success', result.text);
     }, 120_000);
 
     it('error - wrong scheme', () => {
       const result = harness.run([
-        'run', '-w', WORKSPACE, '-s', 'NONEXISTENT', '-S', simulatorUdid,
+        'run',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'NONEXISTENT',
+        '-S',
+        simulatorUdid,
       ]);
       writeFlowdeckFixture(__filename, 'build-and-run--error-wrong-scheme', result.text);
     }, 120_000);
@@ -56,22 +80,41 @@ describe('simulator workflow (flowdeck)', () => {
   describe('test', () => {
     it('success', () => {
       const result = harness.run([
-        'test', '-w', WORKSPACE, '-s', 'CalculatorApp', '-S', simulatorUdid,
-        '--only', 'CalculatorAppTests/CalculatorAppTests/testAddition',
+        'test',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'CalculatorApp',
+        '-S',
+        simulatorUdid,
+        '--only',
+        'CalculatorAppTests/CalculatorAppTests/testAddition',
       ]);
       writeFlowdeckFixture(__filename, 'test--success', result.text);
     }, 120_000);
 
     it('failure - intentional test failure', () => {
       const result = harness.run([
-        'test', '-w', WORKSPACE, '-s', 'CalculatorApp', '-S', simulatorUdid,
+        'test',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'CalculatorApp',
+        '-S',
+        simulatorUdid,
       ]);
       writeFlowdeckFixture(__filename, 'test--failure', result.text);
     }, 120_000);
 
     it('error - wrong scheme', () => {
       const result = harness.run([
-        'test', '-w', WORKSPACE, '-s', 'NONEXISTENT', '-S', simulatorUdid,
+        'test',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'NONEXISTENT',
+        '-S',
+        simulatorUdid,
       ]);
       writeFlowdeckFixture(__filename, 'test--error-wrong-scheme', result.text);
     }, 120_000);
@@ -93,12 +136,17 @@ describe('simulator workflow (flowdeck)', () => {
       const match = settingsOutput.match(/BUILT_PRODUCTS_DIR = (.+)/);
       const appPath = `${match![1]!.trim()}/CalculatorApp.app`;
 
-      const result = harness.run([
-        'uninstall', 'io.sentry.calculatorapp', '-s', simulatorUdid,
-      ]);
+      const result = harness.run(['uninstall', 'io.sentry.calculatorapp', '-s', simulatorUdid]);
       // Reinstall by running
       const installResult = harness.run([
-        'run', '-w', WORKSPACE, '-s', 'CalculatorApp', '-S', simulatorUdid, '--no-build',
+        'run',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'CalculatorApp',
+        '-S',
+        simulatorUdid,
+        '--no-build',
       ]);
       writeFlowdeckFixture(__filename, 'install--success', installResult.text);
     }, 120_000);
@@ -113,9 +161,7 @@ describe('simulator workflow (flowdeck)', () => {
       try {
         // flowdeck doesn't have a direct install-to-sim command
         // The closest is run --no-build which will fail with invalid app
-        const result = harness.run([
-          'run', '-w', fakeApp, '-S', simulatorUdid, '--no-build',
-        ]);
+        const result = harness.run(['run', '-w', fakeApp, '-S', simulatorUdid, '--no-build']);
         writeFlowdeckFixture(__filename, 'install--error-invalid-app', result.text);
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -126,7 +172,14 @@ describe('simulator workflow (flowdeck)', () => {
   describe('launch-app', () => {
     it('success', () => {
       const result = harness.run([
-        'run', '-w', WORKSPACE, '-s', 'CalculatorApp', '-S', simulatorUdid, '--no-build',
+        'run',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'CalculatorApp',
+        '-S',
+        simulatorUdid,
+        '--no-build',
       ]);
       writeFlowdeckFixture(__filename, 'launch-app--success', result.text);
     }, 120_000);
@@ -134,15 +187,17 @@ describe('simulator workflow (flowdeck)', () => {
 
   describe('screenshot', () => {
     it('success', () => {
-      const result = harness.run([
-        'ui', 'simulator', 'screen', '-S', simulatorUdid,
-      ]);
+      const result = harness.run(['ui', 'simulator', 'screen', '-S', simulatorUdid]);
       writeFlowdeckFixture(__filename, 'screenshot--success', result.text);
     }, 120_000);
 
     it('error - invalid simulator', () => {
       const result = harness.run([
-        'ui', 'simulator', 'screen', '-S', '00000000-0000-0000-0000-000000000000',
+        'ui',
+        'simulator',
+        'screen',
+        '-S',
+        '00000000-0000-0000-0000-000000000000',
       ]);
       writeFlowdeckFixture(__filename, 'screenshot--error-invalid-simulator', result.text);
     }, 120_000);
@@ -151,7 +206,14 @@ describe('simulator workflow (flowdeck)', () => {
   describe('stop', () => {
     it('success', () => {
       const runResult = harness.run([
-        'run', '-w', WORKSPACE, '-s', 'CalculatorApp', '-S', simulatorUdid, '--no-build',
+        'run',
+        '-w',
+        WORKSPACE,
+        '-s',
+        'CalculatorApp',
+        '-S',
+        simulatorUdid,
+        '--no-build',
       ]);
       const appIdMatch = runResult.text.match(/App ID: ([A-F0-9]+)/);
       const appId = appIdMatch ? appIdMatch[1] : 'io.sentry.calculatorapp';

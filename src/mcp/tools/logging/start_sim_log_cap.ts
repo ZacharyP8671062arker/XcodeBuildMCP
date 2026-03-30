@@ -33,19 +33,16 @@ type StartSimLogCapParams = z.infer<typeof startSimLogCapSchema>;
 
 function buildSubsystemFilterDescription(subsystemFilter: SubsystemFilter): string {
   if (subsystemFilter === 'all') {
-    return 'Capturing all system logs (no subsystem filtering).';
+    return 'All logs';
   }
   if (subsystemFilter === 'swiftui') {
-    return 'Capturing app logs + SwiftUI logs (includes Self._printChanges()).';
+    return 'App + SwiftUI logs';
   }
-  if (Array.isArray(subsystemFilter)) {
-    if (subsystemFilter.length === 0) {
-      return 'Only structured logs from the app subsystem are being captured.';
-    }
-    return `Capturing logs from subsystems: ${subsystemFilter.join(', ')} (plus app bundle ID).`;
+  if (Array.isArray(subsystemFilter) && subsystemFilter.length > 0) {
+    return `Custom subsystems: ${subsystemFilter.join(', ')}`;
   }
 
-  return 'Only structured logs from the app subsystem are being captured.';
+  return 'Structured logs only';
 }
 
 export async function start_sim_log_capLogic(
@@ -55,9 +52,11 @@ export async function start_sim_log_capLogic(
 ): Promise<ToolResponse> {
   const { bundleId, simulatorId, subsystemFilter } = params;
   const captureConsole = params.captureConsole ?? false;
+  const filterDescription = buildSubsystemFilterDescription(subsystemFilter);
   const headerEvent = header('Start Log Capture', [
     { label: 'Simulator', value: simulatorId },
     { label: 'Bundle ID', value: bundleId },
+    { label: 'Filter', value: filterDescription },
   ]);
 
   const logCaptureParams: Parameters<typeof startLogCapture>[0] = {
@@ -71,22 +70,13 @@ export async function start_sim_log_capLogic(
     return toolResponse([headerEvent, statusLine('error', `Error starting log capture: ${error}`)]);
   }
 
-  const filterDescription = buildSubsystemFilterDescription(subsystemFilter);
-
-  const items: Array<{ label: string; value: string }> = [
-    { label: 'Session ID', value: sessionId },
-    { label: 'Filter', value: filterDescription },
-  ];
+  const items: Array<{ label: string; value: string }> = [{ label: 'Session ID', value: sessionId }];
   if (captureConsole) {
     items.push({ label: 'Console', value: 'App relaunched to capture console output' });
   }
 
   return toolResponse(
-    [
-      headerEvent,
-      statusLine('success', 'Log capture started.'),
-      detailTree(items),
-    ],
+    [headerEvent, statusLine('success', 'Log capture started.'), detailTree(items)],
     {
       nextStepParams: {
         stop_sim_log_cap: { logSessionId: sessionId },

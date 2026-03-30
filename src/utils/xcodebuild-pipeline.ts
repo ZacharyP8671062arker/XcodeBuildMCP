@@ -67,8 +67,7 @@ function injectBuildLogIntoTailEvents(
 ): PipelineEvent[] {
   const existingBuildLogTreeIndex = tailEvents.findIndex(
     (event) =>
-      event.type === 'detail-tree' &&
-      event.items.some((item) => item.label === 'Build Logs'),
+      event.type === 'detail-tree' && event.items.some((item) => item.label === 'Build Logs'),
   );
   if (existingBuildLogTreeIndex !== -1) {
     return tailEvents;

@@ -6,7 +6,10 @@ import {
 import { removeUndefined } from '../../../utils/remove-undefined.ts';
 import { scheduleSimulatorDefaultsRefresh } from '../../../utils/simulator-defaults-refresh.ts';
 import { sessionStore, type SessionDefaults } from '../../../utils/session-store.ts';
-import { sessionDefaultsSchema } from '../../../utils/session-defaults-schema.ts';
+import {
+  sessionDefaultsSchema,
+  sessionDefaultKeys,
+} from '../../../utils/session-defaults-schema.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
@@ -14,6 +17,11 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
+import {
+  formatProfileLabel,
+  formatProfileAnnotation,
+  buildFullDetailTree,
+} from './session-format-helpers.ts';
 
 const schemaObj = sessionDefaultsSchema.extend({
   profile: z
@@ -38,31 +46,46 @@ type SessionSetDefaultsContext = {
   executor: CommandExecutor;
 };
 
+const PARAM_LABEL_MAP: Record<string, string> = {
+  projectPath: 'Project Path',
+  workspacePath: 'Workspace Path',
+  scheme: 'Scheme',
+  configuration: 'Configuration',
+  simulatorName: 'Simulator Name',
+  simulatorId: 'Simulator ID',
+  simulatorPlatform: 'Simulator Platform',
+  deviceId: 'Device ID',
+  useLatestOS: 'Use Latest OS',
+  arch: 'Architecture',
+  suppressWarnings: 'Suppress Warnings',
+  derivedDataPath: 'Derived Data Path',
+  preferXcodebuild: 'Prefer xcodebuild',
+  platform: 'Platform',
+  bundleId: 'Bundle ID',
+  env: 'Environment',
+};
+
 export async function sessionSetDefaultsLogic(
   params: Params,
   context: SessionSetDefaultsContext,
 ): Promise<ToolResponse> {
-  const headerEvent = header('Set Defaults');
   const notices: string[] = [];
   let activeProfile = sessionStore.getActiveProfile();
-  const {
-    persist,
-    profile: rawProfile,
-    createIfNotExists: rawCreateIfNotExists,
-    ...rawParams
-  } = params;
-  const createIfNotExists = rawCreateIfNotExists ?? false;
+  const { persist, profile: rawProfile, createIfNotExists = false, ...rawParams } = params;
 
   if (rawProfile !== undefined) {
     const profile = rawProfile.trim();
     if (profile.length === 0) {
-      return toolResponse([headerEvent, statusLine('error', 'Profile name cannot be empty.')]);
+      return toolResponse([
+        header('Set Defaults'),
+        statusLine('error', 'Profile name cannot be empty.'),
+      ]);
     }
 
     const profileExists = sessionStore.listProfiles().includes(profile);
     if (!profileExists && !createIfNotExists) {
       return toolResponse([
-        headerEvent,
+        header('Set Defaults'),
         statusLine(
           'error',
           `Profile "${profile}" does not exist. Pass createIfNotExists=true to create it.`,
@@ -84,18 +107,10 @@ export async function sessionSetDefaultsLogic(
     rawParams as Record<string, unknown>,
   ) as Partial<SessionDefaults>;
 
-  const hasProjectPath =
-    Object.prototype.hasOwnProperty.call(nextParams, 'projectPath') &&
-    nextParams.projectPath !== undefined;
-  const hasWorkspacePath =
-    Object.prototype.hasOwnProperty.call(nextParams, 'workspacePath') &&
-    nextParams.workspacePath !== undefined;
-  const hasSimulatorId =
-    Object.prototype.hasOwnProperty.call(nextParams, 'simulatorId') &&
-    nextParams.simulatorId !== undefined;
-  const hasSimulatorName =
-    Object.prototype.hasOwnProperty.call(nextParams, 'simulatorName') &&
-    nextParams.simulatorName !== undefined;
+  const hasProjectPath = nextParams.projectPath !== undefined;
+  const hasWorkspacePath = nextParams.workspacePath !== undefined;
+  const hasSimulatorId = nextParams.simulatorId !== undefined;
+  const hasSimulatorName = nextParams.simulatorName !== undefined;
 
   if (hasProjectPath && hasWorkspacePath) {
     delete nextParams.projectPath;
@@ -105,19 +120,13 @@ export async function sessionSetDefaultsLogic(
   }
 
   const toClear = new Set<keyof SessionDefaults>();
-  if (
-    Object.prototype.hasOwnProperty.call(nextParams, 'projectPath') &&
-    nextParams.projectPath !== undefined
-  ) {
+  if (hasProjectPath) {
     toClear.add('workspacePath');
     if (current.workspacePath !== undefined) {
       notices.push('Cleared workspacePath because projectPath was set.');
     }
   }
-  if (
-    Object.prototype.hasOwnProperty.call(nextParams, 'workspacePath') &&
-    nextParams.workspacePath !== undefined
-  ) {
+  if (hasWorkspacePath) {
     toClear.add('projectPath');
     if (current.projectPath !== undefined) {
       notices.push('Cleared projectPath because workspacePath was set.');
@@ -209,20 +218,25 @@ export async function sessionSetDefaultsLogic(
   }
 
   const updated = sessionStore.getAll();
-  const events: PipelineEvent[] = [headerEvent];
 
-  const items = Object.entries(updated)
-    .filter(([, v]) => v !== undefined)
-    .map(([k, v]) => ({ label: k, value: String(v) }));
-  if (items.length > 0) {
-    events.push(detailTree(items));
+  const headerParams: Array<{ label: string; value: string }> = [];
+  for (const [key, value] of Object.entries(rawParams)) {
+    if (value !== undefined) {
+      const label = PARAM_LABEL_MAP[key] ?? key;
+      headerParams.push({ label, value: String(value) });
+    }
   }
+  headerParams.push({ label: 'Profile', value: formatProfileLabel(activeProfile) });
+
+  const events: PipelineEvent[] = [header('Set Defaults', headerParams)];
+
+  const profileAnnotation = formatProfileAnnotation(activeProfile);
+  events.push(statusLine('success', `Session defaults updated ${profileAnnotation}`));
+  events.push(detailTree(buildFullDetailTree(updated)));
 
   if (notices.length > 0) {
     events.push(section('Notices', notices));
   }
-
-  events.push(statusLine('success', 'Session defaults updated.'));
 
   return toolResponse(events);
 }

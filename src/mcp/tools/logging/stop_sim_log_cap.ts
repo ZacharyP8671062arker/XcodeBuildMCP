@@ -12,7 +12,7 @@ import type { CommandExecutor } from '../../../utils/command.ts';
 import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from '../../../utils/command.ts';
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
+import { header, section, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
 const stopSimLogCapSchema = z.object({
   logSessionId: z.string(),
@@ -26,7 +26,7 @@ type StopSimLogCapParams = z.infer<typeof stopSimLogCapSchema>;
 export type StopLogCaptureFunction = (
   logSessionId: string,
   fileSystem?: FileSystemExecutor,
-) => Promise<{ logContent: string; error?: string }>;
+) => Promise<{ logContent: string; logFilePath?: string; error?: string }>;
 
 export async function stop_sim_log_capLogic(
   params: StopSimLogCapParams,
@@ -37,18 +37,23 @@ export async function stop_sim_log_capLogic(
   const headerEvent = header('Stop Log Capture', [
     { label: 'Session ID', value: params.logSessionId },
   ]);
-  const { logContent, error } = await stopLogCaptureFunction(params.logSessionId, fileSystem);
+  const { logContent, logFilePath, error } = await stopLogCaptureFunction(
+    params.logSessionId,
+    fileSystem,
+  );
   if (error) {
     return toolResponse([
       headerEvent,
       statusLine('error', `Error stopping log capture session ${params.logSessionId}: ${error}`),
     ]);
   }
-  return toolResponse([
+  const events = [
     headerEvent,
     statusLine('success', 'Log capture stopped.'),
-    section('Captured Logs', logContent.split('\n')),
-  ]);
+    ...(logFilePath ? [detailTree([{ label: 'Logs', value: logFilePath }])] : []),
+    section('Captured Logs:', logContent.split('\n')),
+  ];
+  return toolResponse(events);
 }
 
 export const schema = stopSimLogCapSchema.shape; // MCP SDK compatibility

@@ -1,9 +1,3 @@
-/**
- * Project Discovery Plugin: Get macOS Bundle ID
- *
- * Extracts the bundle identifier from a macOS app bundle (.app).
- */
-
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
@@ -28,9 +22,6 @@ const getMacBundleIdSchema = z.object({
 
 type GetMacBundleIdParams = z.infer<typeof getMacBundleIdSchema>;
 
-/**
- * Business logic for extracting macOS bundle ID
- */
 export async function get_mac_bundle_idLogic(
   params: GetMacBundleIdParams,
   executor: CommandExecutor,
@@ -71,12 +62,15 @@ export async function get_mac_bundle_idLogic(
 
     log('info', `Extracted macOS bundle ID: ${bundleId}`);
 
-    return toolResponse([headerEvent, statusLine('success', `Bundle ID: ${bundleId}`)], {
-      nextStepParams: {
-        launch_mac_app: { appPath },
-        build_macos: { scheme: 'SCHEME_NAME' },
+    return toolResponse(
+      [headerEvent, statusLine('success', `Bundle ID\n  \u2514 ${bundleId.trim()}`)],
+      {
+        nextStepParams: {
+          launch_mac_app: { appPath },
+          build_macos: { scheme: 'SCHEME_NAME' },
+        },
       },
-    });
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error extracting macOS bundle ID: ${errorMessage}`);

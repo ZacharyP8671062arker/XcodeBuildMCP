@@ -2,4 +2,5 @@
 ⚙️ Sync Xcode Defaults
 
 ✅ Synced session defaults from Xcode IDE (default profile)
-  └ env: (not set)
+  ├ scheme: CalculatorApp
+  └ bundleId: io.sentry.calculatorapp

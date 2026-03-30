@@ -22,7 +22,6 @@ import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 
-// Unified schema: XOR between projectPath and workspacePath, and XOR between simulatorId and simulatorName
 const baseOptions = {
   scheme: z.string().describe('The scheme to use (Required)'),
   simulatorId: z
@@ -78,18 +77,19 @@ const buildSimulatorSchema = z.preprocess(
 
 export type BuildSimulatorParams = z.infer<typeof buildSimulatorSchema>;
 
-// Internal logic for building Simulator apps.
-async function _handleSimulatorBuildLogic(
+export async function build_simLogic(
   params: BuildSimulatorParams,
-  executor: CommandExecutor = getDefaultCommandExecutor(),
+  executor: CommandExecutor,
 ): Promise<ToolResponse> {
+  const configuration = params.configuration ?? 'Debug';
+  const useLatestOS = params.useLatestOS ?? true;
   const projectType = params.projectPath ? 'project' : 'workspace';
   const filePath = params.projectPath ?? params.workspacePath;
 
   if (params.simulatorId && params.useLatestOS !== undefined) {
     log(
       'warn',
-      `useLatestOS parameter is ignored when using simulatorId (UUID implies exact device/OS)`,
+      'useLatestOS parameter is ignored when using simulatorId (UUID implies exact device/OS)',
     );
   }
 
@@ -110,16 +110,13 @@ async function _handleSimulatorBuildLogic(
   log('info', `Starting ${logPrefix} for scheme ${params.scheme} from ${projectType}: ${filePath}`);
   log('info', `Inferred simulator platform: ${detectedPlatform} (source: ${inferred.source})`);
 
-  const sharedBuildParams = {
-    ...params,
-    configuration: params.configuration ?? 'Debug',
-  };
+  const sharedBuildParams = { ...params, configuration };
 
   const platformOptions = {
     platform: detectedPlatform,
     simulatorName: params.simulatorName,
     simulatorId: params.simulatorId,
-    useLatestOS: params.simulatorId ? false : params.useLatestOS,
+    useLatestOS: params.simulatorId ? false : useLatestOS,
     logPrefix,
   };
 
@@ -128,7 +125,7 @@ async function _handleSimulatorBuildLogic(
     scheme: params.scheme,
     workspacePath: params.workspacePath,
     projectPath: params.projectPath,
-    configuration: sharedBuildParams.configuration,
+    configuration,
     platform: String(detectedPlatform),
     simulatorName: params.simulatorName,
     simulatorId: params.simulatorId,
@@ -138,7 +135,7 @@ async function _handleSimulatorBuildLogic(
     scheme: params.scheme,
     workspacePath: params.workspacePath,
     projectPath: params.projectPath,
-    configuration: sharedBuildParams.configuration,
+    configuration,
     platform: String(detectedPlatform),
     simulatorName: params.simulatorName,
     simulatorId: params.simulatorId,
@@ -181,22 +178,6 @@ async function _handleSimulatorBuildLogic(
   );
 }
 
-export async function build_simLogic(
-  params: BuildSimulatorParams,
-  executor: CommandExecutor,
-): Promise<ToolResponse> {
-  // Provide defaults
-  const processedParams: BuildSimulatorParams = {
-    ...params,
-    configuration: params.configuration ?? 'Debug',
-    useLatestOS: params.useLatestOS ?? true, // May be ignored if simulatorId is provided
-    preferXcodebuild: params.preferXcodebuild ?? false,
-  };
-
-  return _handleSimulatorBuildLogic(processedParams, executor);
-}
-
-// Public schema = internal minus session-managed fields
 const publicSchemaObject = baseSchemaObject.omit({
   projectPath: true,
   workspacePath: true,

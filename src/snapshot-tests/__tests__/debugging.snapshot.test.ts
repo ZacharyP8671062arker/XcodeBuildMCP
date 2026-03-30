@@ -85,6 +85,14 @@ describe('debugging workflow', () => {
       vi.setConfig({ testTimeout: 120_000 });
       simulatorUdid = await ensureSimulatorBooted('iPhone 17');
 
+      // Kill any stale lldb-dap processes to ensure a clean attach
+      try {
+        execSync('pkill -f lldb-dap', { stdio: 'pipe' });
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      } catch {
+        /* ignore if none running */
+      }
+
       execSync(
         [
           'xcodebuild build',
@@ -124,10 +132,9 @@ describe('debugging workflow', () => {
     }, 30_000);
 
     it('pause via lldb', async () => {
-      // DAP attach is non-intrusive; pause so subsequent commands work on a stopped process
-      await harness.invoke('debugging', 'lldb-command', { command: 'process interrupt' });
-      // Let the process settle after interrupt
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Attach with continueOnAttach: false now pauses execution for DAP sessions.
+      // Keep this step as a semantic checkpoint without issuing a second interrupt.
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }, 30_000);
 
     it('stack - success', async () => {
@@ -183,10 +190,10 @@ describe('debugging workflow', () => {
     }, 30_000);
 
     it('attach - success (continue on attach)', async () => {
-      execSync(
-        `xcrun simctl launch --terminate-running-process ${simulatorUdid} ${BUNDLE_ID}`,
-        { encoding: 'utf8', stdio: 'pipe' },
-      );
+      execSync(`xcrun simctl launch --terminate-running-process ${simulatorUdid} ${BUNDLE_ID}`, {
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
       const { text, isError } = await harness.invoke('debugging', 'attach', {

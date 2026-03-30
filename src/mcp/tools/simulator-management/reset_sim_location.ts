@@ -26,7 +26,7 @@ export async function reset_sim_locationLogic(
 
   try {
     const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'clear'];
-    const result = await executor(command, 'Reset Simulator Location', false, {});
+    const result = await executor(command, 'Reset Simulator Location', false);
 
     if (!result.success) {
       log(
@@ -40,7 +40,10 @@ export async function reset_sim_locationLogic(
     }
 
     log('info', `Reset simulator ${params.simulatorId} location`);
-    return toolResponse([headerEvent, statusLine('success', 'Location reset to default')]);
+    return toolResponse([
+      headerEvent,
+      statusLine('success', 'Location successfully reset to default'),
+    ]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(

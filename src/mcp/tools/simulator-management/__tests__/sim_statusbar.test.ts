@@ -40,7 +40,7 @@ describe('sim_statusbar tool', () => {
 
       const text = allText(result);
       expect(text).toContain('Statusbar');
-      expect(text).toContain('Status bar data network set to wifi');
+      expect(text).toContain('Status bar data network set successfully');
       expect(result.isError).toBeFalsy();
     });
 
@@ -60,7 +60,7 @@ describe('sim_statusbar tool', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Status bar data network set to wifi');
+      expect(text).toContain('Status bar data network set successfully');
     });
 
     it('should handle command failure', async () => {

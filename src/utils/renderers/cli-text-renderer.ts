@@ -3,6 +3,7 @@ import type {
   CompilerWarningEvent,
   TestFailureEvent,
   PipelineEvent,
+  StatusLineEvent,
 } from '../../types/pipeline-events.ts';
 import { createCliProgressReporter } from '../cli-progress-reporter.ts';
 import { formatCliTextLine } from '../terminal-output.ts';
@@ -41,6 +42,8 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
   let pendingTransientRuntimeLine: string | null = null;
   let diagnosticBaseDir: string | null = null;
   let hasDurableRuntimeContent = false;
+  let lastVisibleEventType: PipelineEvent['type'] | null = null;
+  let lastStatusLineLevel: StatusLineEvent['level'] | null = null;
 
   function writeDurable(text: string): void {
     reporter.clear();
@@ -68,6 +71,7 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
           diagnosticBaseDir = deriveDiagnosticBaseDir(event);
           hasDurableRuntimeContent = false;
           writeSection(formatHeaderEvent(event));
+          lastVisibleEventType = 'header';
           break;
         }
 
@@ -78,6 +82,7 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
           } else {
             writeDurable(formatBuildStageEvent(event));
           }
+          lastVisibleEventType = 'build-stage';
           break;
         }
 
@@ -89,27 +94,46 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
             break;
           }
 
-          writeSection(formatStatusLineEvent(event));
+          const compact =
+            (lastVisibleEventType === 'status-line' &&
+              lastStatusLineLevel !== 'warning' &&
+              event.level !== 'warning') ||
+            lastVisibleEventType === 'summary';
+          if (compact) {
+            writeDurable(formatStatusLineEvent(event));
+          } else {
+            writeSection(formatStatusLineEvent(event));
+          }
+          lastVisibleEventType = 'status-line';
+          lastStatusLineLevel = event.level;
           break;
         }
 
         case 'section': {
           writeSection(formatSectionEvent(event));
+          lastVisibleEventType = 'section';
+          lastStatusLineLevel = null;
           break;
         }
 
         case 'detail-tree': {
-          writeSection(formatDetailTreeEvent(event));
+          writeDurable(formatDetailTreeEvent(event));
+          lastVisibleEventType = 'detail-tree';
+          lastStatusLineLevel = null;
           break;
         }
 
         case 'table': {
           writeSection(formatTableEvent(event));
+          lastVisibleEventType = 'table';
+          lastStatusLineLevel = null;
           break;
         }
 
         case 'file-ref': {
           writeSection(formatFileRefEvent(event));
+          lastVisibleEventType = 'file-ref';
+          lastStatusLineLevel = null;
           break;
         }
 
@@ -128,8 +152,8 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
         }
 
         case 'test-progress': {
-          const failWord = event.failed === 1 ? 'failure' : 'failures';
           if (interactive) {
+            const failWord = event.failed === 1 ? 'failure' : 'failures';
             pendingTransientRuntimeLine = null;
             reporter.update(`Running tests (${event.completed}, ${event.failed} ${failWord})`);
           }
@@ -175,11 +199,15 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
           }
 
           writeSection(formatSummaryEvent(event));
+          lastVisibleEventType = 'summary';
+          lastStatusLineLevel = null;
           break;
         }
 
         case 'next-steps': {
           writeSection(formatNextStepsEvent(event, 'cli'));
+          lastVisibleEventType = 'next-steps';
+          lastStatusLineLevel = null;
           break;
         }
       }
@@ -190,6 +218,8 @@ export function createCliTextRenderer(options: { interactive: boolean }): Xcodeb
       pendingTransientRuntimeLine = null;
       diagnosticBaseDir = null;
       hasDurableRuntimeContent = false;
+      lastVisibleEventType = null;
+      lastStatusLineLevel = null;
     },
   };
 }

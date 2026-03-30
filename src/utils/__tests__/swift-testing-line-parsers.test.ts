@@ -107,9 +107,9 @@ describe('Swift Testing line parsers', () => {
 
   describe('parseSwiftTestingContinuationLine', () => {
     it('should parse a continuation line', () => {
-      expect(
-        parseSwiftTestingContinuationLine('↳ This test should fail'),
-      ).toBe('This test should fail');
+      expect(parseSwiftTestingContinuationLine('↳ This test should fail')).toBe(
+        'This test should fail',
+      );
     });
 
     it('should return null for non-continuation lines', () => {

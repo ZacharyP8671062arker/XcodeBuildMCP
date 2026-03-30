@@ -33,7 +33,7 @@ describe('swift_package_list plugin', () => {
 
       expect(result.isError).toBeUndefined();
       const text = result.content.map((c) => c.text).join('\n');
-      expect(text).toContain('Swift Package List');
+      expect(text).toContain('Swift Package Processes');
       expect(text).toContain('No Swift Package processes currently running');
     });
 
@@ -133,7 +133,7 @@ describe('swift_package_list plugin', () => {
 
       expect(result.isError).toBeUndefined();
       const text = result.content.map((c) => c.text).join('\n');
-      expect(text).toContain('Active Processes (1)');
+      expect(text).toContain('Running Processes (1)');
       expect(text).toContain('12345');
       expect(text).toContain('MyApp');
       expect(text).toContain('/test/package');
@@ -178,7 +178,7 @@ describe('swift_package_list plugin', () => {
 
       expect(result.isError).toBeUndefined();
       const text = result.content.map((c) => c.text).join('\n');
-      expect(text).toContain('Active Processes (2)');
+      expect(text).toContain('Running Processes (2)');
       expect(text).toContain('12345');
       expect(text).toContain('MyApp');
       expect(text).toContain('/test/package1');

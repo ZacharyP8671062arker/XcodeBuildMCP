@@ -5,8 +5,9 @@ import { persistActiveSessionDefaultsProfile } from '../../../utils/config-store
 import { sessionStore } from '../../../utils/session-store.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
+import { formatProfileLabel, formatProfileAnnotation } from './session-format-helpers.ts';
 
 const schemaObj = z.object({
   profile: z
@@ -22,10 +23,6 @@ const schemaObj = z.object({
 });
 
 type Params = z.input<typeof schemaObj>;
-
-function formatActiveProfileLabel(activeProfile: string | null): string {
-  return activeProfile ?? 'global defaults';
-}
 
 function resolveProfileToActivate(params: Params): string | null | undefined {
   if (params.global === true) return null;
@@ -44,6 +41,7 @@ export async function sessionUseDefaultsProfileLogic(params: Params): Promise<To
     ]);
   }
 
+  const beforeProfile = sessionStore.getActiveProfile();
   const profileToActivate = resolveProfileToActivate(params);
 
   if (typeof profileToActivate === 'string') {
@@ -68,29 +66,18 @@ export async function sessionUseDefaultsProfileLogic(params: Params): Promise<To
     notices.push(`Persisted active profile selection to ${path}`);
   }
 
-  const activeLabel = formatActiveProfileLabel(active);
-  const profiles = sessionStore.listProfiles();
-  const current = sessionStore.getAll();
-
+  const profileAnnotation = formatProfileAnnotation(active);
   const events: PipelineEvent[] = [
     header('Use Defaults Profile', [
-      { label: 'Active Profile', value: activeLabel },
-      { label: 'Known Profiles', value: profiles.length > 0 ? profiles.join(', ') : '(none)' },
+      { label: 'Current profile', value: formatProfileLabel(beforeProfile) },
     ]),
   ];
-
-  const items = Object.entries(current)
-    .filter(([, v]) => v !== undefined)
-    .map(([k, v]) => ({ label: k, value: String(v) }));
-  if (items.length > 0) {
-    events.push(detailTree(items));
-  }
 
   if (notices.length > 0) {
     events.push(section('Notices', notices));
   }
 
-  events.push(statusLine('success', `Active profile: ${activeLabel}`));
+  events.push(statusLine('success', `Activated profile ${profileAnnotation}`));
 
   return toolResponse(events);
 }

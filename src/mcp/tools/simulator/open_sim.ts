@@ -30,7 +30,7 @@ export async function open_simLogic(
       ]);
     }
 
-    return toolResponse([headerEvent, statusLine('success', 'Simulator app opened')], {
+    return toolResponse([headerEvent, statusLine('success', 'Simulator opened successfully')], {
       nextStepParams: {
         boot_sim: { simulatorId: 'UUID_FROM_LIST_SIMS' },
         start_sim_log_cap: [

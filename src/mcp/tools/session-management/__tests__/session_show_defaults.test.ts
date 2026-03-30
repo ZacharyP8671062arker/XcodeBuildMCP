@@ -28,7 +28,8 @@ describe('session-show-defaults tool', () => {
       expect(result.isError).toBeFalsy();
       const text = allText(result);
       expect(text).toContain('Show Defaults');
-      expect(text).toContain('No session defaults are set');
+      expect(text).toContain('(default)');
+      expect(text).toContain('(not set)');
     });
 
     it('should return current defaults when set', async () => {

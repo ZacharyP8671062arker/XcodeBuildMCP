@@ -138,7 +138,9 @@ describe('xcodebuild-output', () => {
     });
 
     const finalized = finalizePendingXcodebuildResponse(pending, {
-      nextSteps: [{ label: 'Get built macOS app path', cliTool: 'get-app-path', workflow: 'macos' }],
+      nextSteps: [
+        { label: 'Get built macOS app path', cliTool: 'get-app-path', workflow: 'macos' },
+      ],
     });
     const events = (finalized._meta?.events ?? []) as Array<{
       type: string;
@@ -165,7 +167,9 @@ describe('xcodebuild-output', () => {
 
     expect(textContent).toContain('\u{2705} Build succeeded.');
     expect(textContent).toContain('\u2514 Build Logs:');
-    expect(textContent.indexOf('\u2514 Build Logs:')).toBeLessThan(textContent.indexOf('Next steps:'));
+    expect(textContent.indexOf('\u2514 Build Logs:')).toBeLessThan(
+      textContent.indexOf('Next steps:'),
+    );
   });
 
   it('surfaces parser debug logs with a warning notice before summary', () => {

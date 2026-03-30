@@ -18,7 +18,10 @@ import {
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { mapDevicePlatform } from './build-settings.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
-import { formatQueryError, formatQueryFailureSummary } from '../../../utils/xcodebuild-error-utils.ts';
+import {
+  formatQueryError,
+  formatQueryFailureSummary,
+} from '../../../utils/xcodebuild-error-utils.ts';
 import {
   extractAppPathFromBuildSettingsOutput,
   getBuildSettingsDestination,
@@ -78,8 +81,12 @@ export async function get_device_app_pathLogic(
   try {
     const command = ['xcodebuild', '-showBuildSettings'];
 
-    const projectPath = params.projectPath ? path.resolve(process.cwd(), params.projectPath) : undefined;
-    const workspacePath = params.workspacePath ? path.resolve(process.cwd(), params.workspacePath) : undefined;
+    const projectPath = params.projectPath
+      ? path.resolve(process.cwd(), params.projectPath)
+      : undefined;
+    const workspacePath = params.workspacePath
+      ? path.resolve(process.cwd(), params.workspacePath)
+      : undefined;
 
     if (projectPath) {
       command.push('-project', projectPath);
@@ -110,7 +117,7 @@ export async function get_device_app_pathLogic(
         content: [
           {
             type: 'text',
-            text: `\n${preflightText}${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
+            text: `\n${preflightText}\n${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
           },
         ],
         isError: true,
@@ -123,7 +130,7 @@ export async function get_device_app_pathLogic(
       content: [
         {
           type: 'text',
-          text: `\n${preflightText}  └ App Path: ${appPath}`,
+          text: `\n${preflightText}\n✅ Success\n  └ App Path: ${appPath}`,
         },
       ],
       nextStepParams: {
@@ -140,7 +147,7 @@ export async function get_device_app_pathLogic(
       content: [
         {
           type: 'text',
-          text: `\n${preflightText}${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
+          text: `\n${preflightText}\n${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
         },
       ],
       isError: true,

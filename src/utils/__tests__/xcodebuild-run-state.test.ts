@@ -159,6 +159,31 @@ describe('xcodebuild-run-state', () => {
     expect(snap.testFailures).toHaveLength(1);
   });
 
+  it('deduplicates test failures when xcresult and live parsing disagree on suite/test naming', () => {
+    const state = createXcodebuildRunState({ operation: 'TEST' });
+
+    state.push({
+      type: 'test-failure',
+      timestamp: ts(),
+      operation: 'TEST',
+      suite: 'CalculatorAppTests.CalculatorAppTests',
+      test: 'testCalculatorServiceFailure',
+      message: 'XCTAssertEqual failed',
+      location: '/tmp/CalculatorAppTests.swift:52',
+    });
+    state.push({
+      type: 'test-failure',
+      timestamp: ts(),
+      operation: 'TEST',
+      test: 'testCalculatorServiceFailure()',
+      message: 'XCTAssertEqual failed',
+      location: 'CalculatorAppTests.swift:52',
+    });
+
+    const snap = state.snapshot();
+    expect(snap.testFailures).toHaveLength(1);
+  });
+
   it('deduplicates warnings by location+message', () => {
     const state = createXcodebuildRunState({ operation: 'BUILD' });
 
@@ -266,6 +291,47 @@ describe('xcodebuild-run-state', () => {
       expect(summary.failedTests).toBe(2);
       expect(summary.passedTests).toBe(3);
       expect(summary.durationMs).toBe(1234);
+    }
+  });
+
+  it('reconciles summary counts with explicit test failures', () => {
+    const state = createXcodebuildRunState({ operation: 'TEST' });
+
+    state.push({
+      type: 'test-progress',
+      timestamp: ts(),
+      operation: 'TEST',
+      completed: 6,
+      failed: 1,
+      skipped: 0,
+    });
+    state.push({
+      type: 'test-failure',
+      timestamp: ts(),
+      operation: 'TEST',
+      suite: 'CalculatorAppTests',
+      test: 'testCalculatorServiceFailure',
+      message: 'XCTAssertEqual failed',
+      location: '/tmp/SimpleTests.swift:49',
+    });
+    state.push({
+      type: 'test-failure',
+      timestamp: ts(),
+      operation: 'TEST',
+      test: 'test',
+      message: 'Expectation failed: Bool(false)',
+      location: '/tmp/SimpleTests.swift:57',
+    });
+
+    const finalState = state.finalize(false, 1234);
+    const summary = finalState.events.find((event) => event.type === 'summary');
+
+    expect(summary).toBeDefined();
+    if (summary?.type === 'summary') {
+      expect(summary.totalTests).toBe(7);
+      expect(summary.passedTests).toBe(5);
+      expect(summary.failedTests).toBe(2);
+      expect(summary.skippedTests).toBe(0);
     }
   });
 

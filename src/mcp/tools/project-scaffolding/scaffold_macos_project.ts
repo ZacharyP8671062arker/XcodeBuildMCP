@@ -1,11 +1,5 @@
-/**
- * Utilities Plugin: Scaffold macOS Project
- *
- * Scaffold a new macOS project from templates.
- */
-
 import * as z from 'zod';
-import { join, dirname, basename } from 'path';
+import { join, dirname, basename } from 'node:path';
 import { log } from '../../../utils/logging/index.ts';
 import { ValidationError } from '../../../utils/errors.ts';
 import { TemplateManager } from '../../../utils/template/index.ts';
@@ -16,7 +10,6 @@ import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
-// Common base schema for both iOS and macOS
 const BaseScaffoldSchema = z.object({
   projectName: z.string().min(1),
   outputPath: z.string(),
@@ -27,7 +20,6 @@ const BaseScaffoldSchema = z.object({
   customizeNames: z.boolean().default(true),
 });
 
-// macOS-specific schema
 const ScaffoldmacOSProjectSchema = BaseScaffoldSchema.extend({
   deploymentTarget: z.string().optional(),
 });
@@ -343,7 +335,7 @@ export async function scaffold_macos_projectLogic(
           { label: 'Path', value: projectPath },
           { label: 'Platform', value: 'macOS' },
         ]),
-        statusLine('success', `Project scaffolded successfully at ${projectPath}.`),
+        statusLine('success', `Project scaffolded successfully\n  └ ${projectPath}`),
       ],
       {
         nextStepParams: {
@@ -359,10 +351,8 @@ export async function scaffold_macos_projectLogic(
       },
     );
   } catch (error) {
-    log(
-      'error',
-      `Failed to scaffold macOS project: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log('error', `Failed to scaffold macOS project: ${errorMessage}`);
 
     return toolResponse([
       header('Scaffold macOS Project', [
@@ -370,7 +360,7 @@ export async function scaffold_macos_projectLogic(
         { label: 'Path', value: params.outputPath },
         { label: 'Platform', value: 'macOS' },
       ]),
-      statusLine('error', error instanceof Error ? error.message : 'Unknown error occurred'),
+      statusLine('error', errorMessage),
     ]);
   }
 }

@@ -2,6 +2,7 @@
 🚀 Build & Run
 
    Scheme: CalculatorApp
+   Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
    Configuration: Debug
    Platform: iOS
    Device: <DEVICE> (<UUID>)
@@ -20,4 +21,4 @@
 
 Next steps:
 1. Capture device logs: xcodebuildmcp device start-device-log-capture --device-id "<UUID>" --bundle-id "io.sentry.calculatorapp"
-2. Stop app on device: xcodebuildmcp device stop --device-id "<UUID>" --process-id "22761"
+2. Stop app on device: xcodebuildmcp device stop --device-id "<UUID>" --process-id "<PID>"

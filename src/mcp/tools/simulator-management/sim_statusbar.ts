@@ -76,7 +76,7 @@ export async function sim_statusbarLogic(
     const successMsg =
       params.dataNetwork === 'clear'
         ? 'Status bar overrides cleared'
-        : `Status bar data network set to ${params.dataNetwork}`;
+        : 'Status bar data network set successfully';
 
     log('info', `${successMsg} (simulator: ${params.simulatorId})`);
     return toolResponse([headerEvent, statusLine('success', successMsg)]);

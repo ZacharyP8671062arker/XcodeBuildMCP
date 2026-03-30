@@ -5,7 +5,7 @@ import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, table } from '../../../utils/tool-event-builders.ts';
+import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const listSimsSchema = z.object({
   enabled: z.boolean().optional(),
@@ -32,22 +32,18 @@ interface SimulatorData {
   devices: Record<string, SimulatorDevice[]>;
 }
 
-// Parse text output as fallback for Apple simctl JSON bugs (e.g., duplicate runtime IDs)
 function parseTextOutput(textOutput: string): SimulatorDevice[] {
   const devices: SimulatorDevice[] = [];
   const lines = textOutput.split('\n');
   let currentRuntime = '';
 
   for (const line of lines) {
-    // Match runtime headers like "-- iOS 26.0 --" or "-- iOS 18.6 --"
     const runtimeMatch = line.match(/^-- ([\w\s.]+) --$/);
     if (runtimeMatch) {
       currentRuntime = runtimeMatch[1];
       continue;
     }
 
-    // Match device lines like "    iPhone 17 Pro (UUID) (Booted)"
-    // UUID pattern is flexible to handle test UUIDs like "test-uuid-123"
     const deviceMatch = line.match(
       /^\s+(.+?)\s+\(([^)]+)\)\s+\((Booted|Shutdown|Booting|Shutting Down)\)(\s+\(unavailable.*\))?$/i,
     );
@@ -177,6 +173,32 @@ function formatRuntimeName(runtime: string): string {
   return runtime;
 }
 
+interface PlatformInfo {
+  label: string;
+  emoji: string;
+  order: number;
+}
+
+const PLATFORM_MAP: Record<string, PlatformInfo> = {
+  iOS: { label: 'iOS Simulators', emoji: '\u{1F4F1}', order: 0 },
+  visionOS: { label: 'visionOS Simulators', emoji: '\u{1F97D}', order: 1 },
+  watchOS: { label: 'watchOS Simulators', emoji: '\u{231A}\u{FE0F}', order: 2 },
+  tvOS: { label: 'tvOS Simulators', emoji: '\u{1F4FA}', order: 3 },
+};
+
+function detectPlatform(runtimeName: string): string {
+  if (/xrOS|visionOS/i.test(runtimeName)) return 'visionOS';
+  if (/watchOS/i.test(runtimeName)) return 'watchOS';
+  if (/tvOS/i.test(runtimeName)) return 'tvOS';
+  return 'iOS';
+}
+
+function getPlatformInfo(platform: string): PlatformInfo {
+  return (
+    PLATFORM_MAP[platform] ?? { label: `${platform} Simulators`, emoji: '\u{1F4F1}', order: 99 }
+  );
+}
+
 export async function list_simsLogic(
   _params: ListSimsParams,
   executor: CommandExecutor,
@@ -195,33 +217,73 @@ export async function list_simsLogic(
       grouped.set(simulator.runtime, runtimeGroup);
     }
 
-    const tables = [];
+    const platformGroups = new Map<string, Map<string, ListedSimulator[]>>();
     for (const [runtime, devices] of grouped.entries()) {
       if (devices.length === 0) continue;
-
-      const rows = devices.map((d) => ({
-        Name: d.name,
-        UUID: d.udid,
-        State: d.state,
-      }));
-      tables.push(table(['Name', 'UUID', 'State'], rows, formatRuntimeName(runtime)));
+      const runtimeName = formatRuntimeName(runtime);
+      const platform = detectPlatform(runtimeName);
+      let platformMap = platformGroups.get(platform);
+      if (!platformMap) {
+        platformMap = new Map();
+        platformGroups.set(platform, platformMap);
+      }
+      platformMap.set(runtimeName, devices);
     }
 
-    return toolResponse(
-      [headerEvent, ...tables, statusLine('success', 'Listed available simulators')],
-      {
-        nextStepParams: {
-          boot_sim: { simulatorId: 'UUID_FROM_ABOVE' },
-          open_sim: {},
-          build_sim: { scheme: 'YOUR_SCHEME', simulatorId: 'UUID_FROM_ABOVE' },
-          get_sim_app_path: {
-            scheme: 'YOUR_SCHEME',
-            platform: 'iOS Simulator',
-            simulatorId: 'UUID_FROM_ABOVE',
-          },
+    const platformCounts: Record<string, number> = {};
+    let totalCount = 0;
+
+    const sortedPlatforms = [...platformGroups.entries()].sort(
+      ([a], [b]) => getPlatformInfo(a).order - getPlatformInfo(b).order,
+    );
+
+    const sections = [];
+    for (const [platform, runtimes] of sortedPlatforms) {
+      const info = getPlatformInfo(platform);
+      const lines: string[] = [];
+      let platformTotal = 0;
+
+      for (const [runtimeName, devices] of runtimes.entries()) {
+        lines.push('');
+        lines.push(`${runtimeName}:`);
+
+        for (const device of devices) {
+          lines.push('');
+          const marker = device.state === 'Booted' ? '\u{2713}' : '\u{2717}';
+          lines.push(`  ${info.emoji} [${marker}] ${device.name} (${device.state})`);
+          lines.push(`    UDID: ${device.udid}`);
+          platformTotal++;
+        }
+      }
+
+      platformCounts[platform] = platformTotal;
+      totalCount += platformTotal;
+      sections.push(section(`${info.label}:`, lines));
+    }
+
+    const countParts = sortedPlatforms
+      .map(([platform]) => `${platformCounts[platform]} ${platform}`)
+      .join(', ');
+    const summaryMsg = `${totalCount} simulators available (${countParts}).`;
+
+    const hints = section('Hints', [
+      'Use the simulator ID/UDID from above when required by other tools.',
+      "Save a default simulator with session-set-defaults { simulatorId: 'SIMULATOR_UDID' }.",
+      'Before running boot/build/run tools, set the desired simulator identifier in session defaults.',
+    ]);
+
+    return toolResponse([headerEvent, ...sections, statusLine('success', summaryMsg), hints], {
+      nextStepParams: {
+        boot_sim: { simulatorId: 'UUID_FROM_ABOVE' },
+        open_sim: {},
+        build_sim: { scheme: 'YOUR_SCHEME', simulatorId: 'UUID_FROM_ABOVE' },
+        get_sim_app_path: {
+          scheme: 'YOUR_SCHEME',
+          platform: 'iOS Simulator',
+          simulatorId: 'UUID_FROM_ABOVE',
         },
       },
-    );
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.startsWith('Failed to list simulators:')) {

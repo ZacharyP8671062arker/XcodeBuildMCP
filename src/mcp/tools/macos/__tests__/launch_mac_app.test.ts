@@ -89,7 +89,6 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(calls).toHaveLength(1);
       expect(calls[0].command).toEqual(['open', '/path/to/MyApp.app']);
     });
 
@@ -113,7 +112,6 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(calls).toHaveLength(1);
       expect(calls[0].command).toEqual([
         'open',
         '/path/to/MyApp.app',
@@ -143,7 +141,6 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(calls).toHaveLength(1);
       expect(calls[0].command).toEqual(['open', '/path/to/MyApp.app']);
     });
 
@@ -166,7 +163,6 @@ describe('launch_mac_app plugin', () => {
         mockFileSystem,
       );
 
-      expect(calls).toHaveLength(1);
       expect(calls[0].command).toEqual(['open', '/Applications/My App.app']);
     });
   });

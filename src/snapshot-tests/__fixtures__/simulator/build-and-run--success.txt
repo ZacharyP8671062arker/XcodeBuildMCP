@@ -20,7 +20,7 @@
   ├ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphonesimulator/CalculatorApp.app
   ├ Bundle ID: io.sentry.calculatorapp
   ├ Process ID: <PID>
-  └ Build Logs: <TMPDIR>/logs/build_run_sim_2026-03-28T08-18-10-408Z.log
+  └ Build Logs: <TMPDIR>/logs/build_run_sim_<TIMESTAMP>.log
 
 Next steps:
 1. Capture structured logs (app continues running): xcodebuildmcp logging start-simulator-log-capture --simulator-id "<UUID>" --bundle-id "io.sentry.calculatorapp"

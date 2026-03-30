@@ -67,7 +67,7 @@ describe('session-set-defaults tool', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      expect(allText(result)).toContain('Session defaults updated.');
+      expect(allText(result)).toContain('Session defaults updated');
 
       const current = sessionStore.getAll();
       expect(current.scheme).toBe('MyScheme');

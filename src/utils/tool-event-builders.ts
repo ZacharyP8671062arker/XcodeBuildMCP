@@ -5,6 +5,7 @@ import type {
   FileRefEvent,
   TableEvent,
   DetailTreeEvent,
+  NextStepsEvent,
 } from '../types/pipeline-events.ts';
 
 function now(): string {
@@ -74,5 +75,13 @@ export function detailTree(items: Array<{ label: string; value: string }>): Deta
     type: 'detail-tree',
     timestamp: now(),
     items,
+  };
+}
+
+export function nextSteps(steps: NextStepsEvent['steps']): NextStepsEvent {
+  return {
+    type: 'next-steps',
+    timestamp: now(),
+    steps,
   };
 }

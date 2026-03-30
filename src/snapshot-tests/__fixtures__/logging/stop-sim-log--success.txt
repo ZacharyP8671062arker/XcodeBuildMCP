@@ -4,7 +4,7 @@
    Session ID: <UUID>
 
 ✅ Log capture stopped.
-  └ Logs: <TMPDIR>/logs/io.sentry.calculatorapp_2026-03-28T08-19-54-221Z.log
+  └ Logs: <TMPDIR>/logs/io.sentry.calculatorapp_<TIMESTAMP>.log
 
 Captured Logs:
 

@@ -8,6 +8,7 @@ import { lookupBundleId } from '../../../utils/xcode-state-watcher.ts';
 import * as z from 'zod';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
+import { formatProfileAnnotation } from '../session-management/session-format-helpers.ts';
 
 const schemaObj = z.object({});
 
@@ -75,12 +76,14 @@ export async function syncXcodeDefaultsLogic(
 
   sessionStore.setDefaults(synced);
 
+  const activeProfile = sessionStore.getActiveProfile();
+  const profileAnnotation = formatProfileAnnotation(activeProfile);
   const items = Object.entries(synced).map(([k, v]) => ({ label: k, value: v }));
 
   return toolResponse([
     headerEvent,
+    statusLine('success', `Synced session defaults from Xcode IDE ${profileAnnotation}`),
     detailTree(items),
-    statusLine('success', 'Synced session defaults from Xcode IDE.'),
   ]);
 }
 

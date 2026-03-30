@@ -7,13 +7,14 @@
    Device: <DEVICE> (<UUID>)
 
 CalculatorAppTests
-  ✗ testCalculatorServiceFailure (⏱️ <DURATION>):
+  ✗ testCalculatorServiceFailure:
       - XCTAssertEqual failed: ("0") is not equal to ("999") - This test should fail - display should be 0, not 999
         example_projects/iOS_Calculator/CalculatorAppTests/CalculatorAppTests.swift:52
 
-This test should fail to verify error reporting
-  ✗ test (⏱️ <DURATION>):
-    - Test failed
+IntentionalFailureTests
+  ✗ test:
+      - XCTAssertTrue failed - This test should fail to verify error reporting
+        example_projects/iOS_Calculator/CalculatorAppTests/CalculatorAppTests.swift:286
 
-❌ 2 tests failed, 53 passed, 0 skipped (⏱️ <DURATION>)
-  └ Build Logs: <TMPDIR>/logs/test_sim_2026-03-28T08-18-25-423Z.log
+❌ 2 tests failed, 21 passed, 0 skipped (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/test_device_<TIMESTAMP>.log

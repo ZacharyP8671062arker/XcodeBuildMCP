@@ -1,4 +1,5 @@
 import Testing
+import XCTest
 
 @Test("Basic truth assertions")
 func basicTruthTest() {
@@ -37,13 +38,22 @@ func arrayTest() {
 func optionalTest() {
     let someValue: Int? = 42
     let nilValue: Int? = nil
-    
+
     #expect(someValue != nil)
     #expect(nilValue == nil)
     #expect(someValue! == 42)
 }
 
-@Test("Expected failure")
-func testFail() {
-    #expect(true == false, "This test should fail, and is for simulating a test failure")
+final class CalculatorAppTests: XCTestCase {
+    func testCalculatorServiceFailure() {
+        XCTAssertEqual(0, 999, "This test should fail - display should be 0, not 999")
+    }
+}
+
+@Suite("This test should fail to verify error reporting")
+struct IntentionalFailureSuite {
+    @Test("test")
+    func test() {
+        #expect(Bool(false), "Test failed")
+    }
 }

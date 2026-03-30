@@ -46,7 +46,7 @@ export async function set_sim_appearanceLogic(
     log('info', `Set simulator ${params.simulatorId} appearance to ${params.mode} mode`);
     return toolResponse([
       headerEvent,
-      statusLine('success', `Appearance set to ${params.mode} mode`),
+      statusLine('success', `Appearance successfully set to ${params.mode} mode`),
     ]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

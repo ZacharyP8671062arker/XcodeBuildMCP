@@ -133,10 +133,7 @@ describe('swift_package_test plugin', () => {
         output: 'All tests passed.',
       });
 
-      const result = await swift_package_testLogic(
-        { packagePath: '/test/package' },
-        mockExecutor,
-      );
+      const result = await swift_package_testLogic({ packagePath: '/test/package' }, mockExecutor);
 
       expect(result.isError).toBeFalsy();
     });
@@ -147,10 +144,7 @@ describe('swift_package_test plugin', () => {
         error: '2 tests failed',
       });
 
-      const result = await swift_package_testLogic(
-        { packagePath: '/test/package' },
-        mockExecutor,
-      );
+      const result = await swift_package_testLogic({ packagePath: '/test/package' }, mockExecutor);
 
       expect(result.isError).toBe(true);
     });
@@ -160,10 +154,7 @@ describe('swift_package_test plugin', () => {
         throw new Error('spawn ENOENT');
       };
 
-      const result = await swift_package_testLogic(
-        { packagePath: '/test/package' },
-        mockExecutor,
-      );
+      const result = await swift_package_testLogic({ packagePath: '/test/package' }, mockExecutor);
 
       expect(result.isError).toBe(true);
       const text = allText(result);

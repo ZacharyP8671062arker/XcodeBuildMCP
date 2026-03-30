@@ -6,13 +6,15 @@
    Platform: Swift Package
 
 CalculatorAppTests
-  ✗ testCalculatorServiceFailure (⏱️ <DURATION>):
+  ✗ testCalculatorServiceFailure:
       - XCTAssertEqual failed: ("0") is not equal to ("999") - This test should fail - display should be 0, not 999
-        example_projects/iOS_Calculator/CalculatorAppTests/CalculatorAppTests.swift:52
+        example_projects/spm/Tests/TestLibTests/SimpleTests.swift:49
 
-This test should fail to verify error reporting
-  ✗ test (⏱️ <DURATION>):
-    - Test failed
+(Unknown Suite)
+  ✗ test:
+      - Expectation failed: Bool(false)
+Test failed
+        SimpleTests.swift:57
 
-❌ 2 tests failed, 53 passed, 0 skipped (⏱️ <DURATION>)
-  └ Build Logs: <TMPDIR>/logs/test_sim_2026-03-28T08-18-25-423Z.log
+❌ 2 tests failed, 5 passed, 0 skipped (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/swift_package_test_<TIMESTAMP>.log

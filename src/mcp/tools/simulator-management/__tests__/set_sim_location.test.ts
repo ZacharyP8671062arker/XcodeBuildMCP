@@ -145,7 +145,7 @@ describe('set_sim_location tool', () => {
 
       const text = allText(result);
       expect(text).toContain('Set Location');
-      expect(text).toContain('Location set to 37.7749,-122.4194');
+      expect(text).toContain('Location set successfully');
       expect(result.isError).toBeFalsy();
     });
 
@@ -251,7 +251,7 @@ describe('set_sim_location tool', () => {
       );
 
       const text = allText(result);
-      expect(text).toContain('Location set to 90,180');
+      expect(text).toContain('Location set successfully');
       expect(result.isError).toBeFalsy();
     });
 
@@ -272,7 +272,7 @@ describe('set_sim_location tool', () => {
       );
 
       const text = allText(result);
-      expect(text).toContain('Location set to -90,-180');
+      expect(text).toContain('Location set successfully');
       expect(result.isError).toBeFalsy();
     });
 
@@ -293,7 +293,7 @@ describe('set_sim_location tool', () => {
       );
 
       const text = allText(result);
-      expect(text).toContain('Location set to 0,0');
+      expect(text).toContain('Location set successfully');
       expect(result.isError).toBeFalsy();
     });
 
@@ -322,7 +322,6 @@ describe('set_sim_location tool', () => {
         ['xcrun', 'simctl', 'location', 'test-uuid-123', 'set', '37.7749,-122.4194'],
         'Set Simulator Location',
         false,
-        {},
       ]);
     });
   });

@@ -1,10 +1,3 @@
-/**
- * macOS Shared Plugin: Build and Run macOS (Unified)
- *
- * Builds and runs a macOS app from a project or workspace in one step.
- * Accepts mutually exclusive `projectPath` or `workspacePath`.
- */
-
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
@@ -28,8 +21,8 @@ import {
   emitPipelineNotice,
 } from '../../../utils/xcodebuild-output.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
+import path from 'node:path';
 
-// Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
   projectPath: z.string().optional().describe('Path to the .xcodeproj file'),
   workspacePath: z.string().optional().describe('Path to the .xcworkspace file'),
@@ -67,15 +60,10 @@ const buildRunMacOSSchema = z.preprocess(
 
 export type BuildRunMacOSParams = z.infer<typeof buildRunMacOSSchema>;
 
-/**
- * Business logic for building and running macOS apps.
- */
 export async function buildRunMacOSLogic(
   params: BuildRunMacOSParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
-  log('info', 'Handling macOS build & run logic...');
-
   try {
     const configuration = params.configuration ?? 'Debug';
 
@@ -175,6 +163,34 @@ export async function buildRunMacOSLogic(
       data: { step: 'launch-app', status: 'succeeded', appPath },
     });
 
+    let bundleId: string | undefined;
+    try {
+      const plistResult = await executor(
+        ['/bin/sh', '-c', `defaults read "${appPath}/Contents/Info" CFBundleIdentifier`],
+        'Extract Bundle ID',
+        false,
+      );
+      if (plistResult.success && plistResult.output) {
+        bundleId = plistResult.output.trim();
+      }
+    } catch {
+      // non-fatal
+    }
+
+    const appName = path.basename(appPath, '.app');
+    let processId: number | undefined;
+    try {
+      const pgrepResult = await executor(['pgrep', '-x', appName], 'Get Process ID', false);
+      if (pgrepResult.success && pgrepResult.output) {
+        const pid = parseInt(pgrepResult.output.trim().split('\n')[0], 10);
+        if (!isNaN(pid)) {
+          processId = pid;
+        }
+      }
+    } catch {
+      // non-fatal
+    }
+
     return createPendingXcodebuildResponse(
       started,
       {
@@ -187,6 +203,8 @@ export async function buildRunMacOSLogic(
           platform: 'macOS',
           target: 'macOS',
           appPath,
+          bundleId,
+          processId,
           launchState: 'requested',
           buildLogPath: started.pipeline.logPath,
         }),

@@ -18,16 +18,12 @@ describe('utilities workflow (flowdeck)', () => {
 
   describe('clean', () => {
     it('success', () => {
-      const result = harness.run([
-        'clean', '-w', WORKSPACE, '-s', 'CalculatorApp',
-      ]);
+      const result = harness.run(['clean', '-w', WORKSPACE, '-s', 'CalculatorApp']);
       writeFlowdeckFixture(__filename, 'clean--success', result.text);
     }, 120000);
 
     it('error - wrong scheme', () => {
-      const result = harness.run([
-        'clean', '-w', WORKSPACE, '-s', 'NONEXISTENT',
-      ]);
+      const result = harness.run(['clean', '-w', WORKSPACE, '-s', 'NONEXISTENT']);
       writeFlowdeckFixture(__filename, 'clean--error-wrong-scheme', result.text);
     }, 120000);
   });

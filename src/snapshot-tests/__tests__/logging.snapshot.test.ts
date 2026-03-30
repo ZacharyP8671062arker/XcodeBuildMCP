@@ -1,14 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import path from 'node:path';
 import { createSnapshotHarness, ensureSimulatorBooted } from '../harness.ts';
 import { expectMatchesFixture } from '../fixture-io.ts';
 import type { SnapshotHarness } from '../harness.ts';
 
-const CLI_PATH = path.resolve(process.cwd(), 'build/cli.js');
 const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const DEVICE_ID = process.env.DEVICE_ID;
 const BUNDLE_ID = 'io.sentry.calculatorapp';
+const WORKSPACE = 'example_projects/iOS_Calculator/CalculatorApp.xcworkspace';
 
 function extractSessionId(stdout: string): string {
   const line = stdout.split('\n').find((l) => l.includes('Session ID:'));
@@ -23,7 +21,23 @@ describe('logging workflow', () => {
   beforeAll(async () => {
     simulatorUdid = await ensureSimulatorBooted('iPhone 17');
     harness = await createSnapshotHarness();
-  }, 30_000);
+
+    if (DEVICE_ID) {
+      const installResult = await harness.invoke('device', 'build-and-run', {
+        workspacePath: WORKSPACE,
+        scheme: 'CalculatorApp',
+        deviceId: DEVICE_ID,
+      });
+      if (installResult.isError) {
+        throw new Error(`Failed to prepare device app for logging snapshots:\n${installResult.rawText}`);
+      }
+
+      await harness.invoke('device', 'stop', {
+        deviceId: DEVICE_ID,
+        bundleId: BUNDLE_ID,
+      });
+    }
+  }, 120_000);
 
   afterAll(() => {
     harness.cleanup();
@@ -39,8 +53,6 @@ describe('logging workflow', () => {
       expect(text.length).toBeGreaterThan(0);
       expectMatchesFixture(text, __filename, 'start-sim-log--success');
     }, 30_000);
-
-
   });
 
   describe('stop-simulator-log-capture', () => {
@@ -53,20 +65,13 @@ describe('logging workflow', () => {
     }, 30_000);
 
     it('success', async () => {
-      const { VITEST, NODE_ENV, ...cleanEnv } = process.env;
-
-      const startArgs = JSON.stringify({
+      const startResult = await harness.invoke('logging', 'start-simulator-log-capture', {
         simulatorId: simulatorUdid,
         bundleId: BUNDLE_ID,
       });
-      const rawStart = spawnSync(
-        'node',
-        [CLI_PATH, 'logging', 'start-simulator-log-capture', '--json', startArgs],
-        { encoding: 'utf8', timeout: 30_000, cwd: process.cwd(), env: cleanEnv },
-      );
-      expect(rawStart.status).toBe(0);
+      expect(startResult.isError).toBe(false);
 
-      const sessionId = extractSessionId(rawStart.stdout);
+      const sessionId = extractSessionId(startResult.rawText);
       expect(sessionId).toBeTruthy();
 
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -102,29 +107,42 @@ describe('logging workflow', () => {
 
   describe.runIf(DEVICE_ID)('start-device-log-capture (requires device)', () => {
     it('success', async () => {
-      const { text, isError } = await harness.invoke('logging', 'start-device-log-capture', {
+      await harness.invoke('device', 'stop', {
         deviceId: DEVICE_ID,
         bundleId: BUNDLE_ID,
       });
-      expect(isError).toBe(false);
-      expect(text.length).toBeGreaterThan(0);
-      expectMatchesFixture(text, __filename, 'start-device-log--success');
+
+      const result = await harness.invoke('logging', 'start-device-log-capture', {
+        deviceId: DEVICE_ID,
+        bundleId: BUNDLE_ID,
+      });
+      expect(result.isError).toBe(false);
+      expect(result.text.length).toBeGreaterThan(0);
+      expectMatchesFixture(result.text, __filename, 'start-device-log--success');
+
+      const sessionId = extractSessionId(result.rawText);
+      if (sessionId) {
+        await harness.invoke('logging', 'stop-device-log-capture', {
+          logSessionId: sessionId,
+        });
+      }
     }, 60_000);
   });
 
   describe.runIf(DEVICE_ID)('stop-device-log-capture (requires device)', () => {
     it('success', async () => {
-      const { VITEST, NODE_ENV, ...cleanEnv } = process.env;
+      await harness.invoke('device', 'stop', {
+        deviceId: DEVICE_ID,
+        bundleId: BUNDLE_ID,
+      });
 
-      const startArgs = JSON.stringify({ deviceId: DEVICE_ID, bundleId: BUNDLE_ID });
-      const rawStart = spawnSync(
-        'node',
-        [CLI_PATH, 'logging', 'start-device-log-capture', '--json', startArgs],
-        { encoding: 'utf8', timeout: 60_000, cwd: process.cwd(), env: cleanEnv },
-      );
-      expect(rawStart.status).toBe(0);
+      const startResult = await harness.invoke('logging', 'start-device-log-capture', {
+        deviceId: DEVICE_ID,
+        bundleId: BUNDLE_ID,
+      });
+      expect(startResult.isError).toBe(false);
 
-      const sessionId = extractSessionId(rawStart.stdout);
+      const sessionId = extractSessionId(startResult.rawText);
       expect(sessionId).toBeTruthy();
 
       await new Promise((resolve) => setTimeout(resolve, 3000));

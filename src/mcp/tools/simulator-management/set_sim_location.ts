@@ -45,7 +45,7 @@ export async function set_sim_locationLogic(
 
   try {
     const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'set', coords];
-    const result = await executor(command, 'Set Simulator Location', false, {});
+    const result = await executor(command, 'Set Simulator Location', false);
 
     if (!result.success) {
       log(
@@ -59,7 +59,7 @@ export async function set_sim_locationLogic(
     }
 
     log('info', `Set simulator ${params.simulatorId} location to ${coords}`);
-    return toolResponse([headerEvent, statusLine('success', `Location set to ${coords}`)]);
+    return toolResponse([headerEvent, statusLine('success', 'Location set successfully')]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(

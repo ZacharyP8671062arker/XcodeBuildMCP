@@ -52,7 +52,7 @@ export function createMcpRenderer(): XcodebuildRenderer & {
         }
 
         case 'build-stage': {
-          pushText(formatBuildStageEvent(event));
+          pushSection(formatBuildStageEvent(event));
           break;
         }
 
@@ -62,7 +62,7 @@ export function createMcpRenderer(): XcodebuildRenderer & {
         }
 
         case 'section': {
-          pushSection(formatSectionEvent(event));
+          pushText(`\n\n${formatSectionEvent(event)}`);
           break;
         }
 

@@ -141,9 +141,7 @@ function registerToolSubcommand(
     tool.description ?? `Run the ${tool.mcpName} tool`,
     (subYargs) => {
       // Hide root-level options from tool help
-      subYargs
-        .option('log-level', { hidden: true })
-        .option('style', { hidden: true });
+      subYargs.option('log-level', { hidden: true }).option('style', { hidden: true });
 
       // Parse option-like values as arguments (e.g. --extra-args "-only-testing:...")
       subYargs.parserConfiguration({
@@ -213,7 +211,6 @@ function registerToolSubcommand(
       const outputStyle = (argv.style as OutputStyle) ?? 'normal';
       const socketPath = argv.socket as string;
       const logLevel = argv['log-level'] as string | undefined;
-
 
       if (
         profileOverride &&

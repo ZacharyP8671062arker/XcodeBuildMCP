@@ -42,7 +42,7 @@ describe('build-utils Sentry Classification', () => {
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('❌ [stderr] xcodebuild: error: invalid option');
-      expect(result.content[2].text).toContain('Test Build build failed for scheme TestScheme');
+      expect(result.content[1].text).toContain('Test Build build failed for scheme TestScheme');
     });
   });
 
@@ -64,7 +64,7 @@ describe('build-utils Sentry Classification', () => {
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('❌ [stderr] Scheme TestScheme was not found');
-      expect(result.content[2].text).toContain('Test Build build failed for scheme TestScheme');
+      expect(result.content[1].text).toContain('Test Build build failed for scheme TestScheme');
     });
 
     it('should not trigger Sentry logging for exit code 66 (file not found)', async () => {
@@ -83,7 +83,9 @@ describe('build-utils Sentry Classification', () => {
       );
 
       expect(result.isError).toBe(true);
-      const stderrItem = result.content.find((c) => c.type === 'text' && c.text.includes('[stderr]'));
+      const stderrItem = result.content.find(
+        (c) => c.type === 'text' && c.text.includes('[stderr]'),
+      );
       expect(stderrItem?.text).toContain('❌ [stderr] project.xcodeproj cannot be opened');
     });
 
@@ -103,7 +105,9 @@ describe('build-utils Sentry Classification', () => {
       );
 
       expect(result.isError).toBe(true);
-      const stderrItem = result.content.find((c) => c.type === 'text' && c.text.includes('[stderr]'));
+      const stderrItem = result.content.find(
+        (c) => c.type === 'text' && c.text.includes('[stderr]'),
+      );
       expect(stderrItem?.text).toContain('❌ [stderr] Unable to find a destination matching');
     });
 
@@ -123,7 +127,9 @@ describe('build-utils Sentry Classification', () => {
       );
 
       expect(result.isError).toBe(true);
-      const stderrItem = result.content.find((c) => c.type === 'text' && c.text.includes('[stderr]'));
+      const stderrItem = result.content.find(
+        (c) => c.type === 'text' && c.text.includes('[stderr]'),
+      );
       expect(stderrItem?.text).toContain('❌ [stderr] Build failed with errors');
     });
   });
@@ -148,7 +154,9 @@ describe('build-utils Sentry Classification', () => {
       );
 
       expect(result.isError).toBe(true);
-      const errorItem = result.content.find((c) => c.type === 'text' && c.text.includes('Error during'));
+      const errorItem = result.content.find(
+        (c) => c.type === 'text' && c.text.includes('Error during'),
+      );
       expect(errorItem?.text).toContain('Error during Test Build build: spawn xcodebuild ENOENT');
     });
 
@@ -171,7 +179,9 @@ describe('build-utils Sentry Classification', () => {
       );
 
       expect(result.isError).toBe(true);
-      const errorItem = result.content.find((c) => c.type === 'text' && c.text.includes('Error during'));
+      const errorItem = result.content.find(
+        (c) => c.type === 'text' && c.text.includes('Error during'),
+      );
       expect(errorItem?.text).toContain('Error during Test Build build: spawn xcodebuild EACCES');
     });
 
@@ -194,7 +204,9 @@ describe('build-utils Sentry Classification', () => {
       );
 
       expect(result.isError).toBe(true);
-      const errorItem = result.content.find((c) => c.type === 'text' && c.text.includes('Error during'));
+      const errorItem = result.content.find(
+        (c) => c.type === 'text' && c.text.includes('Error during'),
+      );
       expect(errorItem?.text).toContain('Error during Test Build build: spawn xcodebuild EPERM');
     });
 
@@ -216,7 +228,9 @@ describe('build-utils Sentry Classification', () => {
       );
 
       expect(result.isError).toBe(true);
-      const errorItem = result.content.find((c) => c.type === 'text' && c.text.includes('Error during'));
+      const errorItem = result.content.find(
+        (c) => c.type === 'text' && c.text.includes('Error during'),
+      );
       expect(errorItem?.text).toContain('Error during Test Build build: Unexpected internal error');
     });
   });
@@ -261,7 +275,9 @@ describe('build-utils Sentry Classification', () => {
       );
 
       expect(result.isError).toBe(true);
-      const stderrItem = result.content.find((c) => c.type === 'text' && c.text.includes('[stderr]'));
+      const stderrItem = result.content.find(
+        (c) => c.type === 'text' && c.text.includes('[stderr]'),
+      );
       expect(stderrItem?.text).toContain('❌ [stderr] Some error without exit code');
     });
   });

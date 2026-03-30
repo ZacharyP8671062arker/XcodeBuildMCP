@@ -1,7 +1,7 @@
 import * as z from 'zod';
 import path from 'node:path';
 import { log } from '../../../utils/logging/index.ts';
-import type { CommandExecutor } from '../../../utils/execution/index.ts';
+import type { CommandExecutor, CommandResponse } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import { addProcess } from './active-processes.ts';
@@ -11,7 +11,13 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { acquireDaemonActivity } from '../../../daemon/activity-registry.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine, section, detailTree } from '../../../utils/tool-event-builders.ts';
+import { createXcodebuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
+import type { StartedPipeline } from '../../../utils/xcodebuild-pipeline.ts';
+import {
+  createBuildRunResultEvents,
+  createPendingXcodebuildResponse,
+} from '../../../utils/xcodebuild-output.ts';
 
 const baseSchemaObject = z.object({
   packagePath: z.string(),
@@ -31,6 +37,43 @@ const swiftPackageRunSchema = baseSchemaObject;
 
 type SwiftPackageRunParams = z.infer<typeof swiftPackageRunSchema>;
 
+type SwiftPackageRunTimeoutResult = {
+  success: boolean;
+  output: string;
+  error: string;
+  timedOut: true;
+};
+
+function isTimedOutResult(
+  result: CommandResponse | SwiftPackageRunTimeoutResult,
+): result is SwiftPackageRunTimeoutResult {
+  return 'timedOut' in result && result.timedOut;
+}
+
+async function resolveExecutablePath(
+  executor: CommandExecutor,
+  packagePath: string,
+  executableName: string,
+  configuration?: SwiftPackageRunParams['configuration'],
+): Promise<string | null> {
+  const command = ['swift', 'build', '--package-path', packagePath, '--show-bin-path'];
+  if (configuration?.toLowerCase() === 'release') {
+    command.push('-c', 'release');
+  }
+
+  const result = await executor(command, 'Swift Package Run (Resolve Executable Path)', false);
+  if (!result.success) {
+    return null;
+  }
+
+  const binPath = result.output.trim();
+  if (!binPath) {
+    return null;
+  }
+
+  return path.join(binPath, executableName);
+}
+
 export async function swift_package_runLogic(
   params: SwiftPackageRunParams,
   executor: CommandExecutor,
@@ -38,8 +81,10 @@ export async function swift_package_runLogic(
   const resolvedPath = path.resolve(params.packagePath);
   const timeout = Math.min(params.timeout ?? 30, 300) * 1000; // Convert to ms, max 5 minutes
 
-  // Detect test environment to prevent real spawn calls during testing
-  const isTestEnvironment = process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
+  const isSnapshotRealExecutor = process.env.SNAPSHOT_TEST_REAL_EXECUTOR === '1';
+  const isTestEnvironment =
+    !isSnapshotRealExecutor &&
+    (process.env.VITEST === 'true' || process.env.NODE_ENV === 'test');
 
   const swiftArgs = ['run', '--package-path', resolvedPath];
 
@@ -66,7 +111,6 @@ export async function swift_package_runLogic(
     swiftArgs.push(params.executableName);
   }
 
-  // Add double dash before executable arguments
   if (params.arguments && params.arguments.length > 0) {
     swiftArgs.push('--');
     swiftArgs.push(...params.arguments);
@@ -76,7 +120,6 @@ export async function swift_package_runLogic(
 
   try {
     if (params.background) {
-      // Background mode: Use CommandExecutor but don't wait for completion
       if (isTestEnvironment) {
         const mockPid = 12345;
         return toolResponse([
@@ -87,9 +130,7 @@ export async function swift_package_runLogic(
           ]),
         ]);
       } else {
-        // Production: use CommandExecutor to start the process
         const command = ['swift', ...swiftArgs];
-        // Filter out undefined values from process.env
         const cleanEnv = Object.fromEntries(
           Object.entries(process.env).filter(([, value]) => value !== undefined),
         ) as Record<string, string>;
@@ -101,12 +142,10 @@ export async function swift_package_runLogic(
           true,
         );
 
-        // Store the process in active processes system if available
         if (result.process?.pid) {
           addProcess(result.process.pid, {
             process: {
               kill: (signal?: string) => {
-                // Adapt string signal to NodeJS.Signals
                 if (result.process) {
                   result.process.kill(signal as NodeJS.Signals);
                 }
@@ -140,18 +179,28 @@ export async function swift_package_runLogic(
         }
       }
     } else {
-      // Foreground mode: use CommandExecutor but handle long-running processes
       const command = ['swift', ...swiftArgs];
 
-      // Create a promise that will either complete with the command result or timeout
-      const commandPromise = executor(command, 'Swift Package Run', false);
+      const pipeline = createXcodebuildPipeline({
+        operation: 'BUILD',
+        toolName: 'build_run_spm',
+        params: {},
+      });
 
-      const timeoutPromise = new Promise<{
-        success: boolean;
-        output: string;
-        error: string;
-        timedOut: boolean;
-      }>((resolve) => {
+      pipeline.emitEvent(headerEvent);
+      const started: StartedPipeline = { pipeline, startedAt: Date.now() };
+
+      const stdoutChunks: string[] = [];
+
+      const commandPromise = executor(command, 'Swift Package Run', false, {
+        onStdout: (chunk: string) => {
+          stdoutChunks.push(chunk);
+          pipeline.onStdout(chunk);
+        },
+        onStderr: (chunk: string) => pipeline.onStderr(chunk),
+      });
+
+      const timeoutPromise = new Promise<SwiftPackageRunTimeoutResult>((resolve) => {
         setTimeout(() => {
           resolve({
             success: false,
@@ -162,11 +211,9 @@ export async function swift_package_runLogic(
         }, timeout);
       });
 
-      // Race between command completion and timeout
       const result = await Promise.race([commandPromise, timeoutPromise]);
 
-      if ('timedOut' in result && result.timedOut) {
-        // For timeout case, the process may still be running - provide timeout response
+      if (isTimedOutResult(result)) {
         if (isTestEnvironment) {
           const mockPid = 12345;
           return toolResponse([
@@ -193,22 +240,50 @@ export async function swift_package_runLogic(
         }
       }
 
-      if (result.success) {
-        return toolResponse([
-          headerEvent,
-          ...(result.output ? [section('Output', [result.output])] : []),
-          statusLine('success', 'Swift executable completed successfully'),
-        ]);
-      } else {
-        const errorDetail = result.error
-          ? `${result.output || '(no output)'}\nErrors:\n${result.error}`
-          : result.output || '(no output)';
-        return toolResponse([
-          headerEvent,
-          section('Output', [errorDetail]),
-          statusLine('error', 'Swift executable failed'),
-        ]);
-      }
+      const capturedOutput = stdoutChunks.join('').trim();
+      const resolvedExecutableName = params.executableName ?? path.basename(resolvedPath);
+      const executablePath = isTestEnvironment
+        ? null
+        : await resolveExecutablePath(
+            executor,
+            resolvedPath,
+            resolvedExecutableName,
+            params.configuration,
+          );
+      const processId = result.process?.pid;
+      const buildRunEvents =
+        result.success && executablePath
+          ? createBuildRunResultEvents({
+              scheme: resolvedExecutableName,
+              platform: 'Swift Package',
+              target: resolvedExecutableName,
+              appPath: executablePath,
+              processId,
+              buildLogPath: pipeline.logPath,
+              launchState: 'requested',
+            })
+          : [];
+      const tailEvents = [
+        ...buildRunEvents,
+        ...(result.success && !executablePath
+          ? [detailTree([{ label: 'Build Logs', value: pipeline.logPath }])]
+          : []),
+        ...(capturedOutput ? [section('Output', [capturedOutput])] : []),
+      ];
+
+      const response: ToolResponse = result.success
+        ? { content: [], isError: false }
+        : {
+            content: [{ type: 'text', text: result.error || result.output || 'Unknown error' }],
+            isError: true,
+          };
+
+      return createPendingXcodebuildResponse(started, response, {
+        tailEvents,
+        emitSummary: true,
+        errorFallbackPolicy: 'if-no-structured-diagnostics',
+        includeBuildLogFileRef: false,
+      });
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -16,9 +16,7 @@ describe('logging workflow (flowdeck)', () => {
     harness = createFlowdeckHarness();
 
     // Ensure app is running for log capture
-    harness.run([
-      'run', '-w', WORKSPACE, '-s', 'CalculatorApp', '-S', simulatorUdid,
-    ]);
+    harness.run(['run', '-w', WORKSPACE, '-s', 'CalculatorApp', '-S', simulatorUdid]);
     await new Promise((resolve) => setTimeout(resolve, 3000));
   }, 120_000);
 

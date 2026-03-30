@@ -6,10 +6,9 @@
 
 ✅ Build succeeded. (⏱️ <DURATION>)
 ✅ Build & Run complete
-  ├ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphonesimulator/CalculatorApp.app
-  ├ Bundle ID: io.sentry.calculatorapp
+  ├ App Path: <ROOT>/example_projects/spm/.build/arm64-apple-macosx/debug/spm
   ├ Process ID: <PID>
-  └ Build Logs: <TMPDIR>/logs/build_run_spm_2026-03-28T08-18-10-408Z.log
+  └ Build Logs: <TMPDIR>/logs/build_run_spm_<TIMESTAMP>.log
 
 Output
   Hello, world!

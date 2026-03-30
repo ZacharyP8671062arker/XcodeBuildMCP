@@ -44,7 +44,7 @@ describe('set_sim_appearance plugin', () => {
 
       const text = allText(result);
       expect(text).toContain('Set Appearance');
-      expect(text).toContain('Appearance set to dark mode');
+      expect(text).toContain('Appearance successfully set to dark mode');
       expect(result.isError).toBeFalsy();
     });
 

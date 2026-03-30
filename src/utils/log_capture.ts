@@ -1,7 +1,7 @@
-import * as path from 'path';
-import type { ChildProcess } from 'child_process';
-import type { Writable } from 'stream';
-import { finished } from 'stream/promises';
+import * as path from 'node:path';
+import type { ChildProcess } from 'node:child_process';
+import type { Writable } from 'node:stream';
+import { finished } from 'node:stream/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { log } from '../utils/logger.ts';
 import type { CommandExecutor } from './command.ts';
@@ -16,7 +16,8 @@ import { acquireDaemonActivity } from '../daemon/activity-registry.ts';
  * - Cleanup runs on every new log capture start
  */
 const LOG_RETENTION_DAYS = 3;
-const LOG_FILE_PREFIX = 'xcodemcp_sim_log_';
+const LOG_SUBDIR = 'xcodemcp';
+const LOG_DIR = 'logs';
 
 export interface LogSession {
   processes: ChildProcess[];
@@ -41,7 +42,6 @@ export type SubsystemFilter = 'app' | 'all' | 'swiftui' | string[];
  */
 function buildLogPredicate(bundleId: string, subsystemFilter: SubsystemFilter): string | null {
   if (subsystemFilter === 'all') {
-    // No filtering - capture everything from this process
     return null;
   }
 
@@ -50,11 +50,9 @@ function buildLogPredicate(bundleId: string, subsystemFilter: SubsystemFilter): 
   }
 
   if (subsystemFilter === 'swiftui') {
-    // Include both app logs and SwiftUI logs (for Self._printChanges())
     return `subsystem == "${bundleId}" OR subsystem == "com.apple.SwiftUI"`;
   }
 
-  // Custom array of subsystems - always include the app's bundle ID
   const subsystems = new Set([bundleId, ...subsystemFilter]);
   const predicates = Array.from(subsystems).map((s) => `subsystem == "${s}"`);
   return predicates.join(' OR ');
@@ -90,8 +88,10 @@ export async function startLogCapture(
     subsystemFilter = 'app',
   } = params;
   const logSessionId = uuidv4();
-  const logFileName = `${LOG_FILE_PREFIX}${logSessionId}.log`;
-  const logFilePath = path.join(fileSystem.tmpdir(), logFileName);
+  const ts = new Date().toISOString().replace(/:/g, '-').replace('.', '-').slice(0, -1) + 'Z';
+  const logFileName = `${bundleId}_${ts}.log`;
+  const logsDir = path.join(fileSystem.tmpdir(), LOG_SUBDIR, LOG_DIR);
+  const logFilePath = path.join(logsDir, logFileName);
 
   let logStream: Writable | null = null;
   const processes: ChildProcess[] = [];
@@ -127,10 +127,10 @@ export async function startLogCapture(
   };
 
   try {
-    await fileSystem.mkdir(fileSystem.tmpdir(), { recursive: true });
+    await fileSystem.mkdir(logsDir, { recursive: true });
     await fileSystem.writeFile(logFilePath, '');
     logStream = fileSystem.createWriteStream(logFilePath, { flags: 'a' });
-    logStream.write('\n--- Log capture for bundle ID: ' + bundleId + ' ---\n');
+    logStream.write(`\n--- Log capture for bundle ID: ${bundleId} ---\n`);
 
     if (captureConsole) {
       const launchCommand = [
@@ -150,9 +150,9 @@ export async function startLogCapture(
       const stdoutLogResult = await executor(
         launchCommand,
         'Console Log Capture',
-        false, // useShell
-        launchOpts, // env
-        true, // detached - don't wait for this streaming process to complete
+        false,
+        launchOpts,
+        true,
       );
 
       if (!stdoutLogResult.success) {
@@ -170,7 +170,6 @@ export async function startLogCapture(
       processes.push(stdoutLogResult.process);
     }
 
-    // Build the log stream command based on subsystem filter
     const logPredicate = buildLogPredicate(bundleId, subsystemFilter);
     const osLogCommand = [
       'xcrun',
@@ -182,18 +181,11 @@ export async function startLogCapture(
       '--level=debug',
     ];
 
-    // Only add predicate if filtering is needed
     if (logPredicate) {
       osLogCommand.push('--predicate', logPredicate);
     }
 
-    const osLogResult = await executor(
-      osLogCommand,
-      'OS Log Capture',
-      false, // useShell
-      undefined, // env
-      true, // detached - don't wait for this streaming process to complete
-    );
+    const osLogResult = await executor(osLogCommand, 'OS Log Capture', false, undefined, true);
 
     if (!osLogResult.success) {
       await closeFailedCapture();
@@ -243,6 +235,7 @@ interface StopLogSessionOptions {
 
 interface StopLogSessionResult {
   logContent: string;
+  logFilePath?: string;
   error?: string;
 }
 
@@ -300,7 +293,7 @@ async function stopLogSession(
         return { logContent: '', error: `Log file not found: ${session.logFilePath}` };
       }
       const fileContent = await options.fileSystem.readFile(session.logFilePath, 'utf-8');
-      return { logContent: fileContent };
+      return { logContent: fileContent, logFilePath: session.logFilePath };
     }
 
     return { logContent: '' };
@@ -318,7 +311,7 @@ async function stopLogSession(
 export async function stopLogCapture(
   logSessionId: string,
   fileSystem: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<{ logContent: string; error?: string }> {
+): Promise<{ logContent: string; logFilePath?: string; error?: string }> {
   const result = await stopLogSession(logSessionId, {
     fileSystem,
     readLogContent: true,
@@ -364,15 +357,11 @@ export async function stopAllLogCaptures(timeoutMs = 1000): Promise<{
  * Runs quietly; errors are logged but do not throw.
  */
 async function cleanOldLogs(fileSystem: FileSystemExecutor): Promise<void> {
-  const tempDir = fileSystem.tmpdir();
+  const logsDir = path.join(fileSystem.tmpdir(), LOG_SUBDIR, LOG_DIR);
   let files: unknown[];
   try {
-    files = await fileSystem.readdir(tempDir);
-  } catch (err) {
-    log(
-      'warn',
-      `Could not read temp dir for log cleanup: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    files = await fileSystem.readdir(logsDir);
+  } catch {
     return;
   }
   const now = Date.now();
@@ -381,9 +370,9 @@ async function cleanOldLogs(fileSystem: FileSystemExecutor): Promise<void> {
 
   await Promise.all(
     fileNames
-      .filter((f) => f.startsWith(LOG_FILE_PREFIX) && f.endsWith('.log'))
+      .filter((f) => f.endsWith('.log'))
       .map(async (f) => {
-        const filePath = path.join(tempDir, f);
+        const filePath = path.join(logsDir, f);
         try {
           const stat = await fileSystem.stat(filePath);
           if (now - stat.mtimeMs > retentionMs) {

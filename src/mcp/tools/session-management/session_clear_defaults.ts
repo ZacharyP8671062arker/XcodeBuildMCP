@@ -6,6 +6,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { formatProfileLabel, formatProfileAnnotation } from './session-format-helpers.ts';
 
 const keys = sessionDefaultKeys;
 
@@ -70,15 +71,20 @@ export async function sessionClearDefaultsLogic(params: Params): Promise<ToolRes
     ]);
   }
 
+  const currentActiveProfile = sessionStore.getActiveProfile();
+
   if (params.keys) {
     sessionStore.clear(params.keys);
   } else {
     sessionStore.clear();
   }
 
+  const profileAnnotation = formatProfileAnnotation(currentActiveProfile);
   return toolResponse([
-    header('Clear Defaults'),
-    statusLine('success', 'Session defaults cleared.'),
+    header('Clear Defaults', [
+      { label: 'Profile', value: formatProfileLabel(currentActiveProfile) },
+    ]),
+    statusLine('success', `Session defaults cleared ${profileAnnotation}`),
   ]);
 }
 

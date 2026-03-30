@@ -61,13 +61,7 @@ export async function stop_app_simLogic(
       ]);
     }
 
-    return toolResponse([
-      headerEvent,
-      statusLine(
-        'success',
-        `App ${params.bundleId} stopped successfully in simulator ${simulatorDisplayName}`,
-      ),
-    ]);
+    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error stopping app in simulator: ${errorMessage}`);

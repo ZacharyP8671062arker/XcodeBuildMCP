@@ -77,7 +77,7 @@ describe('discover_projs plugin', () => {
       expect(result.isError).toBeFalsy();
       const text = allText(result);
       expect(text).toContain('Discover Projects');
-      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
+      expect(text).toContain('Found 0 projects and 0 workspaces');
     });
 
     it('should return error when scan path does not exist', async () => {
@@ -134,7 +134,7 @@ describe('discover_projs plugin', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
+      expect(text).toContain('Found 0 projects and 0 workspaces');
     });
 
     it('should return success with projects found', async () => {
@@ -155,7 +155,7 @@ describe('discover_projs plugin', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Found 1 project(s) and 1 workspace(s).');
+      expect(text).toContain('Found 1 project and 1 workspace');
       expect(text).toContain('/workspace/MyApp.xcodeproj');
       expect(text).toContain('/workspace/MyWorkspace.xcworkspace');
     });
@@ -213,7 +213,7 @@ describe('discover_projs plugin', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
+      expect(text).toContain('Found 0 projects and 0 workspaces');
     });
 
     it('should handle scan path outside workspace root', async () => {
@@ -231,7 +231,7 @@ describe('discover_projs plugin', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
+      expect(text).toContain('Found 0 projects and 0 workspaces');
     });
 
     it('should handle error with object containing message and code properties', async () => {
@@ -286,7 +286,7 @@ describe('discover_projs plugin', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
+      expect(text).toContain('Found 0 projects and 0 workspaces');
     });
 
     it('should handle skipped directory types during scan', async () => {
@@ -309,7 +309,7 @@ describe('discover_projs plugin', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
+      expect(text).toContain('Found 0 projects and 0 workspaces');
     });
 
     it('should handle error during recursive directory reading', async () => {
@@ -331,7 +331,7 @@ describe('discover_projs plugin', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Found 0 project(s) and 0 workspace(s).');
+      expect(text).toContain('Found 0 projects and 0 workspaces');
     });
   });
 });

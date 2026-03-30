@@ -48,15 +48,28 @@ export interface ParsedBuildError {
   renderedLine: string;
 }
 
+function normalizeSuiteName(rawSuiteName: string): string {
+  const parts = rawSuiteName.split('.').filter(Boolean);
+  const normalized = parts.length >= 2 ? (parts.at(-1) ?? rawSuiteName) : rawSuiteName;
+  return normalized.replaceAll('_', ' ');
+}
+
 export function parseRawTestName(rawName: string): { suiteName?: string; testName: string } {
   const objcMatch = rawName.match(/^-\[(.+?)\s+(.+)\]$/u);
   if (objcMatch) {
-    return { suiteName: objcMatch[1], testName: objcMatch[2] };
+    return { suiteName: normalizeSuiteName(objcMatch[1]), testName: objcMatch[2] };
   }
 
   const slashParts = rawName.split('/').filter(Boolean);
   if (slashParts.length >= 3) {
     return { suiteName: `${slashParts[0]}/${slashParts[1]}`, testName: slashParts[2] };
+  }
+
+  if (slashParts.length === 2) {
+    return {
+      suiteName: normalizeSuiteName(slashParts[0]),
+      testName: slashParts[1],
+    };
   }
 
   const dotIndex = rawName.lastIndexOf('.');
@@ -101,11 +114,30 @@ export function parseFailureDiagnostic(line: string): ParsedFailureDiagnostic | 
   const [, filePath, lineNumber, suiteName, testName, message] = match;
   return {
     rawTestName: `-[${suiteName} ${testName}]`,
-    suiteName,
+    suiteName: normalizeSuiteName(suiteName),
     testName,
-    location: `${filePath}:${lineNumber}`,
-    message,
+    location: lineNumber === '0' ? undefined : `${filePath}:${lineNumber}`,
+    message: message.replace(/^failed\s*-\s*/u, ''),
   };
+}
+
+export function parseDurationMs(durationText?: string): number | undefined {
+  if (!durationText) {
+    return undefined;
+  }
+
+  const normalized = durationText.trim().replace(/\s+seconds?$/u, 's');
+  const match = normalized.match(/^([\d.]+)s$/u);
+  if (!match) {
+    return undefined;
+  }
+
+  const seconds = Number(match[1]);
+  if (!Number.isFinite(seconds)) {
+    return undefined;
+  }
+
+  return Math.round(seconds * 1000);
 }
 
 export function parseBuildErrorDiagnostic(line: string): ParsedBuildError | null {

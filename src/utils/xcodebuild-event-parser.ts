@@ -11,6 +11,7 @@ import {
   parseTotalsLine,
   parseFailureDiagnostic,
   parseBuildErrorDiagnostic,
+  parseDurationMs,
 } from './xcodebuild-line-parsers.ts';
 import {
   parseXcodebuildSwiftTestingLine,
@@ -124,27 +125,92 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
     timestamp: string;
   } | null = null;
 
-  let pendingSwiftTestingIssue: {
+  const pendingFailureDiagnostics = new Map<
+    string,
+    Array<{ suiteName?: string; testName?: string; message: string; location?: string }>
+  >();
+  const pendingFailureDurations = new Map<string, number>();
+
+  function getFailureKey(suiteName?: string, testName?: string): string | null {
+    if (!suiteName && !testName) {
+      return null;
+    }
+
+    return `${suiteName ?? ''}::${testName ?? ''}`.trim().toLowerCase();
+  }
+
+  function emitFailureEvent(failure: {
+    suiteName?: string;
     testName?: string;
     message: string;
     location?: string;
-  } | null = null;
-
-  function flushPendingSwiftTestingIssue(): void {
-    if (!pendingSwiftTestingIssue) {
+    durationMs?: number;
+  }): void {
+    if (operation !== 'TEST') {
       return;
     }
-    if (operation === 'TEST') {
-      onEvent({
-        type: 'test-failure',
-        timestamp: now(),
-        operation: 'TEST',
-        test: pendingSwiftTestingIssue.testName,
-        message: pendingSwiftTestingIssue.message,
-        location: pendingSwiftTestingIssue.location,
-      });
+
+    onEvent({
+      type: 'test-failure',
+      timestamp: now(),
+      operation: 'TEST',
+      suite: failure.suiteName,
+      test: failure.testName,
+      message: failure.message,
+      location: failure.location,
+      durationMs: failure.durationMs,
+    });
+  }
+
+  function queueFailureDiagnostic(failure: {
+    suiteName?: string;
+    testName?: string;
+    message: string;
+    location?: string;
+  }): void {
+    const key = getFailureKey(failure.suiteName, failure.testName);
+    if (!key) {
+      emitFailureEvent(failure);
+      return;
     }
-    pendingSwiftTestingIssue = null;
+
+    const durationMs = pendingFailureDurations.get(key);
+    if (durationMs !== undefined) {
+      emitFailureEvent({ ...failure, durationMs });
+      return;
+    }
+
+    const queued = pendingFailureDiagnostics.get(key) ?? [];
+    queued.push(failure);
+    pendingFailureDiagnostics.set(key, queued);
+  }
+
+  function flushQueuedFailureDiagnostics(): void {
+    for (const [key, failures] of pendingFailureDiagnostics.entries()) {
+      const durationMs = pendingFailureDurations.get(key);
+      for (const failure of failures) {
+        emitFailureEvent({ ...failure, durationMs });
+      }
+    }
+    pendingFailureDiagnostics.clear();
+  }
+
+  function applyFailureDuration(suiteName?: string, testName?: string, durationMs?: number): void {
+    const key = getFailureKey(suiteName, testName);
+    if (!key || durationMs === undefined) {
+      return;
+    }
+
+    pendingFailureDurations.set(key, durationMs);
+    const pendingFailures = pendingFailureDiagnostics.get(key);
+    if (!pendingFailures) {
+      return;
+    }
+
+    for (const failure of pendingFailures) {
+      emitFailureEvent({ ...failure, durationMs });
+    }
+    pendingFailureDiagnostics.delete(key);
   }
 
   function flushPendingError(): void {
@@ -165,19 +231,19 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
   function processLine(rawLine: string): void {
     const line = rawLine.trim();
     if (!line) {
-      flushPendingSwiftTestingIssue();
       flushPendingError();
       return;
     }
 
     // Swift Testing continuation line (↳) appends context to pending issue
     const stContinuation = parseSwiftTestingContinuationLine(line);
-    if (stContinuation && pendingSwiftTestingIssue) {
-      pendingSwiftTestingIssue.message += `\n${stContinuation}`;
-      return;
+    if (stContinuation) {
+      const lastQueuedEntry = Array.from(pendingFailureDiagnostics.values()).at(-1)?.at(-1);
+      if (lastQueuedEntry) {
+        lastQueuedEntry.message += `\n${stContinuation}`;
+        return;
+      }
     }
-
-    flushPendingSwiftTestingIssue();
 
     if (pendingError && /^\s/u.test(rawLine)) {
       pendingError.message += `\n${line}`;
@@ -195,6 +261,10 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       }
       if (testCase.status === 'skipped') {
         skippedCount += 1;
+      }
+
+      if (testCase.status === 'failed') {
+        applyFailureDuration(testCase.suiteName, testCase.testName, parseDurationMs(testCase.durationText));
       }
 
       if (operation === 'TEST') {
@@ -230,17 +300,7 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
 
     const failureDiag = parseFailureDiagnostic(line);
     if (failureDiag) {
-      if (operation === 'TEST') {
-        onEvent({
-          type: 'test-failure',
-          timestamp: now(),
-          operation: 'TEST',
-          suite: failureDiag.suiteName,
-          test: failureDiag.testName,
-          message: failureDiag.message,
-          location: failureDiag.location,
-        });
-      }
+      queueFailureDiagnostic(failureDiag);
       return;
     }
 
@@ -250,6 +310,11 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       completedCount += 1;
       if (xcodebuildST.status === 'failed') {
         failedCount += 1;
+        applyFailureDuration(
+          xcodebuildST.suiteName,
+          xcodebuildST.testName,
+          parseDurationMs(xcodebuildST.durationText),
+        );
       }
       if (xcodebuildST.status === 'skipped') {
         skippedCount += 1;
@@ -270,11 +335,7 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
     // Swift Testing issue: ✘ Test "Name" recorded an issue at file:line:col: message
     const stIssue = parseSwiftTestingIssueLine(line);
     if (stIssue) {
-      pendingSwiftTestingIssue = {
-        testName: stIssue.testName,
-        message: stIssue.message,
-        location: stIssue.location,
-      };
+      queueFailureDiagnostic(stIssue);
       return;
     }
 
@@ -284,6 +345,11 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       completedCount += 1;
       if (stResult.status === 'failed') {
         failedCount += 1;
+        applyFailureDuration(
+          stResult.suiteName,
+          stResult.testName,
+          parseDurationMs(stResult.durationText),
+        );
       }
       if (stResult.status === 'skipped') {
         skippedCount += 1;
@@ -399,7 +465,7 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       if (stderrBuffer.trim()) {
         processLine(stderrBuffer);
       }
-      flushPendingSwiftTestingIssue();
+      flushQueuedFailureDiagnostics();
       flushPendingError();
       stdoutBuffer = '';
       stderrBuffer = '';

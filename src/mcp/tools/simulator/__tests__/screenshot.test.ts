@@ -291,7 +291,7 @@ describe('screenshot plugin', () => {
       expect(result.isError).toBeUndefined();
       const text = allText(result);
       expect(text).toContain('Screenshot');
-      expect(text).toContain('Screenshot captured.');
+      expect(text).toContain('Screenshot captured');
       expect(text).toContain('Format: image/jpeg');
       const imageContent = result.content.find((c) => c.type === 'image');
       expect(imageContent).toEqual({

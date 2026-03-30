@@ -1,19 +1,18 @@
 import * as z from 'zod';
+import path from 'node:path';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
-import type { ToolResponse, SharedBuildParams } from '../../../types/common.ts';
+import type { ToolResponse } from '../../../types/common.ts';
 import { XcodePlatform } from '../../../types/common.ts';
+import { constructDestinationString } from '../../../utils/xcode.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
-import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
-import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
-import { formatToolPreflight } from '../../../utils/build-preflight.ts';
+import { log } from '../../../utils/logging/index.ts';
 
 const baseOptions = {
   scheme: z.string().optional().describe('Optional: The scheme to clean'),
@@ -97,17 +96,6 @@ export async function cleanLogic(
     ]);
   }
 
-  const hasProjectPath = typeof params.projectPath === 'string';
-  const typedParams: SharedBuildParams = {
-    ...(hasProjectPath
-      ? { projectPath: params.projectPath as string }
-      : { workspacePath: params.workspacePath as string }),
-    scheme: params.scheme ?? '',
-    configuration: params.configuration ?? 'Debug',
-    derivedDataPath: params.derivedDataPath,
-    extraArgs: params.extraArgs,
-  };
-
   const cleanPlatformMap: Partial<Record<XcodePlatform, XcodePlatform>> = {
     [XcodePlatform.iOSSimulator]: XcodePlatform.iOS,
     [XcodePlatform.watchOSSimulator]: XcodePlatform.watchOS,
@@ -116,46 +104,70 @@ export async function cleanLogic(
   };
 
   const cleanPlatform = cleanPlatformMap[platformEnum] ?? platformEnum;
+  const scheme = params.scheme ?? '';
+  const configuration = params.configuration ?? 'Debug';
 
-  const preflightText = formatToolPreflight({
-    operation: 'Clean',
-    scheme: typedParams.scheme,
-    workspacePath: params.workspacePath as string | undefined,
-    projectPath: params.projectPath as string | undefined,
-    configuration: typedParams.configuration,
-    platform: String(cleanPlatform),
-  });
+  const cleanHeaderEvent = header('Clean', [
+    ...(scheme ? [{ label: 'Scheme', value: scheme }] : []),
+    ...(params.workspacePath ? [{ label: 'Workspace', value: params.workspacePath }] : []),
+    ...(params.projectPath ? [{ label: 'Project', value: params.projectPath }] : []),
+    { label: 'Configuration', value: configuration },
+    { label: 'Platform', value: String(cleanPlatform) },
+  ]);
 
-  const pipelineParams = {
-    scheme: typedParams.scheme,
-    workspacePath: params.workspacePath as string | undefined,
-    projectPath: params.projectPath as string | undefined,
-    configuration: typedParams.configuration,
-    platform: String(cleanPlatform),
-    preflight: preflightText,
-  };
+  const command = ['xcodebuild'];
+  let projectDir = '';
 
-  const started = startBuildPipeline({
-    operation: 'BUILD',
-    toolName: 'clean',
-    params: pipelineParams,
-    message: preflightText,
-  });
+  if (params.workspacePath) {
+    const wsPath = path.isAbsolute(params.workspacePath)
+      ? params.workspacePath
+      : path.resolve(process.cwd(), params.workspacePath);
+    projectDir = path.dirname(wsPath);
+    command.push('-workspace', wsPath);
+  } else if (params.projectPath) {
+    const projPath = path.isAbsolute(params.projectPath)
+      ? params.projectPath
+      : path.resolve(process.cwd(), params.projectPath);
+    projectDir = path.dirname(projPath);
+    command.push('-project', projPath);
+  }
 
-  const buildResult = await executeXcodeBuildCommand(
-    typedParams,
-    {
-      platform: cleanPlatform,
-      logPrefix: 'Clean',
-    },
-    false,
-    'clean',
-    executor,
-    undefined,
-    started.pipeline,
-  );
+  command.push('-scheme', scheme);
+  command.push('-configuration', configuration);
+  command.push('-destination', constructDestinationString(cleanPlatform));
 
-  return createPendingXcodebuildResponse(started, buildResult);
+  if (params.derivedDataPath) {
+    const ddPath = path.isAbsolute(params.derivedDataPath)
+      ? params.derivedDataPath
+      : path.resolve(process.cwd(), params.derivedDataPath);
+    command.push('-derivedDataPath', ddPath);
+  }
+
+  if (params.extraArgs && params.extraArgs.length > 0) {
+    command.push(...params.extraArgs);
+  }
+
+  command.push('clean');
+
+  try {
+    const result = await executor(command, 'Clean', false, { cwd: projectDir });
+
+    if (!result.success) {
+      const combinedOutput = [result.error, result.output].filter(Boolean).join('\n').trim();
+      const errorLines = combinedOutput
+        .split('\n')
+        .filter((line) => /error:/i.test(line))
+        .map((line) => line.trim());
+      const errorMessage = errorLines.length > 0 ? errorLines.join('; ') : 'Unknown error';
+      return toolResponse([cleanHeaderEvent, statusLine('error', `Clean failed: ${errorMessage}`)]);
+    }
+
+    return toolResponse([cleanHeaderEvent, statusLine('success', 'Clean successful')]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log('error', `Clean failed: ${message}`);
+    return toolResponse([cleanHeaderEvent, statusLine('error', `Clean failed: ${message}`)]);
+  }
 }
 
 const publicSchemaObject = baseSchemaObject.omit({

@@ -8,7 +8,7 @@
    Simulator: iPhone 17
 
 ✅ Build succeeded. (⏱️ <DURATION>)
-  └ Build Logs: <TMPDIR>/logs/build_sim_2026-03-28T08-18-03-808Z.log
+  └ Build Logs: <TMPDIR>/logs/build_sim_<TIMESTAMP>.log
 
 Next steps:
 1. Get built app path in simulator derived data: xcodebuildmcp simulator get-app-path --simulator-name "iPhone 17" --scheme "CalculatorApp" --platform "iOS Simulator"

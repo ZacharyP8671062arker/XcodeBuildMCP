@@ -19,6 +19,7 @@ export interface ToolPreflightParams {
   simulatorName?: string;
   simulatorId?: string;
   deviceId?: string;
+  deviceName?: string;
   arch?: string;
   xcresultPath?: string;
   file?: string;
@@ -74,7 +75,10 @@ export function formatToolPreflight(params: ToolPreflightParams): string {
   }
 
   if (params.deviceId) {
-    lines.push(`   Device: ${params.deviceId}`);
+    const deviceLabel = params.deviceName
+      ? `${params.deviceName} (${params.deviceId})`
+      : params.deviceId;
+    lines.push(`   Device: ${deviceLabel}`);
   }
 
   if (params.arch) {

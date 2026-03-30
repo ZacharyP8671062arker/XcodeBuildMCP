@@ -3,5 +3,5 @@
 
    App: <TMPDIR>/BundleTest.app
 
-✅ Success
-  └ Bundle ID: com.test.snapshot-macos
+✅ Bundle ID
+  └ com.test.snapshot-macos

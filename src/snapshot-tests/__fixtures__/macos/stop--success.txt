@@ -3,4 +3,4 @@
 
    App: MCPTest
 
-✅ App stoped successfully
+✅ App stopped successfully

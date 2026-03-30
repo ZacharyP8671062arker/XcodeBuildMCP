@@ -1,10 +1,3 @@
-/**
- * macOS Shared Plugin: Get macOS App Path (Unified)
- *
- * Gets the app bundle path for a macOS application using either a project or workspace.
- * Accepts mutually exclusive `projectPath` or `workspacePath`.
- */
-
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
@@ -16,7 +9,10 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
-import { formatQueryError, formatQueryFailureSummary } from '../../../utils/xcodebuild-error-utils.ts';
+import {
+  formatQueryError,
+  formatQueryFailureSummary,
+} from '../../../utils/xcodebuild-error-utils.ts';
 import { extractAppPathFromBuildSettingsOutput } from '../../../utils/app-path-resolver.ts';
 
 const baseOptions = {
@@ -107,7 +103,7 @@ export async function get_mac_app_pathLogic(
         content: [
           {
             type: 'text',
-            text: `\n${preflightText}${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
+            text: `\n${preflightText}\n${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
           },
         ],
         isError: true,
@@ -119,7 +115,7 @@ export async function get_mac_app_pathLogic(
         content: [
           {
             type: 'text',
-            text: `\n${preflightText}${formatQueryError('Failed to extract build settings output from the result.')}\n\n${formatQueryFailureSummary()}`,
+            text: `\n${preflightText}\n${formatQueryError('Failed to extract build settings output from the result.')}\n\n${formatQueryFailureSummary()}`,
           },
         ],
         isError: true,
@@ -134,7 +130,7 @@ export async function get_mac_app_pathLogic(
         content: [
           {
             type: 'text',
-            text: `\n${preflightText}${formatQueryError('Could not extract app path from build settings.')}\n\n${formatQueryFailureSummary()}`,
+            text: `\n${preflightText}\n${formatQueryError('Could not extract app path from build settings.')}\n\n${formatQueryFailureSummary()}`,
           },
         ],
         isError: true,
@@ -145,7 +141,7 @@ export async function get_mac_app_pathLogic(
       content: [
         {
           type: 'text',
-          text: `\n${preflightText}  └ App Path: ${appPath}`,
+          text: `\n${preflightText}\n✅ Success\n  └ App Path: ${appPath}`,
         },
       ],
       nextStepParams: {
@@ -160,7 +156,7 @@ export async function get_mac_app_pathLogic(
       content: [
         {
           type: 'text',
-          text: `\n${preflightText}${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
+          text: `\n${preflightText}\n${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
         },
       ],
       isError: true,

@@ -3,12 +3,13 @@ import { readFileSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-interface DeviceInfo {
-  identifier: string;
-  name: string;
-}
-
 let cachedDevices: Map<string, string> | null = null;
+
+interface DeviceCtlEntry {
+  identifier: string;
+  deviceProperties: { name: string };
+  hardwareProperties?: { udid?: string };
+}
 
 function loadDeviceNames(): Map<string, string> {
   if (cachedDevices) return cachedDevices;
@@ -24,11 +25,15 @@ function loadDeviceNames(): Map<string, string> {
     });
 
     const data = JSON.parse(readFileSync(tmpFile, 'utf8')) as {
-      result?: { devices?: Array<{ identifier: string; deviceProperties: { name: string } }> };
+      result?: { devices?: DeviceCtlEntry[] };
     };
 
     for (const device of data.result?.devices ?? []) {
-      map.set(device.identifier, device.deviceProperties.name);
+      const name = device.deviceProperties.name;
+      map.set(device.identifier, name);
+      if (device.hardwareProperties?.udid) {
+        map.set(device.hardwareProperties.udid, name);
+      }
     }
   } catch {
     // Device list unavailable — return empty map, will fall back to UUID only
@@ -44,9 +49,13 @@ function loadDeviceNames(): Map<string, string> {
   return map;
 }
 
-export function formatDeviceId(deviceId: string): string {
+export function resolveDeviceName(deviceId: string): string | undefined {
   const names = loadDeviceNames();
-  const name = names.get(deviceId);
+  return names.get(deviceId);
+}
+
+export function formatDeviceId(deviceId: string): string {
+  const name = resolveDeviceName(deviceId);
   if (name) {
     return `${name} (${deviceId})`;
   }

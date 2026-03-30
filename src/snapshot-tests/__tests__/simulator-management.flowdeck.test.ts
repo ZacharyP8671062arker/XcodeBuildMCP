@@ -26,9 +26,7 @@ describe('simulator-management workflow (flowdeck)', () => {
 
   describe('boot', () => {
     it('error - invalid id', () => {
-      const result = harness.run([
-        'simulator', 'boot', '00000000-0000-0000-0000-000000000000',
-      ]);
+      const result = harness.run(['simulator', 'boot', '00000000-0000-0000-0000-000000000000']);
       writeFlowdeckFixture(__filename, 'boot--error-invalid-id', result.text);
     });
   });
@@ -43,15 +41,24 @@ describe('simulator-management workflow (flowdeck)', () => {
   describe('set-appearance', () => {
     it('success', () => {
       const result = harness.run([
-        'ui', 'simulator', 'set-appearance', 'dark', '-S', simulatorUdid,
+        'ui',
+        'simulator',
+        'set-appearance',
+        'dark',
+        '-S',
+        simulatorUdid,
       ]);
       writeFlowdeckFixture(__filename, 'set-appearance--success', result.text);
     });
 
     it('error - invalid simulator', () => {
       const result = harness.run([
-        'ui', 'simulator', 'set-appearance', 'dark',
-        '-S', '00000000-0000-0000-0000-000000000000',
+        'ui',
+        'simulator',
+        'set-appearance',
+        'dark',
+        '-S',
+        '00000000-0000-0000-0000-000000000000',
       ]);
       writeFlowdeckFixture(__filename, 'set-appearance--error-invalid-simulator', result.text);
     });
@@ -60,15 +67,24 @@ describe('simulator-management workflow (flowdeck)', () => {
   describe('set-location', () => {
     it('success', () => {
       const result = harness.run([
-        'simulator', 'location', 'set', '37.7749,-122.4194', '--udid', simulatorUdid,
+        'simulator',
+        'location',
+        'set',
+        '37.7749,-122.4194',
+        '--udid',
+        simulatorUdid,
       ]);
       writeFlowdeckFixture(__filename, 'set-location--success', result.text);
     });
 
     it('error - invalid simulator', () => {
       const result = harness.run([
-        'simulator', 'location', 'set', '37.7749,-122.4194',
-        '--udid', '00000000-0000-0000-0000-000000000000',
+        'simulator',
+        'location',
+        'set',
+        '37.7749,-122.4194',
+        '--udid',
+        '00000000-0000-0000-0000-000000000000',
       ]);
       writeFlowdeckFixture(__filename, 'set-location--error-invalid-simulator', result.text);
     });
@@ -76,9 +92,7 @@ describe('simulator-management workflow (flowdeck)', () => {
 
   describe('erase', () => {
     it('error - invalid id', () => {
-      const result = harness.run([
-        'simulator', 'erase', '00000000-0000-0000-0000-000000000000',
-      ]);
+      const result = harness.run(['simulator', 'erase', '00000000-0000-0000-0000-000000000000']);
       writeFlowdeckFixture(__filename, 'erase--error-invalid-id', result.text);
     });
   });

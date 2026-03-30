@@ -121,7 +121,8 @@ describe('device workflow', () => {
     it('success', async () => {
       const appPathOutput = execSync(
         [
-          'xcodebuild -workspace', WORKSPACE,
+          'xcodebuild -workspace',
+          WORKSPACE,
           '-scheme CalculatorApp',
           `-destination 'id=${DEVICE_ID}'`,
           '-showBuildSettings',
@@ -162,9 +163,7 @@ describe('device workflow', () => {
         `xcrun devicectl device process launch --device ${DEVICE_ID} ${BUNDLE_ID} --json-output ${tmpJson}`,
         { encoding: 'utf8', timeout: 30_000, stdio: 'pipe' },
       );
-      const launchData = JSON.parse(
-        require('fs').readFileSync(tmpJson, 'utf8'),
-      );
+      const launchData = JSON.parse(require('fs').readFileSync(tmpJson, 'utf8'));
       require('fs').unlinkSync(tmpJson);
       const pid = launchData?.result?.process?.processIdentifier;
       expect(pid).toBeGreaterThan(0);

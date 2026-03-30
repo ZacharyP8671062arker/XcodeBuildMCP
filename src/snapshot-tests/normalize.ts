@@ -3,22 +3,28 @@ import path from 'node:path';
 
 const ANSI_REGEX = /\x1B\[[0-9;]*[mK]/g;
 const ISO_TIMESTAMP_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z/g;
+const LOG_FILENAME_TIMESTAMP_REGEX = /\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z/g;
+const APPLE_DEVICE_UDID_REGEX = /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}/g;
 const UUID_REGEX = /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/g;
 const DURATION_REGEX = /\d+\.\d+s\b/g;
-const PID_NUMBER_REGEX = /pid:\s*\d+/gi;
+const PID_NUMBER_REGEX = /(pid:\s*)\d+/gi;
 const PID_JSON_REGEX = /"pid"\s*:\s*\d+/g;
 const PROCESS_ID_REGEX = /Process ID: \d+/g;
 const PROCESS_INLINE_PID_REGEX = /process \d+/g;
+const CLI_PROCESS_ID_ARG_REGEX = /--process-id "\d+"/g;
 const THREAD_ID_REGEX = /Thread \d{5,}/g;
 const HEX_ADDRESS_REGEX = /0x[0-9a-fA-F]{8,}/g;
 
-const LLDB_FRAME_OFFSET_REGEX = /(`[^`]+):(\d+)$/gm;
+const LLDB_FRAME_OFFSET_REGEX = /(`[^`\n]+):(\d+)$/gm;
+const LLDB_SYS_FRAME_FUNC_REGEX =
+  /(frame #\d+: )\S+( at (?:\/usr\/lib\/|\/Library\/Developer\/CoreSimulator\/[^`\n]*\/usr\/lib\/)[^`\n]*`)[^:\s]+(:<OFFSET>)/gm;
+const LLDB_LOWER_FRAMES_REGEX = /(  frame #\d+: (?:<FUNC> at [^\n]*|<ADDR>(?: at [^\n]*)?)\n)+/g;
+const LLDB_FRAME_NUMBER_REGEX = /  frame #\d+:/g;
+const LLDB_BREAKPOINT_LOCATIONS_REGEX = /locations = .+$/gm;
+const LLDB_BREAKPOINT_SUB_LOCATION_REGEX = /^\s+\d+\.\d+: where = [^\n]+\n?/gm;
 const DERIVED_DATA_HASH_REGEX = /(DerivedData\/[A-Za-z0-9_]+)-[a-z]{28}\b/g;
 const PROGRESS_LINE_REGEX = /^›.*\n*/gm;
 const WARNINGS_BLOCK_REGEX = /Warnings \(\d+\):\n(?:\n? *⚠[^\n]*\n?)*/g;
-const TEST_DISCOVERY_REGEX =
-  /Resolved to \d+ test\(s\):\n(?:\s*-\s+[^\n]+\n)*(?:\s*\.\.\. and \d+ more\n)?/g;
-const TEST_FAILURE_BLOCK_REGEX = /^ {2}✗ [^\n]+\n(?: {4}[^\n]+\n)*/gm;
 const XCODE_INFRA_ERRORS_REGEX =
   /Compiler Errors \(\d+\):\n(?:\n? *✗ (?:unable to rename temporary|failed to emit precompiled|accessing build database)[^\n]*\n?(?:\n? {4}[^\n]*\n?)*)*/g;
 const SPM_STEP_LINE_REGEX = /^\[\d+\/\d+\] .+\n?/gm;
@@ -29,7 +35,14 @@ const SWIFT_TESTING_DURATION_REGEX = /after \d+\.\d+ seconds/g;
 const TEST_SUMMARY_COUNTS_REGEX =
   /\(Total: \d+(?:, Passed: \d+)?(?:, Failed: \d+)?(?:, Skipped: \d+)?, /g;
 const COVERAGE_CALL_COUNT_REGEX = /called \d+x\)/g;
+const DEVICE_LABEL_REGEX = /Device: .+ \(<UUID>\)/g;
+const UPTIME_REGEX = /Uptime: \d+s/g;
 const RESULT_BUNDLE_LINE_REGEX = /\S+\[\d+:\d+\] Writing error result bundle to \S+/g;
+const DEVICE_TRANSPORT_TYPE_REGEX = /\b(wired|localNetwork)\b/g;
+const TARGET_DEVICE_IDENTIFIER_REGEX = /(TARGET_DEVICE_IDENTIFIER = )([0-9A-Fa-f]{24,40})/g;
+const CODEX_ARG0_PATH_REGEX = /<HOME>\/\.codex\/tmp\/arg0\/codex-arg0[A-Za-z0-9]+/g;
+const CODEX_WORKTREE_NODE_MODULES_REGEX = /<HOME>\/\.codex\/worktrees\/[^/:]+\/node_modules\/\.bin/g;
+const ACQUIRED_USAGE_ASSERTION_TIME_REGEX = /(^\s*)\d{2}:\d{2}:\d{2}( {2}Acquired usage assertion\.)$/gm;
 const TRAILING_WHITESPACE_REGEX = /[ \t]+$/gm;
 
 function sortLinesInBlock(text: string, marker: RegExp): string {
@@ -76,16 +89,26 @@ export function normalizeSnapshotOutput(text: string): string {
 
   normalized = normalized.replace(DERIVED_DATA_HASH_REGEX, '$1-<HASH>');
   normalized = normalized.replace(ISO_TIMESTAMP_REGEX, '<TIMESTAMP>');
+  normalized = normalized.replace(LOG_FILENAME_TIMESTAMP_REGEX, '<TIMESTAMP>');
+  normalized = normalized.replace(APPLE_DEVICE_UDID_REGEX, '<UUID>');
   normalized = normalized.replace(UUID_REGEX, '<UUID>');
-  normalized = normalized.replace(/Device: .+ \(<UUID>\)/g, 'Device: <DEVICE> (<UUID>)');
+  normalized = normalized.replace(DEVICE_LABEL_REGEX, 'Device: <DEVICE> (<UUID>)');
+  normalized = normalized.replace(DEVICE_TRANSPORT_TYPE_REGEX, '<CONNECTION>');
   normalized = normalized.replace(DURATION_REGEX, '<DURATION>');
-  normalized = normalized.replace(PID_NUMBER_REGEX, (match) => match.replace(/\d+/, '<PID>'));
+  normalized = normalized.replace(PID_NUMBER_REGEX, '$1<PID>');
   normalized = normalized.replace(PID_JSON_REGEX, '"pid" : <PID>');
   normalized = normalized.replace(PROCESS_ID_REGEX, 'Process ID: <PID>');
   normalized = normalized.replace(PROCESS_INLINE_PID_REGEX, 'process <PID>');
+  normalized = normalized.replace(CLI_PROCESS_ID_ARG_REGEX, '--process-id "<PID>"');
+  normalized = normalized.replace(UPTIME_REGEX, 'Uptime: <UPTIME>');
   normalized = normalized.replace(THREAD_ID_REGEX, 'Thread <THREAD_ID>');
   normalized = normalized.replace(HEX_ADDRESS_REGEX, '<ADDR>');
   normalized = normalized.replace(LLDB_FRAME_OFFSET_REGEX, '$1:<OFFSET>');
+  normalized = normalized.replace(LLDB_SYS_FRAME_FUNC_REGEX, '$1<FUNC>$2<FUNC>$3');
+  normalized = normalized.replace(LLDB_LOWER_FRAMES_REGEX, '  <LOWER_FRAMES>\n');
+  normalized = normalized.replace(LLDB_FRAME_NUMBER_REGEX, '  frame #<N>:');
+  normalized = normalized.replace(LLDB_BREAKPOINT_LOCATIONS_REGEX, 'locations = <LOCATIONS>');
+  normalized = normalized.replace(LLDB_BREAKPOINT_SUB_LOCATION_REGEX, '');
   normalized = normalized.replace(RESULT_BUNDLE_LINE_REGEX, '<RESULT_BUNDLE_ERROR>');
   normalized = normalized.replace(PROGRESS_LINE_REGEX, '');
   normalized = normalized.replace(WARNINGS_BLOCK_REGEX, '');
@@ -98,13 +121,25 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(SWIFT_TESTING_DURATION_REGEX, 'after <DURATION> seconds');
   normalized = normalized.replace(TEST_SUMMARY_COUNTS_REGEX, '(<TEST_COUNTS>, ');
 
+  normalized = normalized.replace(TARGET_DEVICE_IDENTIFIER_REGEX, '$1<UUID>');
+  normalized = normalized.replace(CODEX_ARG0_PATH_REGEX, '<HOME>/.codex/tmp/arg0/codex-arg0<ARG0>');
+  normalized = normalized.replace(ACQUIRED_USAGE_ASSERTION_TIME_REGEX, '$1<TIME>$2');
+  normalized = normalized.replace(
+    CODEX_WORKTREE_NODE_MODULES_REGEX,
+    '<HOME>/.codex/worktrees/<WORKTREE>/node_modules/.bin',
+  );
+
   normalized = normalized.replace(COVERAGE_CALL_COUNT_REGEX, 'called <N>x)');
 
-  normalized = normalized.replace(/"(?:x|y|width|height)"\s*:\s*(\d+\.\d{2,})/g, (match, num) => {
-    return match.replace(num, parseFloat(num).toFixed(1));
-  });
+  normalized = normalized.replace(
+    /("(?:x|y|width|height)"\s*:\s*)(\d+\.\d{2,})/g,
+    (_, prefix, num) => `${prefix}${parseFloat(num).toFixed(1)}`,
+  );
 
   normalized = sortLinesInBlock(normalized, /^[◇✔✘] Test "/);
+
+  normalized = normalized.replace(/(?<=Workspace root: )<ROOT>\/[^\n]+/g, '<PATH>');
+  normalized = normalized.replace(/(?<=Scan path: )<ROOT>\/[^\n]+/g, '<PATH>');
 
   normalized = normalized.replace(/\n{3,}/g, '\n\n');
   normalized = normalized.replace(TRAILING_WHITESPACE_REGEX, '');

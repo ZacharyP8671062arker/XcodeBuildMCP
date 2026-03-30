@@ -103,7 +103,7 @@ describe('project-discovery workflow', () => {
 
     it('error - invalid root', async () => {
       const { text, isError } = await harness.invoke('project-discovery', 'discover-projects', {
-        workspaceRoot: '/nonexistent/path',
+        workspaceRoot: '/nonexistent/path/Fake.app',
       });
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'discover-projs--error-invalid-root');

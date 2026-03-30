@@ -63,7 +63,7 @@ export async function stop_app_deviceLogic(
       ]);
     }
 
-    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully.')]);
+    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error stopping app on device: ${errorMessage}`);

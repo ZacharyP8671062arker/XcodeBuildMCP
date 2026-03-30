@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { log } from './logger.ts';
 import type { PipelineEvent } from '../types/pipeline-events.ts';
+import { parseRawTestName } from './xcodebuild-line-parsers.ts';
 
 interface XcresultTestNode {
   name: string;
@@ -28,16 +29,25 @@ export function extractTestFailuresFromXcresult(xcresultPath: string): PipelineE
     const results: XcresultTestResults = JSON.parse(output);
     const events: PipelineEvent[] = [];
 
-    function walk(node: XcresultTestNode): void {
+    function walk(node: XcresultTestNode, suiteContext?: string): void {
+      const parsedNodeName = parseRawTestName(node.name);
+      const nextSuiteContext =
+        node.nodeType === 'Test Case'
+          ? suiteContext
+          : parsedNodeName.suiteName ??
+              (node.nodeType === 'Test Suite' ? node.name.replaceAll('_', ' ') : suiteContext);
+
       if (node.nodeType === 'Test Case' && node.result === 'Failed' && node.children) {
         for (const child of node.children) {
           if (child.nodeType === 'Failure Message') {
             const parsed = parseFailureMessage(child.name);
+            const { suiteName, testName } = parsedNodeName;
             events.push({
               type: 'test-failure',
               timestamp: new Date().toISOString(),
               operation: 'TEST',
-              test: node.name,
+              suite: suiteName ?? suiteContext,
+              test: testName,
               message: parsed.message,
               location: parsed.location,
             });
@@ -46,7 +56,7 @@ export function extractTestFailuresFromXcresult(xcresultPath: string): PipelineE
       }
       if (node.children) {
         for (const child of node.children) {
-          walk(child);
+          walk(child, nextSuiteContext);
         }
       }
     }
@@ -72,8 +82,8 @@ function parseFailureMessage(raw: string): { message: string; location?: string 
   const match = raw.match(/^(.+?):(\d+): (.+)$/);
   if (match) {
     return {
-      location: `${match[1]}:${match[2]}`,
-      message: match[3],
+      location: match[2] === '0' ? undefined : `${match[1]}:${match[2]}`,
+      message: match[3].replace(/^failed\s*-\s*/u, ''),
     };
   }
   return { message: raw };

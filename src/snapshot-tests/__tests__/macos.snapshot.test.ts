@@ -94,7 +94,10 @@ describe('macos workflow', () => {
       const { text, isError } = await harness.invoke('macos', 'test', {
         projectPath: PROJECT,
         scheme: 'MCPTest',
-        extraArgs: ['-only-testing:MCPTestTests/MCPTestTests/appNameIsCorrect'],
+        extraArgs: [
+          '-only-testing:MCPTestTests/MCPTestTests/appNameIsCorrect()',
+          '-only-testing:MCPTestTests/MCPTestsXCTests/testAppNameIsCorrect',
+        ],
       });
       expect(isError).toBe(false);
       expect(text.length).toBeGreaterThan(10);

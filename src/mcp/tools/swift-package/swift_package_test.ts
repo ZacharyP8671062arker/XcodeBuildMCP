@@ -99,7 +99,10 @@ export async function swift_package_testLogic(
 
     const response: ToolResponse = result.success
       ? { content: [], isError: false }
-      : { content: [{ type: 'text', text: result.error || result.output || 'Unknown error' }], isError: true };
+      : {
+          content: [{ type: 'text', text: result.error || result.output || 'Unknown error' }],
+          isError: true,
+        };
 
     return createPendingXcodebuildResponse(started, response);
   } catch (error) {

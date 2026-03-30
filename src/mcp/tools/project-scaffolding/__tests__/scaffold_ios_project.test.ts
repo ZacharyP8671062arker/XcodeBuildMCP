@@ -164,56 +164,6 @@ describe('scaffold_ios_project plugin', () => {
       await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
     });
 
-    it.skip('should generate correct unzip command for iOS template extraction', async () => {
-      await initConfigStoreForTest({ iosTemplatePath: '' });
-
-      const downloadMockFileSystemExecutor = createMockFileSystemExecutor({
-        existsSync: (path) => {
-          return (
-            path.includes('xcodebuild-mcp-template') ||
-            path.includes('XcodeBuildMCP-iOS-Template') ||
-            path.includes('extracted')
-          );
-        },
-        readFile: async () => 'template content with MyProject placeholder',
-        readdir: async () => [
-          { name: 'Package.swift', isDirectory: () => false, isFile: () => true } as any,
-          { name: 'MyProject.swift', isDirectory: () => false, isFile: () => true } as any,
-        ],
-        mkdir: async () => {},
-        rm: async () => {},
-        cp: async () => {},
-        writeFile: async () => {},
-        stat: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
-      });
-
-      let capturedCommands: string[][] = [];
-      const trackingCommandExecutor = createMockExecutor({
-        success: true,
-        output: 'Command executed successfully',
-      });
-      const capturingExecutor = async (command: string[], ...args: any[]) => {
-        capturedCommands.push(command);
-        return trackingCommandExecutor(command, ...args);
-      };
-
-      await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        capturingExecutor,
-        downloadMockFileSystemExecutor,
-      );
-
-      const unzipCommand = capturedCommands.find((cmd) => cmd.includes('unzip'));
-      expect(unzipCommand).toBeDefined();
-      expect(unzipCommand).toEqual(['unzip', '-q', expect.stringMatching(/template\.zip$/)]);
-
-      await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
-    });
-
     it('should generate correct commands when using custom template version', async () => {
       await initConfigStoreForTest({ iosTemplatePath: '', iosTemplateVersion: 'v2.0.0' });
 
@@ -251,64 +201,6 @@ describe('scaffold_ios_project plugin', () => {
       await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
     });
 
-    it.skip('should generate correct commands with no command executor passed', async () => {
-      await initConfigStoreForTest({ iosTemplatePath: '' });
-
-      const downloadMockFileSystemExecutor = createMockFileSystemExecutor({
-        existsSync: (path) => {
-          return (
-            path.includes('xcodebuild-mcp-template') ||
-            path.includes('XcodeBuildMCP-iOS-Template') ||
-            path.includes('extracted')
-          );
-        },
-        readFile: async () => 'template content with MyProject placeholder',
-        readdir: async () => [
-          { name: 'Package.swift', isDirectory: () => false, isFile: () => true } as any,
-          { name: 'MyProject.swift', isDirectory: () => false, isFile: () => true } as any,
-        ],
-        mkdir: async () => {},
-        rm: async () => {},
-        cp: async () => {},
-        writeFile: async () => {},
-        stat: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
-      });
-
-      let capturedCommands: string[][] = [];
-      const trackingCommandExecutor = createMockExecutor({
-        success: true,
-        output: 'Command executed successfully',
-      });
-      const capturingExecutor = async (command: string[], ...args: any[]) => {
-        capturedCommands.push(command);
-        return trackingCommandExecutor(command, ...args);
-      };
-
-      await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        capturingExecutor,
-        downloadMockFileSystemExecutor,
-      );
-
-      expect(capturedCommands.length).toBeGreaterThanOrEqual(2);
-
-      const curlCommand = capturedCommands.find((cmd) => cmd.includes('curl'));
-      const unzipCommand = capturedCommands.find((cmd) => cmd.includes('unzip'));
-
-      expect(curlCommand).toBeDefined();
-      expect(unzipCommand).toBeDefined();
-      if (!curlCommand || !unzipCommand) {
-        throw new Error('Expected curl and unzip commands to be captured');
-      }
-      expect(curlCommand[0]).toBe('curl');
-      expect(unzipCommand[0]).toBe('unzip');
-
-      await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
-    });
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
@@ -476,51 +368,5 @@ describe('scaffold_ios_project plugin', () => {
       await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
     });
 
-    it.skip('should return error response for template extraction failure', async () => {
-      await initConfigStoreForTest({ iosTemplatePath: '' });
-
-      const downloadMockFileSystemExecutor = createMockFileSystemExecutor({
-        existsSync: (path) => {
-          return (
-            path.includes('xcodebuild-mcp-template') ||
-            path.includes('XcodeBuildMCP-iOS-Template') ||
-            path.includes('extracted')
-          );
-        },
-        readFile: async () => 'template content with MyProject placeholder',
-        readdir: async () => [
-          { name: 'Package.swift', isDirectory: () => false, isFile: () => true } as any,
-          { name: 'MyProject.swift', isDirectory: () => false, isFile: () => true } as any,
-        ],
-        mkdir: async () => {},
-        rm: async () => {},
-        cp: async () => {},
-        writeFile: async () => {},
-        stat: async () => ({ isDirectory: () => true, mtimeMs: 0 }),
-      });
-
-      const failingMockCommandExecutor = createMockExecutor({
-        success: false,
-        output: '',
-        error: 'Extraction failed',
-      });
-
-      const result = await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        failingMockCommandExecutor,
-        downloadMockFileSystemExecutor,
-      );
-
-      expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to get template for iOS');
-      expect(text).toContain('Extraction failed');
-
-      await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
-    });
   });
 });

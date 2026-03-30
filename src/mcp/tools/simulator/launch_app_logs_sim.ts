@@ -9,7 +9,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine, detailTree, nextSteps } from '../../../utils/tool-event-builders.ts';
 
 export type LogCaptureFunction = (
   params: {
@@ -97,21 +97,21 @@ export async function launch_app_logs_simLogic(
     ]);
   }
 
-  return toolResponse(
-    [
-      headerEvent,
-      statusLine(
-        'success',
-        `App launched successfully in simulator ${params.simulatorId} with log capture enabled`,
-      ),
-      detailTree([{ label: 'Log Session ID', value: sessionId }]),
-    ],
-    {
-      nextStepParams: {
-        stop_sim_log_cap: { logSessionId: sessionId },
+  return toolResponse([
+    headerEvent,
+    statusLine(
+      'success',
+      `App launched successfully in simulator ${params.simulatorId} with log capture enabled`,
+    ),
+    detailTree([{ label: 'Log Session ID', value: sessionId }]),
+    nextSteps([
+      {
+        label: 'Stop capture and retrieve logs',
+        tool: 'stop_sim_log_cap',
+        params: { logSessionId: sessionId },
       },
-    },
-  );
+    ]),
+  ]);
 }
 
 export const schema = getSessionAwareToolSchemaShape({

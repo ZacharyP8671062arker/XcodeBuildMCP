@@ -1,10 +1,3 @@
-/**
- * Project Discovery Plugin: Show Build Settings (Unified)
- *
- * Shows build settings from either a project or workspace using xcodebuild.
- * Accepts mutually exclusive `projectPath` or `workspacePath`.
- */
-
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
@@ -18,7 +11,6 @@ import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
   projectPath: z.string().optional().describe('Path to the .xcodeproj file'),
   workspacePath: z.string().optional().describe('Path to the .xcworkspace file'),
@@ -47,10 +39,6 @@ function stripXcodebuildPreamble(output: string): string {
   return lines.slice(startIndex).join('\n');
 }
 
-/**
- * Business logic for showing build settings from a project or workspace.
- * Exported for direct testing and reuse.
- */
 export async function showBuildSettingsLogic(
   params: ShowBuildSettingsParams,
   executor: CommandExecutor,
@@ -88,26 +76,22 @@ export async function showBuildSettingsLogic(
       result.output || 'Build settings retrieved successfully.',
     );
 
-    let nextStepParams: Record<string, Record<string, string | number | boolean>> | undefined;
-
-    if (pathValue) {
-      const pathKey = hasProjectPath ? 'projectPath' : 'workspacePath';
-      nextStepParams = {
-        build_macos: { [pathKey]: pathValue, scheme: params.scheme },
-        build_sim: { [pathKey]: pathValue, scheme: params.scheme, simulatorName: 'iPhone 17' },
-        list_schemes: { [pathKey]: pathValue },
-      };
-    }
+    const pathKey = hasProjectPath ? 'projectPath' : 'workspacePath';
+    const nextStepParams = {
+      build_macos: { [pathKey]: pathValue!, scheme: params.scheme },
+      build_sim: { [pathKey]: pathValue!, scheme: params.scheme, simulatorName: 'iPhone 17' },
+      list_schemes: { [pathKey]: pathValue! },
+    };
 
     const settingsLines = settingsOutput.split('\n').filter((l) => l.trim());
 
     return toolResponse(
       [
         headerEvent,
-        statusLine('success', 'Build settings retrieved.'),
+        statusLine('success', 'Build settings retrieved'),
         section('Settings', settingsLines),
       ],
-      nextStepParams ? { nextStepParams } : undefined,
+      { nextStepParams },
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

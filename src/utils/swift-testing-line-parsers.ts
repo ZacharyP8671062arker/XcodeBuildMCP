@@ -1,4 +1,9 @@
-import type { ParsedTestCase, ParsedFailureDiagnostic, ParsedTotals } from './xcodebuild-line-parsers.ts';
+import {
+  type ParsedTestCase,
+  type ParsedFailureDiagnostic,
+  type ParsedTotals,
+  parseRawTestName,
+} from './xcodebuild-line-parsers.ts';
 
 /**
  * Parse a Swift Testing result line (passed/failed/skipped).
@@ -10,38 +15,41 @@ import type { ParsedTestCase, ParsedFailureDiagnostic, ParsedTotals } from './xc
  *   ◇ Test "Name" skipped.
  */
 export function parseSwiftTestingResultLine(line: string): ParsedTestCase | null {
-  const passedMatch = line.match(
-    /^[✔] Test "(.+)" passed after ([\d.]+) seconds\.?$/u,
-  );
+  const passedMatch = line.match(/^[✔] Test "(.+)" passed after ([\d.]+) seconds\.?$/u);
   if (passedMatch) {
     const [, name, duration] = passedMatch;
+    const { suiteName, testName } = parseRawTestName(name);
     return {
       status: 'passed',
       rawName: name,
-      testName: name,
+      suiteName,
+      testName,
       durationText: `${duration}s`,
     };
   }
 
-  const failedMatch = line.match(
-    /^[✘] Test "(.+)" failed after ([\d.]+) seconds/u,
-  );
+  const failedMatch = line.match(/^[✘] Test "(.+)" failed after ([\d.]+) seconds/u);
   if (failedMatch) {
     const [, name, duration] = failedMatch;
+    const { suiteName, testName } = parseRawTestName(name);
     return {
       status: 'failed',
       rawName: name,
-      testName: name,
+      suiteName,
+      testName,
       durationText: `${duration}s`,
     };
   }
 
   const skippedMatch = line.match(/^[◇] Test "(.+)" skipped/u);
   if (skippedMatch) {
+    const rawName = skippedMatch[1];
+    const { suiteName, testName } = parseRawTestName(rawName);
     return {
       status: 'skipped',
-      rawName: skippedMatch[1],
-      testName: skippedMatch[1],
+      rawName,
+      suiteName,
+      testName,
     };
   }
 
@@ -56,26 +64,26 @@ export function parseSwiftTestingResultLine(line: string): ParsedTestCase | null
  *   ✘ Test "Name" recorded an issue: message
  */
 export function parseSwiftTestingIssueLine(line: string): ParsedFailureDiagnostic | null {
-  const locationMatch = line.match(
-    /^[✘] Test "(.+)" recorded an issue at (.+?):(\d+):\d+: (.+)$/u,
-  );
+  const locationMatch = line.match(/^[✘] Test "(.+)" recorded an issue at (.+?):(\d+):\d+: (.+)$/u);
   if (locationMatch) {
-    const [, testName, filePath, lineNumber, message] = locationMatch;
+    const [, rawTestName, filePath, lineNumber, message] = locationMatch;
+    const { suiteName, testName } = parseRawTestName(rawTestName);
     return {
-      rawTestName: testName,
+      rawTestName,
+      suiteName,
       testName,
       location: `${filePath}:${lineNumber}`,
       message,
     };
   }
 
-  const simpleMatch = line.match(
-    /^[✘] Test "(.+)" recorded an issue: (.+)$/u,
-  );
+  const simpleMatch = line.match(/^[✘] Test "(.+)" recorded an issue: (.+)$/u);
   if (simpleMatch) {
-    const [, testName, message] = simpleMatch;
+    const [, rawTestName, message] = simpleMatch;
+    const { suiteName, testName } = parseRawTestName(rawTestName);
     return {
-      rawTestName: testName,
+      rawTestName,
+      suiteName,
       testName,
       message,
     };
@@ -134,10 +142,7 @@ export function parseXcodebuildSwiftTestingLine(line: string): ParsedTestCase | 
     return null;
   }
   const [, rawName, status, duration] = match;
-
-  const slashIndex = rawName.lastIndexOf('/');
-  const suiteName = slashIndex > 0 ? rawName.slice(0, slashIndex) : undefined;
-  const testName = slashIndex > 0 ? rawName.slice(slashIndex + 1) : rawName;
+  const { suiteName, testName } = parseRawTestName(rawName);
 
   return {
     status: status as 'passed' | 'failed' | 'skipped',

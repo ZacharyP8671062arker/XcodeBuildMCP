@@ -6,4 +6,4 @@
    Platform: macOS
 
 ✅ Project scaffolded successfully
-  └ <TMPDIR>/ios
+  └ <TMPDIR>/macos

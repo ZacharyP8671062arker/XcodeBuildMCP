@@ -30,7 +30,7 @@ export async function debug_variablesLogic(
     return toolResponse([
       headerEvent,
       statusLine('success', 'Variables retrieved'),
-      ...(trimmed ? [section('Values', trimmed.split('\n'))] : []),
+      ...(trimmed ? [section('Values:', trimmed.split('\n'))] : []),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

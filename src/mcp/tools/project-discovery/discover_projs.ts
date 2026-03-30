@@ -16,11 +16,9 @@ import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
-// Constants
-const DEFAULT_MAX_DEPTH = 5;
+const DEFAULT_MAX_DEPTH = 3;
 const SKIPPED_DIRS = new Set(['build', 'DerivedData', 'Pods', '.git', 'node_modules']);
 
-// Type definition for Dirent-like objects returned by readdir with withFileTypes: true
 interface DirentLike {
   name: string;
   isDirectory(): boolean;
@@ -32,11 +30,8 @@ function getErrorDetails(
   fallbackMessage: string,
 ): { code?: string; message: string } {
   if (error instanceof Error) {
-    const errorWithCode = error as Error & { code?: unknown };
-    return {
-      code: typeof errorWithCode.code === 'string' ? errorWithCode.code : undefined,
-      message: error.message,
-    };
+    const nodeError = error as NodeJS.ErrnoException;
+    return { code: nodeError.code, message: error.message };
   }
 
   if (typeof error === 'object' && error !== null) {
@@ -61,7 +56,6 @@ async function _findProjectsRecursive(
   results: { projects: string[]; workspaces: string[] },
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
 ): Promise<void> {
-  // Explicit depth check (now simplified as maxDepth is always non-negative)
   if (currentDepth >= maxDepth) {
     log('debug', `Max depth ${maxDepth} reached at ${currentDirAbs}, stopping recursion.`);
     return;
@@ -71,27 +65,22 @@ async function _findProjectsRecursive(
   const normalizedWorkspaceRoot = path.normalize(workspaceRootAbs);
 
   try {
-    // Use the injected fileSystemExecutor
     const entries = await fileSystemExecutor.readdir(currentDirAbs, { withFileTypes: true });
     for (const rawEntry of entries) {
-      // Cast the unknown entry to DirentLike interface for type safety
       const entry = rawEntry as DirentLike;
       const absoluteEntryPath = path.join(currentDirAbs, entry.name);
       const relativePath = path.relative(workspaceRootAbs, absoluteEntryPath);
 
-      // --- Skip conditions ---
       if (entry.isSymbolicLink()) {
         log('debug', `Skipping symbolic link: ${relativePath}`);
         continue;
       }
 
-      // Skip common build/dependency directories by name
       if (entry.isDirectory() && SKIPPED_DIRS.has(entry.name)) {
         log('debug', `Skipping standard directory: ${relativePath}`);
         continue;
       }
 
-      // Ensure entry is within the workspace root (security/sanity check)
       if (!path.normalize(absoluteEntryPath).startsWith(normalizedWorkspaceRoot)) {
         log(
           'warn',
@@ -100,21 +89,19 @@ async function _findProjectsRecursive(
         continue;
       }
 
-      // --- Process entries ---
       if (entry.isDirectory()) {
         let isXcodeBundle = false;
 
         if (entry.name.endsWith('.xcodeproj')) {
-          results.projects.push(absoluteEntryPath); // Use absolute path
+          results.projects.push(absoluteEntryPath);
           log('debug', `Found project: ${absoluteEntryPath}`);
           isXcodeBundle = true;
         } else if (entry.name.endsWith('.xcworkspace')) {
-          results.workspaces.push(absoluteEntryPath); // Use absolute path
+          results.workspaces.push(absoluteEntryPath);
           log('debug', `Found workspace: ${absoluteEntryPath}`);
           isXcodeBundle = true;
         }
 
-        // Recurse into regular directories, but not into found project/workspace bundles
         if (!isXcodeBundle) {
           await _findProjectsRecursive(
             absoluteEntryPath,
@@ -157,17 +144,40 @@ export interface DiscoverProjectsResult {
 
 type DiscoverProjsParams = z.infer<typeof discoverProjsSchema>;
 
+function isBundleLikePath(workspaceRoot: string): boolean {
+  return (
+    workspaceRoot.endsWith('.app') ||
+    workspaceRoot.endsWith('.xcworkspace') ||
+    workspaceRoot.endsWith('.xcodeproj')
+  );
+}
+
+function resolveScanBase(workspaceRoot: string, scanPath?: string): string {
+  if (scanPath) {
+    return scanPath;
+  }
+
+  if (isBundleLikePath(workspaceRoot)) {
+    return path.dirname(workspaceRoot);
+  }
+
+  return '.';
+}
+
 async function discoverProjectsOrError(
   params: DiscoverProjectsParams,
   fileSystemExecutor: FileSystemExecutor,
 ): Promise<DiscoverProjectsResult | { error: string }> {
-  const scanPath = params.scanPath ?? '.';
+  const scanPath = resolveScanBase(params.workspaceRoot, params.scanPath);
   const maxDepth = params.maxDepth ?? DEFAULT_MAX_DEPTH;
   const workspaceRoot = params.workspaceRoot;
 
   const requestedScanPath = path.resolve(workspaceRoot, scanPath);
   let absoluteScanPath = requestedScanPath;
-  const normalizedWorkspaceRoot = path.normalize(workspaceRoot);
+  const workspaceBoundary = isBundleLikePath(workspaceRoot)
+    ? path.dirname(workspaceRoot)
+    : workspaceRoot;
+  const normalizedWorkspaceRoot = path.normalize(workspaceBoundary);
   if (!path.normalize(absoluteScanPath).startsWith(normalizedWorkspaceRoot)) {
     log(
       'warn',
@@ -229,7 +239,16 @@ export async function discover_projsLogic(
   params: DiscoverProjsParams,
   fileSystemExecutor: FileSystemExecutor,
 ): Promise<ToolResponse> {
-  const headerEvent = header('Discover Projects');
+  const scanPath = resolveScanBase(params.workspaceRoot, params.scanPath);
+  const maxDepth = params.maxDepth ?? DEFAULT_MAX_DEPTH;
+  const resolvedWorkspaceRoot = path.resolve(params.workspaceRoot);
+  const resolvedScanPath = path.resolve(params.workspaceRoot, scanPath);
+
+  const headerEvent = header('Discover Projects', [
+    { label: 'Workspace root', value: resolvedWorkspaceRoot },
+    { label: 'Scan path', value: resolvedScanPath },
+    { label: 'Max depth', value: String(maxDepth) },
+  ]);
   const results = await discoverProjectsOrError(params, fileSystemExecutor);
   if ('error' in results) {
     return toolResponse([headerEvent, statusLine('error', results.error)]);
@@ -240,20 +259,26 @@ export async function discover_projsLogic(
     `Discovery finished. Found ${results.projects.length} projects and ${results.workspaces.length} workspaces.`,
   );
 
+  const projectWord = results.projects.length === 1 ? 'project' : 'projects';
+  const workspaceWord = results.workspaces.length === 1 ? 'workspace' : 'workspaces';
+
   const events: PipelineEvent[] = [
     headerEvent,
     statusLine(
       'success',
-      `Found ${results.projects.length} project(s) and ${results.workspaces.length} workspace(s).`,
+      `Found ${results.projects.length} ${projectWord} and ${results.workspaces.length} ${workspaceWord}`,
     ),
   ];
 
+  const cwd = process.cwd();
+  const toRelative = (p: string) => path.relative(cwd, p) || p;
+
   if (results.projects.length > 0) {
-    events.push(section('Projects', results.projects));
+    events.push(section('Projects:', results.projects.map(toRelative)));
   }
 
   if (results.workspaces.length > 0) {
-    events.push(section('Workspaces', results.workspaces));
+    events.push(section('Workspaces:', results.workspaces.map(toRelative)));
   }
 
   return toolResponse(events);

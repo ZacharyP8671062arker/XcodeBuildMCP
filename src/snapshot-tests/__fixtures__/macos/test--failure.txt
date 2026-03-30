@@ -6,14 +6,14 @@
    Platform: macOS
 
 MCPTestsXCTests
-  ✗ testCalculatorServiceFailure (⏱️ <DURATION>):
+  ✗ testDeliberateFailure():
       - XCTAssertTrue failed - This test is designed to fail for snapshot testing
-        example_projects/macOS/MCPTestTests/MCPTestTests.swift:11
+        MCPTestsXCTests.swift:11
 
 MCPTestTests
-  ✗ appNameIsCorrect() (⏱️ <DURATION>):
-    - Expectation failed: 1 == 2: This test is designed to fail for snapshot testing
-      example_projects/macOS/MCPTestTests/MCPTestsXCTests.swift:11
+  ✗ deliberateFailure():
+      - Expectation failed: 1 == 2: This test is designed to fail for snapshot testing
+        MCPTestTests.swift:11
 
-❌ 1 test failed, 1 passed, 0 skipped (⏱️ <DURATION>)
-  └ Build Logs: <TMPDIR>/logs/test_macos_2026-03-28T08-18-25-423Z.log
+❌ 2 tests failed, 2 passed, 0 skipped (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/test_macos_<TIMESTAMP>.log

@@ -4,34 +4,10 @@ import {
   createMockExecutor,
   createMockCommandResponse,
 } from '../../../../test-utils/mock-executors.ts';
-import type { CommandExecutor } from '../../../../utils/execution/index.ts';
+import { expectPendingBuildResponse } from '../../../../test-utils/test-helpers.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 
 import { schema, handler, build_simLogic } from '../build_sim.ts';
-
-function expectPendingBuildResponse(
-  result: Awaited<ReturnType<typeof build_simLogic>>,
-  nextStepToolId?: string,
-): void {
-  expect(result.content).toEqual([]);
-  expect(result._meta).toEqual(
-    expect.objectContaining({
-      pendingXcodebuild: expect.objectContaining({
-        kind: 'pending-xcodebuild',
-      }),
-    }),
-  );
-
-  if (nextStepToolId) {
-    expect(result.nextStepParams).toEqual(
-      expect.objectContaining({
-        [nextStepToolId]: expect.any(Object),
-      }),
-    );
-  } else {
-    expect(result.nextStepParams).toBeUndefined();
-  }
-}
 
 describe('build_sim tool', () => {
   beforeEach(() => {

@@ -201,8 +201,6 @@ describe('simulator workflow', () => {
       expect(isError).toBe(false);
       expectMatchesFixture(text, __filename, 'launch-app-with-logs--success');
     }, 120_000);
-
-
   });
 
   describe('screenshot', () => {
@@ -223,10 +221,6 @@ describe('simulator workflow', () => {
       expect(isError).toBe(true);
       expectMatchesFixture(text, __filename, 'screenshot--error-invalid-simulator');
     }, 120_000);
-  });
-
-  describe('record-video', () => {
-    it.skip('requires start/stop lifecycle', async () => {});
   });
 
   describe('stop', () => {

@@ -201,16 +201,12 @@ describe('list_devices plugin (device-shared)', () => {
       expect(text).toContain('List Devices');
       expect(text).toContain('Test iPhone');
       expect(text).toContain('test-device-123');
-      expect(text).toContain('iPhone15,2');
-      expect(text).toContain('iOS 17.0');
-      expect(text).toContain('USB');
-      expect(text).toContain('Devices discovered');
-      expect(result.nextStepParams).toEqual({
-        build_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
-        build_run_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
-        test_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
-        get_device_app_path: { scheme: 'SCHEME' },
-      });
+      expect(text).toContain('iOS Devices:');
+      expect(text).toContain('📱 [✓] Test iPhone');
+      expect(text).toContain('OS: 17.0');
+      expect(text).toContain('UDID: test-device-123');
+      expect(text).toContain('1 physical devices discovered (1 iOS).');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should return successful xctrace fallback response', async () => {

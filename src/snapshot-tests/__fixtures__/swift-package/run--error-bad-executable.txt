@@ -8,5 +8,4 @@ Errors (1):
 
   ✗ no executable product named 'nonexistent-executable'
 
-❌ Run failed. (⏱️ <DURATION>)
-  └ Build Logs: <TMPDIR>/logs/build_sim_2026-03-28T08-18-09-055Z.log
+❌ Build failed. (⏱️ <DURATION>)

@@ -1,19 +1,14 @@
-/**
- * macOS Workspace Plugin: Launch macOS App
- *
- * Launches a macOS application using the 'open' command.
- * IMPORTANT: You MUST provide the appPath parameter.
- */
-
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import { validateFileExists } from '../../../utils/validation.ts';
 import type { ToolResponse } from '../../../types/common.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
+import path from 'node:path';
 
 const launchMacAppSchema = z.object({
   appPath: z.string(),
@@ -45,7 +40,51 @@ export async function launch_mac_appLogic(
 
     await executor(command, 'Launch macOS App');
 
-    return toolResponse([headerEvent, statusLine('success', 'App launched successfully.')]);
+    const appName = path.basename(params.appPath, '.app');
+    let bundleId: string | undefined;
+    try {
+      const plistResult = await executor(
+        ['/bin/sh', '-c', `defaults read "${params.appPath}/Contents/Info" CFBundleIdentifier`],
+        'Extract Bundle ID',
+        false,
+      );
+      if (plistResult.success && plistResult.output) {
+        bundleId = plistResult.output.trim();
+      }
+    } catch {
+      // non-fatal
+    }
+
+    let processId: number | undefined;
+    try {
+      const pgrepResult = await executor(['pgrep', '-x', appName], 'Get Process ID', false);
+      if (pgrepResult.success && pgrepResult.output) {
+        const pid = parseInt(pgrepResult.output.trim().split('\n')[0], 10);
+        if (!isNaN(pid)) {
+          processId = pid;
+        }
+      }
+    } catch {
+      // non-fatal
+    }
+
+    const details: Array<{ label: string; value: string }> = [];
+    if (bundleId) {
+      details.push({ label: 'Bundle ID', value: bundleId });
+    }
+    if (processId !== undefined) {
+      details.push({ label: 'Process ID', value: String(processId) });
+    }
+
+    const events: PipelineEvent[] = [
+      headerEvent,
+      statusLine('success', 'App launched successfully'),
+    ];
+    if (details.length > 0) {
+      events.push(detailTree(details));
+    }
+
+    return toolResponse(events);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during launch macOS app operation: ${errorMessage}`);

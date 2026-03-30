@@ -33,7 +33,7 @@ describe('reset_sim_location plugin', () => {
 
       const text = allText(result);
       expect(text).toContain('Reset Location');
-      expect(text).toContain('Location reset to default');
+      expect(text).toContain('Location successfully reset to default');
       expect(result.isError).toBeFalsy();
     });
 

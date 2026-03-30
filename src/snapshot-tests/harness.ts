@@ -1,10 +1,15 @@
 import { spawnSync, execSync } from 'node:child_process';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { normalizeSnapshotOutput } from './normalize.ts';
 import { loadManifest } from '../core/manifest/load-manifest.ts';
 import { getEffectiveCliName } from '../core/manifest/schema.ts';
 import { importToolModule } from '../core/manifest/import-tool-module.ts';
 import type { ToolResponse } from '../types/common.ts';
+import type { ToolManifestEntry } from '../core/manifest/schema.ts';
+import { postProcessToolResponse } from '../runtime/tool-invoker.ts';
+import { createToolCatalog } from '../runtime/tool-catalog.ts';
+import type { ToolDefinition } from '../runtime/types.ts';
 
 const CLI_PATH = path.resolve(process.cwd(), 'build/cli.js');
 
@@ -19,13 +24,19 @@ export interface SnapshotHarness {
 
 export interface SnapshotResult {
   text: string;
+  rawText: string;
   isError: boolean;
 }
 
 function resolveToolManifest(
   workflowId: string,
   cliToolName: string,
-): { toolModulePath: string; isMcpOnly: boolean } | null {
+): {
+  toolModulePath: string;
+  isMcpOnly: boolean;
+  isStateful: boolean;
+  manifestEntry: ToolManifestEntry;
+} | null {
   const manifest = loadManifest();
   const workflow = manifest.workflows.get(workflowId);
   if (!workflow) return null;
@@ -36,11 +47,41 @@ function resolveToolManifest(
     const tool = manifest.tools.get(toolId);
     if (!tool) continue;
     if (getEffectiveCliName(tool) === cliToolName) {
-      return { toolModulePath: tool.module, isMcpOnly };
+      return {
+        toolModulePath: tool.module,
+        isMcpOnly,
+        isStateful: tool.routing?.stateful === true,
+        manifestEntry: tool,
+      };
     }
   }
 
   return null;
+}
+
+function buildMinimalToolCatalog(
+  manifestEntry: ToolManifestEntry,
+  handler: ToolDefinition['handler'],
+): { tool: ToolDefinition; catalog: ReturnType<typeof createToolCatalog> } {
+  const manifest = loadManifest();
+  const noopHandler: ToolDefinition['handler'] = async () => ({ content: [] });
+
+  const allTools: ToolDefinition[] = Array.from(manifest.tools.values()).map((toolEntry) => ({
+    id: toolEntry.id,
+    cliName: getEffectiveCliName(toolEntry),
+    mcpName: toolEntry.names.mcp,
+    workflow: '',
+    description: toolEntry.description,
+    nextStepTemplates: toolEntry.nextSteps,
+    mcpSchema: {} as ToolDefinition['mcpSchema'],
+    cliSchema: {} as ToolDefinition['cliSchema'],
+    stateful: toolEntry.routing?.stateful ?? false,
+    handler: toolEntry.id === manifestEntry.id ? handler : noopHandler,
+  }));
+
+  const catalog = createToolCatalog(allTools);
+  const tool = catalog.getByToolId(manifestEntry.id) ?? allTools[0]!;
+  return { tool, catalog };
 }
 
 function toolResponseToText(response: ToolResponse): string {
@@ -53,6 +94,19 @@ function toolResponseToText(response: ToolResponse): string {
   return parts.join('\n') + '\n';
 }
 
+async function importSnapshotToolModule(toolModulePath: string) {
+  const sourceModulePath = path.resolve(process.cwd(), 'src', `${toolModulePath}.ts`);
+  const sourceModuleUrl = pathToFileURL(sourceModulePath).href;
+
+  try {
+    return (await import(sourceModuleUrl)) as {
+      handler: (params: Record<string, unknown>) => Promise<ToolResponse>;
+    };
+  } catch {
+    return importToolModule(toolModulePath);
+  }
+}
+
 export async function createSnapshotHarness(): Promise<SnapshotHarness> {
   async function invoke(
     workflow: string,
@@ -61,8 +115,8 @@ export async function createSnapshotHarness(): Promise<SnapshotHarness> {
   ): Promise<SnapshotResult> {
     const resolved = resolveToolManifest(workflow, cliToolName);
 
-    if (resolved?.isMcpOnly) {
-      return invokeDirect(resolved.toolModulePath, args);
+    if (resolved?.isMcpOnly || resolved?.isStateful) {
+      return invokeDirect(resolved.toolModulePath, resolved.manifestEntry, args);
     }
 
     return invokeCli(workflow, cliToolName, args);
@@ -85,22 +139,36 @@ export async function createSnapshotHarness(): Promise<SnapshotHarness> {
     const stdout = result.stdout ?? '';
     return {
       text: normalizeSnapshotOutput(stdout),
+      rawText: stdout,
       isError: result.status !== 0,
     };
   }
 
   async function invokeDirect(
     toolModulePath: string,
+    manifestEntry: ToolManifestEntry,
     args: Record<string, unknown>,
   ): Promise<SnapshotResult> {
-    const toolModule = await importToolModule(toolModulePath);
+    const toolModule = await importSnapshotToolModule(toolModulePath);
     const prev = process.env.SNAPSHOT_TEST_REAL_EXECUTOR;
     process.env.SNAPSHOT_TEST_REAL_EXECUTOR = '1';
     try {
-      const response = (await toolModule.handler(args)) as ToolResponse;
+      const raw = (await toolModule.handler(args)) as ToolResponse;
+      const { tool, catalog } = buildMinimalToolCatalog(
+        manifestEntry,
+        toolModule.handler as ToolDefinition['handler'],
+      );
+      const response = postProcessToolResponse({
+        tool,
+        response: raw,
+        catalog,
+        runtime: 'mcp',
+        applyTemplateNextSteps: raw.nextStepParams != null,
+      });
       const rawText = toolResponseToText(response);
       return {
         text: normalizeSnapshotOutput(rawText),
+        rawText,
         isError: response.isError === true,
       };
     } finally {

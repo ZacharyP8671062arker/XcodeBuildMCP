@@ -27,32 +27,24 @@ describe('macos workflow (flowdeck)', () => {
 
   describe('build', () => {
     it('success', { timeout: 120000 }, () => {
-      const result = harness.run([
-        'build', '-w', PROJECT, '-s', 'MCPTest', '-S', 'none',
-      ]);
+      const result = harness.run(['build', '-w', PROJECT, '-s', 'MCPTest', '-S', 'none']);
       writeFlowdeckFixture(__filename, 'build--success', result.text);
     });
 
     it('error - wrong scheme', { timeout: 120000 }, () => {
-      const result = harness.run([
-        'build', '-w', PROJECT, '-s', 'NONEXISTENT', '-S', 'none',
-      ]);
+      const result = harness.run(['build', '-w', PROJECT, '-s', 'NONEXISTENT', '-S', 'none']);
       writeFlowdeckFixture(__filename, 'build--error-wrong-scheme', result.text);
     });
   });
 
   describe('build-and-run', () => {
     it('success', { timeout: 120000 }, () => {
-      const result = harness.run([
-        'run', '-w', PROJECT, '-s', 'MCPTest', '-S', 'none',
-      ]);
+      const result = harness.run(['run', '-w', PROJECT, '-s', 'MCPTest', '-S', 'none']);
       writeFlowdeckFixture(__filename, 'build-and-run--success', result.text);
     });
 
     it('error - wrong scheme', { timeout: 120000 }, () => {
-      const result = harness.run([
-        'run', '-w', PROJECT, '-s', 'NONEXISTENT', '-S', 'none',
-      ]);
+      const result = harness.run(['run', '-w', PROJECT, '-s', 'NONEXISTENT', '-S', 'none']);
       writeFlowdeckFixture(__filename, 'build-and-run--error-wrong-scheme', result.text);
     });
   });
@@ -60,32 +52,33 @@ describe('macos workflow (flowdeck)', () => {
   describe('test', () => {
     it('success', { timeout: 120000 }, () => {
       const result = harness.run([
-        'test', '-w', PROJECT, '-s', 'MCPTest', '-D', 'My Mac',
-        '--only', 'MCPTestTests/MCPTestTests/appNameIsCorrect',
+        'test',
+        '-w',
+        PROJECT,
+        '-s',
+        'MCPTest',
+        '-D',
+        'My Mac',
+        '--only',
+        'MCPTestTests/MCPTestTests/appNameIsCorrect',
       ]);
       writeFlowdeckFixture(__filename, 'test--success', result.text);
     });
 
     it('failure - intentional test failure', { timeout: 120000 }, () => {
-      const result = harness.run([
-        'test', '-w', PROJECT, '-s', 'MCPTest', '-D', 'My Mac',
-      ]);
+      const result = harness.run(['test', '-w', PROJECT, '-s', 'MCPTest', '-D', 'My Mac']);
       writeFlowdeckFixture(__filename, 'test--failure', result.text);
     });
 
     it('error - wrong scheme', { timeout: 120000 }, () => {
-      const result = harness.run([
-        'test', '-w', PROJECT, '-s', 'NONEXISTENT', '-D', 'My Mac',
-      ]);
+      const result = harness.run(['test', '-w', PROJECT, '-s', 'NONEXISTENT', '-D', 'My Mac']);
       writeFlowdeckFixture(__filename, 'test--error-wrong-scheme', result.text);
     });
   });
 
   describe('stop', () => {
     it('success', { timeout: 120000 }, () => {
-      const runResult = harness.run([
-        'run', '-w', PROJECT, '-s', 'MCPTest', '-S', 'none',
-      ]);
+      const runResult = harness.run(['run', '-w', PROJECT, '-s', 'MCPTest', '-S', 'none']);
       const appIdMatch = runResult.text.match(/App ID: ([A-F0-9]+)/);
       const appId = appIdMatch ? appIdMatch[1] : 'io.sentry.MCPTest';
 
@@ -101,9 +94,7 @@ describe('macos workflow (flowdeck)', () => {
 
   describe('clean', () => {
     it('success', { timeout: 120000 }, () => {
-      const result = harness.run([
-        'clean', '-w', PROJECT, '-s', 'MCPTest',
-      ]);
+      const result = harness.run(['clean', '-w', PROJECT, '-s', 'MCPTest']);
       writeFlowdeckFixture(__filename, 'clean--success', result.text);
     });
   });

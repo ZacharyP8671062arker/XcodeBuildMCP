@@ -187,7 +187,7 @@ describe('get_sim_app_path tool', () => {
       expect(text).toContain('MyScheme');
       expect(text).toContain('Errors (1):');
       expect(text).toContain('✗ Failed to run xcodebuild');
-      expect(text).toContain('Query failed.');
+      expect(text).toContain('Failed to get app path');
       expect(result.nextStepParams).toBeUndefined();
     });
   });

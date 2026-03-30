@@ -228,7 +228,6 @@ describe('build_run_device tool', () => {
                 expect.objectContaining({ label: 'App Path', value: '/tmp/build/MyApp.app' }),
                 expect.objectContaining({ label: 'Bundle ID', value: 'io.sentry.MyApp' }),
                 expect.objectContaining({ label: 'Process ID', value: '1234' }),
-                expect.objectContaining({ label: 'Build Logs', value: expect.stringContaining('build_run_device_') }),
               ]),
             }),
           ],
@@ -281,7 +280,7 @@ describe('build_run_device tool', () => {
       const detailTree = tailEvents[1];
       expect(detailTree.type).toBe('detail-tree');
       expect(detailTree.items?.some((item) => item.label === 'Process ID')).toBe(false);
-      expect(detailTree.items?.some((item) => item.label === 'Build Logs')).toBe(true);
+      expect(detailTree.items?.some((item) => item.label === 'Build Logs')).toBe(false);
     });
 
     it('uses generic destination for build-settings lookup', async () => {

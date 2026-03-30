@@ -302,6 +302,43 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     expect(text).toContain('tap');
   });
 
+  it('does not inject manifest template next steps when the tool explicitly returns an empty list', async () => {
+    const directHandler = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'ok' }],
+      nextSteps: [],
+    } satisfies ToolResponse);
+
+    const catalog = createToolCatalog([
+      makeTool({
+        id: 'list_devices',
+        cliName: 'list',
+        mcpName: 'list_devices',
+        workflow: 'device',
+        stateful: false,
+        nextStepTemplates: [
+          { label: 'Build for device', toolId: 'build_device' },
+        ],
+        handler: directHandler,
+      }),
+      makeTool({
+        id: 'build_device',
+        cliName: 'build',
+        mcpName: 'build_device',
+        workflow: 'device',
+        stateful: false,
+        handler: vi.fn().mockResolvedValue(textResponse('build')),
+      }),
+    ]);
+
+    const invoker = new DefaultToolInvoker(catalog);
+    const response = await invoker.invoke('list', {}, { runtime: 'cli' });
+
+    expect(response.nextSteps).toBeUndefined();
+    const text = response.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
+    expect(text).toBe('ok');
+    expect(text).not.toContain('Next steps:');
+  });
+
   it('prefers manifest templates over tool-provided next-step labels and tools', async () => {
     const directHandler = vi.fn().mockResolvedValue({
       content: [{ type: 'text', text: 'ok' }],

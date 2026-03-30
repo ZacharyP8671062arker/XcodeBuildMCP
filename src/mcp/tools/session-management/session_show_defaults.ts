@@ -1,35 +1,28 @@
 import { sessionStore } from '../../../utils/session-store.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, detailTree, statusLine } from '../../../utils/tool-event-builders.ts';
+import { header, section } from '../../../utils/tool-event-builders.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
+import {
+  formatProfileLabel,
+  buildFullDetailTree,
+  formatDetailLines,
+} from './session-format-helpers.ts';
 
 export const schema = {};
 
-function formatActiveProfileLabel(activeProfile: string | null): string {
-  return activeProfile ?? 'global defaults';
-}
+export async function handler(): Promise<ToolResponse> {
+  const namedProfiles = sessionStore.listProfiles();
+  const profileKeys: Array<string | null> = [null, ...namedProfiles];
 
-export const handler = async (): Promise<ToolResponse> => {
-  const current = sessionStore.getAll();
-  const activeProfile = sessionStore.getActiveProfile();
-  const activeProfileLabel = formatActiveProfileLabel(activeProfile);
+  const events: PipelineEvent[] = [header('Show Defaults')];
 
-  const items = Object.entries(current)
-    .filter(([, v]) => v !== undefined)
-    .map(([k, v]) => ({ label: k, value: String(v) }));
-
-  if (items.length === 0) {
-    return toolResponse([
-      header('Show Defaults'),
-      statusLine(
-        'info',
-        `No session defaults are set. Active profile: ${activeProfileLabel}`,
-      ),
-    ]);
+  for (const profileKey of profileKeys) {
+    const defaults = sessionStore.getAllForProfile(profileKey);
+    const label = `\u{1F4C1} ${formatProfileLabel(profileKey)}`;
+    const items = buildFullDetailTree(defaults);
+    events.push(section(label, formatDetailLines(items)));
   }
 
-  return toolResponse([
-    header('Show Defaults', [{ label: 'Active Profile', value: activeProfileLabel }]),
-    detailTree(items),
-  ]);
-};
+  return toolResponse(events);
+}

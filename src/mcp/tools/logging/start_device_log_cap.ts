@@ -1,11 +1,5 @@
-/**
- * Logging Plugin: Start Device Log Capture
- *
- * Starts capturing logs from a specified Apple device by launching the app with console output.
- */
-
-import * as path from 'path';
-import type { ChildProcess } from 'child_process';
+import * as path from 'node:path';
+import type { ChildProcess } from 'node:child_process';
 import { v4 as uuidv4 } from 'uuid';
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
@@ -25,7 +19,7 @@ import {
   activeDeviceLogSessions,
   type DeviceLogSession,
 } from '../../../utils/log-capture/device-log-sessions.ts';
-import type { WriteStream } from 'fs';
+import type { WriteStream } from 'node:fs';
 import { getConfig } from '../../../utils/config-store.ts';
 import { acquireDaemonActivity } from '../../../daemon/activity-registry.ts';
 
@@ -35,7 +29,8 @@ import { acquireDaemonActivity } from '../../../daemon/activity-registry.ts';
  * - Cleanup runs on every new log capture start
  */
 const LOG_RETENTION_DAYS = 3;
-const DEVICE_LOG_FILE_PREFIX = 'xcodemcp_device_log_';
+const LOG_SUBDIR = 'xcodemcp';
+const LOG_DIR = 'logs';
 
 // Note: Device and simulator logging use different approaches due to platform constraints:
 // - Simulators use 'xcrun simctl' with console-pty and OSLog stream capabilities
@@ -234,15 +229,17 @@ export async function startDeviceLogCapture(
 
   const { deviceUuid, bundleId } = params;
   const logSessionId = uuidv4();
-  const logFileName = `${DEVICE_LOG_FILE_PREFIX}${logSessionId}.log`;
+  const ts = new Date().toISOString().replace(/:/g, '-').replace('.', '-').slice(0, -1) + 'Z';
+  const logFileName = `${bundleId}_${ts}.log`;
   const tempDir = fileSystemExecutor.tmpdir();
-  const logFilePath = path.join(tempDir, logFileName);
+  const logsDir = path.join(tempDir, LOG_SUBDIR, LOG_DIR);
+  const logFilePath = path.join(logsDir, logFileName);
   const launchJsonPath = path.join(tempDir, `devicectl-launch-${logSessionId}.json`);
 
   let logStream: WriteStream | undefined;
 
   try {
-    await fileSystemExecutor.mkdir(tempDir, { recursive: true });
+    await fileSystemExecutor.mkdir(logsDir, { recursive: true });
     await fileSystemExecutor.writeFile(logFilePath, '');
 
     logStream = fileSystemExecutor.createWriteStream(logFilePath, { flags: 'a' });
@@ -567,15 +564,11 @@ function extractFailureMessage(output?: string): string | undefined {
 // Device logs follow the same retention policy as simulator logs but use a different prefix
 // to avoid conflicts. Both clean up logs older than LOG_RETENTION_DAYS automatically.
 async function cleanOldDeviceLogs(fileSystemExecutor: FileSystemExecutor): Promise<void> {
-  const tempDir = fileSystemExecutor.tmpdir();
+  const logsDir = path.join(fileSystemExecutor.tmpdir(), LOG_SUBDIR, LOG_DIR);
   let files: unknown[];
   try {
-    files = await fileSystemExecutor.readdir(tempDir);
-  } catch (err) {
-    log(
-      'warn',
-      `Could not read temp dir for device log cleanup: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    files = await fileSystemExecutor.readdir(logsDir);
+  } catch {
     return;
   }
   const now = Date.now();
@@ -584,9 +577,9 @@ async function cleanOldDeviceLogs(fileSystemExecutor: FileSystemExecutor): Promi
 
   await Promise.all(
     fileNames
-      .filter((f) => f.startsWith(DEVICE_LOG_FILE_PREFIX) && f.endsWith('.log'))
+      .filter((f) => f.endsWith('.log'))
       .map(async (f) => {
-        const filePath = path.join(tempDir, f);
+        const filePath = path.join(logsDir, f);
         try {
           const stat = await fileSystemExecutor.stat(filePath);
           if (now - stat.mtimeMs > retentionMs) {
@@ -648,10 +641,7 @@ export async function start_device_log_capLogic(
     [
       headerEvent,
       statusLine('success', 'Log capture started.'),
-      detailTree([
-        { label: 'Session ID', value: sessionId },
-        { label: 'Note', value: 'Do not call launch_app_device during this session' },
-      ]),
+      detailTree([{ label: 'Session ID', value: sessionId }]),
     ],
     {
       nextStepParams: {

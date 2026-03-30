@@ -81,6 +81,7 @@ export const OPERATION_EMOJI: Record<string, string> = {
   'Swift Package Clean': '\u{1F9F9}',
   'Swift Package Run': '\u{1F680}',
   'Swift Package List': '\u{1F4E6}',
+  'Swift Package Processes': '\u{1F4E6}',
   'Swift Package Stop': '\u{1F6D1}',
   'Xcode IDE Call Tool': '\u{1F527}',
   'Xcode IDE List Tools': '\u{1F527}',
@@ -216,7 +217,9 @@ export function formatHeaderEvent(event: HeaderEvent): string {
     lines.push(`   ${param.label}: ${param.value}`);
   }
 
-  lines.push('');
+  if (event.params.length > 0) {
+    lines.push('');
+  }
   return lines.join('\n');
 }
 
@@ -244,13 +247,13 @@ const SECTION_ICON_MAP: Record<NonNullable<SectionEvent['icon']>, string> = {
 
 export function formatSectionEvent(event: SectionEvent): string {
   const icon = event.icon ? `${SECTION_ICON_MAP[event.icon]} ` : '';
-  const header = `${icon}${event.title}`;
+  const headerLine = `${icon}${event.title}`;
   if (event.lines.length === 0) {
-    return header;
+    return headerLine;
   }
   const indent = event.icon ? '   ' : '  ';
   const indented = event.lines.map((line) => `${indent}${line}`);
-  return [header, ...indented].join('\n');
+  return [headerLine, ...indented].join('\n');
 }
 
 export function formatTableEvent(event: TableEvent): string {
@@ -314,12 +317,7 @@ export function extractGroupedCompilerError(
   }
 
   if (event.location) {
-    const locParts = event.location.match(/^(.+?)(:(?:\d+)(?::\d+)?)$/);
-    if (locParts) {
-      const filePath = formatDiagnosticFilePath(locParts[1], options);
-      return { message: event.message, location: `${filePath}${locParts[2]}` };
-    }
-    return { message: event.message, location: event.location };
+    return { message: event.message, location: formatLocationPath(event.location, options) };
   }
 
   return null;
@@ -355,6 +353,8 @@ export function formatGroupedCompilerErrors(
   while (lines.at(-1) === '') {
     lines.pop();
   }
+
+  lines.push('');
 
   return lines.join('\n');
 }
@@ -444,47 +444,51 @@ export function formatTestFailureEvent(
   const testPath = parts.length > 0 ? `${parts.join('/')}: ` : '';
   const lines = [`  \u{2717} ${testPath}${event.message}`];
   if (event.location) {
-    const locParts = event.location.match(/^(.+?)(:(?:\d+)(?::\d+)?)$/);
-    if (locParts) {
-      const formattedPath = formatDiagnosticFilePath(locParts[1], options);
-      lines.push(`    ${formattedPath}${locParts[2]}`);
-    } else {
-      lines.push(`    ${event.location}`);
-    }
+    lines.push(`    ${formatLocationPath(event.location, options)}`);
   }
   return lines.join('\n');
 }
 
+function formatLocationPath(location: string, options?: DiagnosticFormattingOptions): string {
+  const locParts = location.match(/^(.+?)(:(?:\d+)(?::\d+)?)$/);
+  if (locParts) {
+    return `${formatDiagnosticFilePath(locParts[1], options)}${locParts[2]}`;
+  }
+  return location;
+}
+
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? `${count} ${singular}` : `${count} ${plural}`;
+}
+
 export function formatSummaryEvent(event: SummaryEvent): string {
-  const op = event.operation
-    ? event.operation[0] + event.operation.slice(1).toLowerCase()
-    : 'Operation';
   const succeeded = event.status === 'SUCCEEDED';
   const statusEmoji = succeeded ? '\u{2705}' : '\u{274C}';
+  const durationPart =
+    event.durationMs !== undefined
+      ? ` (\u{23F1}\u{FE0F} ${(event.durationMs / 1000).toFixed(1)}s)`
+      : '';
+
+  const hasTestCounts = event.totalTests !== undefined && event.totalTests > 0;
+
+  if (hasTestCounts) {
+    const passed = event.passedTests ?? 0;
+    const failed = event.failedTests ?? 0;
+    const skipped = event.skippedTests ?? 0;
+
+    if (succeeded) {
+      return `${statusEmoji} ${pluralize(passed, 'test', 'tests')} passed, ${skipped} skipped${durationPart}`;
+    }
+
+    return `${statusEmoji} ${pluralize(failed, 'test', 'tests')} failed, ${passed} passed, ${skipped} skipped${durationPart}`;
+  }
+
+  const op = event.operation
+    ? event.operation.charAt(0) + event.operation.slice(1).toLowerCase()
+    : 'Operation';
   const statusWord = succeeded ? 'succeeded' : 'failed';
 
-  const details: string[] = [];
-
-  if (event.totalTests !== undefined) {
-    details.push(`Total: ${event.totalTests}`);
-    if (event.passedTests !== undefined) {
-      details.push(`Passed: ${event.passedTests}`);
-    }
-    if (event.failedTests !== undefined && event.failedTests > 0) {
-      details.push(`Failed: ${event.failedTests}`);
-    }
-    if (event.skippedTests !== undefined && event.skippedTests > 0) {
-      details.push(`Skipped: ${event.skippedTests}`);
-    }
-  }
-
-  if (event.durationMs !== undefined) {
-    const seconds = (event.durationMs / 1000).toFixed(1);
-    details.push(`\u{23F1}\u{FE0F} ${seconds}s`);
-  }
-
-  const detailsSuffix = details.length > 0 ? ` (${details.join(', ')})` : '';
-  return `${statusEmoji} ${op} ${statusWord}.${detailsSuffix}`;
+  return `${statusEmoji} ${op} ${statusWord}.${durationPart}`;
 }
 
 export function formatTestDiscoveryEvent(event: TestDiscoveryEvent): string {
@@ -503,6 +507,8 @@ export function formatGroupedTestFailures(
 ): string {
   if (events.length === 0) return '';
 
+  const allUnnamedSuites = events.every((e) => e.suite === undefined);
+
   const groupedSuites = new Map<string, Map<string, TestFailureEvent[]>>();
   for (const event of events) {
     const suiteKey = event.suite ?? '(Unknown Suite)';
@@ -514,30 +520,39 @@ export function formatGroupedTestFailures(
     groupedSuites.set(suiteKey, suiteGroup);
   }
 
-  const lines: string[] = [`Test Failures (${events.length}):`, ''];
+  const lines: string[] = [];
 
-  for (const [suite, tests] of groupedSuites.entries()) {
-    lines.push(`  ${suite}`);
-    for (const [testName, failures] of tests.entries()) {
-      lines.push(`    ✗ ${testName}`);
-      for (const failure of failures) {
-        lines.push(`      ${failure.message}`);
-        if (failure.location) {
-          const locParts = failure.location.match(/^(.+?)(:(?:\d+)(?::\d+)?)$/);
-          if (locParts) {
-            const filePath = formatDiagnosticFilePath(locParts[1], options);
-            lines.push(`        ${filePath}${locParts[2]}`);
-          } else {
-            lines.push(`        ${failure.location}`);
+  if (allUnnamedSuites) {
+    lines.push(`Test Failures (${events.length}):`);
+    lines.push('');
+    for (const [suite, tests] of groupedSuites.entries()) {
+      lines.push(`  ${suite}`);
+      for (const [testName, failures] of tests.entries()) {
+        lines.push(`    \u{2717} ${testName}`);
+        for (const failure of failures) {
+          lines.push(`      ${failure.message}`);
+          if (failure.location) {
+            lines.push(`        ${formatLocationPath(failure.location, options)}`);
           }
         }
       }
     }
-    lines.push('');
+    return lines.join('\n');
   }
 
-  while (lines.at(-1) === '') {
-    lines.pop();
+  for (const [suite, tests] of groupedSuites.entries()) {
+    if (lines.length > 0) lines.push('');
+    lines.push(suite);
+    for (const [testName, failures] of tests.entries()) {
+      lines.push(`  ✗ ${testName}:`);
+      for (const failure of failures) {
+        const msgIndent = failure.location ? '      ' : '    ';
+        lines.push(`${msgIndent}- ${failure.message}`);
+        if (failure.location) {
+          lines.push(`        ${formatLocationPath(failure.location, options)}`);
+        }
+      }
+    }
   }
 
   return lines.join('\n');

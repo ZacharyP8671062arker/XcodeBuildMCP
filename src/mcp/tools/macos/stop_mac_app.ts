@@ -48,7 +48,7 @@ export async function stop_mac_appLogic(
       ]);
     }
 
-    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully.')]);
+    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error stopping macOS app: ${errorMessage}`);

@@ -9,7 +9,10 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { createXcodebuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
+import type { StartedPipeline } from '../../../utils/xcodebuild-pipeline.ts';
+import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
 
 const baseSchemaObject = z.object({
   packagePath: z.string(),
@@ -60,28 +63,32 @@ export async function swift_package_buildLogic(
     ...(params.configuration ? [{ label: 'Configuration', value: params.configuration }] : []),
   ]);
 
+  const pipeline = createXcodebuildPipeline({
+    operation: 'BUILD',
+    toolName: `build_spm`,
+    params: {},
+  });
+
+  pipeline.emitEvent(headerEvent);
+  const started: StartedPipeline = { pipeline, startedAt: Date.now() };
+
   try {
-    const result = await executor(['swift', ...swiftArgs], 'Swift Package Build', false);
+    const result = await executor(['swift', ...swiftArgs], 'Swift Package Build', false, {
+      onStdout: (chunk: string) => pipeline.onStdout(chunk),
+      onStderr: (chunk: string) => pipeline.onStderr(chunk),
+    });
+
     if (!result.success) {
       const errorMessage = result.error || result.output || 'Unknown error';
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Swift package build failed: ${errorMessage}`),
-      ]);
+      return toolResponse([statusLine('error', `Swift package build failed: ${errorMessage}`)]);
     }
 
-    return toolResponse([
-      headerEvent,
-      ...(result.output ? [section('Output', [result.output])] : []),
-      statusLine('success', 'Swift package build succeeded'),
-    ]);
+    const response: ToolResponse = { content: [], isError: false };
+    return createPendingXcodebuildResponse(started, response);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log('error', `Swift package build failed: ${message}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to execute swift build: ${message}`),
-    ]);
+    return toolResponse([statusLine('error', `Failed to execute swift build: ${message}`)]);
   }
 }
 

@@ -15,7 +15,7 @@ import { getDefaultFileSystemExecutor, getDefaultCommandExecutor } from '../../.
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
+import { header, section, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
 const stopDeviceLogCapSchema = z.object({
   logSessionId: z.string(),
@@ -49,11 +49,13 @@ export async function stop_device_log_capLogic(
       ]);
     }
 
-    return toolResponse([
+    const events = [
       headerEvent,
       statusLine('success', 'Log capture stopped.'),
-      section('Captured Logs', result.logContent.split('\n')),
-    ]);
+      ...(result.logFilePath ? [detailTree([{ label: 'Logs', value: result.logFilePath }])] : []),
+      section('Captured Logs:', result.logContent.split('\n')),
+    ];
+    return toolResponse(events);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     log('error', `Failed to stop device log capture session ${logSessionId}: ${message}`);

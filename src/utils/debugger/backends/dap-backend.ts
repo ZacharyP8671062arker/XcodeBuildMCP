@@ -135,6 +135,12 @@ class DapBackend implements DebuggerBackend {
   async runCommand(command: string, opts?: { timeoutMs?: number }): Promise<string> {
     this.ensureAttached();
 
+    const normalizedCommand = command.trim().toLowerCase();
+    if (normalizedCommand === 'process interrupt') {
+      await this.pauseExecution(opts?.timeoutMs);
+      return 'Process interrupted.';
+    }
+
     try {
       const body = await this.request<
         { expression: string; context: string },
@@ -404,6 +410,45 @@ class DapBackend implements DebuggerBackend {
 
     return transport.sendRequest<A, B>(command, args, {
       timeoutMs: opts?.timeoutMs ?? this.requestTimeoutMs,
+    });
+  }
+
+  private async pauseExecution(timeoutMs?: number): Promise<void> {
+    const thread = await this.resolveThread();
+    const waitForStop = this.waitForEvent('stopped', timeoutMs);
+
+    await this.request<{ threadId: number }, Record<string, never>>(
+      'pause',
+      { threadId: thread.id },
+      { timeoutMs },
+    );
+
+    await waitForStop;
+    this.executionState = { status: 'stopped', threadId: thread.id };
+  }
+
+  private waitForEvent(eventName: string, timeoutMs?: number): Promise<DapEvent> {
+    const transport = this.transport;
+    if (!transport) {
+      throw new Error('DAP transport not initialized.');
+    }
+
+    return new Promise<DapEvent>((resolve, reject) => {
+      const effectiveTimeoutMs = timeoutMs ?? this.requestTimeoutMs;
+      const timer = setTimeout(() => {
+        unsubscribe();
+        reject(new Error(`Timed out waiting for DAP event: ${eventName}`));
+      }, effectiveTimeoutMs);
+
+      const unsubscribe = transport.onEvent((event) => {
+        if (event.event !== eventName) {
+          return;
+        }
+
+        clearTimeout(timer);
+        unsubscribe();
+        resolve(event);
+      });
     });
   }
 

@@ -32,6 +32,7 @@ import {
   emitPipelineNotice,
 } from '../../../utils/xcodebuild-output.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
+import { resolveDeviceName } from '../../../utils/device-name-resolver.ts';
 
 const baseSchemaObject = z.object({
   projectPath: z.string().optional().describe('Path to the .xcodeproj file'),
@@ -62,6 +63,19 @@ const buildRunDeviceSchema = z.preprocess(
 
 export type BuildRunDeviceParams = z.infer<typeof buildRunDeviceSchema>;
 
+function bailWithError(
+  started: ReturnType<typeof startBuildPipeline>,
+  logMessage: string,
+  pipelineMessage: string,
+): ToolResponse {
+  log('error', logMessage);
+  emitPipelineError(started, 'BUILD', pipelineMessage);
+  return createPendingXcodebuildResponse(started, {
+    content: [],
+    isError: true,
+  });
+}
+
 export async function build_run_deviceLogic(
   params: BuildRunDeviceParams,
   executor: CommandExecutor,
@@ -86,6 +100,8 @@ export async function build_run_deviceLogic(
       logPrefix: `${platform} Device Build`,
     };
 
+    const deviceName = resolveDeviceName(params.deviceId);
+
     const preflightText = formatToolPreflight({
       operation: 'Build & Run',
       scheme: params.scheme,
@@ -94,6 +110,7 @@ export async function build_run_deviceLogic(
       configuration,
       platform: String(platform),
       deviceId: params.deviceId,
+      deviceName,
     });
 
     const started = startBuildPipeline({
@@ -150,12 +167,11 @@ export async function build_run_deviceLogic(
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('error', 'Build succeeded, but failed to get app path to launch.');
-      emitPipelineError(started, 'BUILD', `Failed to get app path to launch: ${errorMessage}`);
-      return createPendingXcodebuildResponse(started, {
-        content: [],
-        isError: true,
-      });
+      return bailWithError(
+        started,
+        'Build succeeded, but failed to get app path to launch.',
+        `Failed to get app path to launch: ${errorMessage}`,
+      );
     }
 
     log('info', `App path determined as: ${appPath}`);
@@ -174,12 +190,11 @@ export async function build_run_deviceLogic(
       log('info', `Bundle ID for run: ${bundleId}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('error', `Failed to extract bundle ID: ${errorMessage}`);
-      emitPipelineError(started, 'BUILD', `Failed to extract bundle ID: ${errorMessage}`);
-      return createPendingXcodebuildResponse(started, {
-        content: [],
-        isError: true,
-      });
+      return bailWithError(
+        started,
+        `Failed to extract bundle ID: ${errorMessage}`,
+        `Failed to extract bundle ID: ${errorMessage}`,
+      );
     }
 
     // Install app on device
@@ -199,12 +214,11 @@ export async function build_run_deviceLogic(
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('error', `Failed to install app on device: ${errorMessage}`);
-      emitPipelineError(started, 'BUILD', `Failed to install app on device: ${errorMessage}`);
-      return createPendingXcodebuildResponse(started, {
-        content: [],
-        isError: true,
-      });
+      return bailWithError(
+        started,
+        `Failed to install app on device: ${errorMessage}`,
+        `Failed to install app on device: ${errorMessage}`,
+      );
     }
 
     emitPipelineNotice(started, 'BUILD', 'App installed', 'success', {
@@ -247,20 +261,12 @@ export async function build_run_deviceLogic(
 
       try {
         const jsonContent = await fileSystemExecutor.readFile(tempJsonPath, 'utf8');
-        const parsedData: unknown = JSON.parse(jsonContent);
-        if (
-          parsedData &&
-          typeof parsedData === 'object' &&
-          'result' in parsedData &&
-          parsedData.result &&
-          typeof parsedData.result === 'object' &&
-          'process' in parsedData.result &&
-          parsedData.result.process &&
-          typeof parsedData.result.process === 'object' &&
-          'processIdentifier' in parsedData.result.process &&
-          typeof parsedData.result.process.processIdentifier === 'number'
-        ) {
-          processId = parsedData.result.process.processIdentifier as number;
+        const parsedData = JSON.parse(jsonContent) as {
+          result?: { process?: { processIdentifier?: unknown } };
+        };
+        const pid = parsedData?.result?.process?.processIdentifier;
+        if (typeof pid === 'number') {
+          processId = pid;
         }
       } catch {
         log('warn', 'Failed to parse launch JSON output for process ID');
@@ -269,12 +275,11 @@ export async function build_run_deviceLogic(
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      log('error', `Failed to launch app on device: ${errorMessage}`);
-      emitPipelineError(started, 'BUILD', `Failed to launch app on device: ${errorMessage}`);
-      return createPendingXcodebuildResponse(started, {
-        content: [],
-        isError: true,
-      });
+      return bailWithError(
+        started,
+        `Failed to launch app on device: ${errorMessage}`,
+        `Failed to launch app on device: ${errorMessage}`,
+      );
     }
 
     log('info', `Device build and run succeeded for scheme ${params.scheme}.`);
@@ -309,7 +314,6 @@ export async function build_run_deviceLogic(
           bundleId,
           launchState: 'requested',
           ...(processId !== undefined ? { processId } : {}),
-          buildLogPath: started.pipeline.logPath,
         }),
         includeBuildLogFileRef: false,
       },

@@ -1,10 +1,3 @@
-/**
- * Project Discovery Plugin: List Schemes (Unified)
- *
- * Lists available schemes for either a project or workspace using xcodebuild.
- * Accepts mutually exclusive `projectPath` or `workspacePath`.
- */
-
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
@@ -18,7 +11,6 @@ import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-// Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
   projectPath: z.string().optional().describe('Path to the .xcodeproj file'),
   workspacePath: z.string().optional().describe('Path to the .xcworkspace file'),
@@ -70,10 +62,6 @@ export async function listSchemes(
   return parseSchemesFromXcodebuildListOutput(result.output);
 }
 
-/**
- * Business logic for listing schemes in a project or workspace.
- * Exported for direct testing and reuse.
- */
 export async function listSchemesLogic(
   params: ListSchemesParams,
   executor: CommandExecutor,
@@ -116,12 +104,13 @@ export async function listSchemesLogic(
     }
 
     const schemeItems = schemes.length > 0 ? schemes : ['(none)'];
+    const schemeWord = schemes.length === 1 ? 'scheme' : 'schemes';
 
     return toolResponse(
       [
         headerEvent,
-        statusLine('success', `Found ${schemes.length} scheme(s).`),
-        section('Schemes', schemeItems),
+        statusLine('success', `Found ${schemes.length} ${schemeWord}`),
+        section('Schemes:', schemeItems),
       ],
       nextStepParams ? { nextStepParams } : undefined,
     );

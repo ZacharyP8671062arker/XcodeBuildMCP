@@ -1,22 +1,15 @@
-/**
- * Device Workspace Plugin: List Devices
- *
- * Lists connected physical Apple devices (iPhone, iPad, Apple Watch, Apple TV, Apple Vision Pro)
- * with their UUIDs, names, and connection status. Use this to discover physical devices for testing.
- */
-
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
-import { promises as fs } from 'fs';
-import { tmpdir } from 'os';
-import { join } from 'path';
+import { promises as fs } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, section, table } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const listDevicesSchema = z.object({});
 
@@ -38,7 +31,11 @@ function getPlatformLabel(platformIdentifier?: string): string {
   if (platformId.includes('watch')) {
     return 'watchOS';
   }
-  if (platformId.includes('appletv') || platformId.includes('tvos') || platformId.includes('apple tv')) {
+  if (
+    platformId.includes('appletv') ||
+    platformId.includes('tvos') ||
+    platformId.includes('apple tv')
+  ) {
     return 'tvOS';
   }
   if (platformId.includes('xros') || platformId.includes('vision')) {
@@ -49,6 +46,82 @@ function getPlatformLabel(platformIdentifier?: string): string {
   }
 
   return 'Unknown';
+}
+
+function getPlatformOrder(platform: string): number {
+  switch (platform) {
+    case 'iOS':
+      return 0;
+    case 'iPadOS':
+      return 1;
+    case 'watchOS':
+      return 2;
+    case 'tvOS':
+      return 3;
+    case 'visionOS':
+      return 4;
+    case 'macOS':
+      return 5;
+    default:
+      return 6;
+  }
+}
+
+function getDeviceEmoji(platform: string): string {
+  switch (platform) {
+    case 'watchOS':
+      return '⌚️';
+    case 'tvOS':
+      return '📺';
+    case 'visionOS':
+      return '🥽';
+    case 'macOS':
+      return '💻';
+    default:
+      return '📱';
+  }
+}
+
+function renderGroupedDevices(
+  devices: Array<{ name: string; identifier: string; platform: string; osVersion?: string; state: string }>,
+): string {
+  const grouped = new Map<string, typeof devices>();
+
+  for (const device of devices) {
+    const group = grouped.get(device.platform) ?? [];
+    group.push(device);
+    grouped.set(device.platform, group);
+  }
+
+  const lines: string[] = ['📱 List Devices', ''];
+  const orderedPlatforms = [...grouped.keys()].sort((a, b) => getPlatformOrder(a) - getPlatformOrder(b));
+
+  for (const platform of orderedPlatforms) {
+    const platformDevices = grouped.get(platform) ?? [];
+    if (platformDevices.length === 0) {
+      continue;
+    }
+
+    lines.push(`${platform} Devices:`);
+    lines.push('');
+
+    for (const device of platformDevices) {
+      const availability = isAvailableState(device.state) ? '✓' : '✗';
+      lines.push(`  ${getDeviceEmoji(platform)} [${availability}] ${device.name}`);
+      lines.push(`    OS: ${device.osVersion ?? 'Unknown'}`);
+      lines.push(`    UDID: ${device.identifier}`);
+      lines.push('');
+    }
+  }
+
+  const platformCounts = orderedPlatforms.map((platform) => {
+    const count = grouped.get(platform)?.length ?? 0;
+    return `${count} ${platform}`;
+  });
+
+  lines.push(`✅ ${devices.length} physical devices discovered (${platformCounts.join(', ')}).`);
+
+  return lines.join('\n');
 }
 
 /**
@@ -127,20 +200,31 @@ export async function list_devicesLogic(
               continue;
             }
 
-            const platform = getPlatformLabel(device.deviceProperties?.platformIdentifier);
+            const platform = getPlatformLabel(
+              [
+                device.deviceProperties?.platformIdentifier,
+                device.deviceProperties?.marketingName,
+                device.hardwareProperties?.productType,
+                device.deviceProperties?.name,
+              ]
+                .filter((value): value is string => typeof value === 'string' && value.length > 0)
+                .join(' '),
+            );
 
             // Determine connection state
             const pairingState = device.connectionProperties?.pairingState ?? '';
             const tunnelState = device.connectionProperties?.tunnelState ?? '';
             const transportType = device.connectionProperties?.transportType ?? '';
+            const hasDirectConnection =
+              tunnelState === 'connected' || transportType === 'wired' || transportType === 'localNetwork';
 
             let state: string;
             if (pairingState !== 'paired') {
               state = 'Unpaired';
-            } else if (tunnelState === 'connected') {
+            } else if (hasDirectConnection) {
               state = 'Available';
             } else {
-              state = 'Available (WiFi)';
+              state = 'Paired (not connected)';
             }
 
             devices.push({
@@ -226,75 +310,27 @@ export async function list_devicesLogic(
       return toolResponse(events);
     }
 
-    const availableDevices = uniqueDevices.filter((d) => isAvailableState(d.state));
-    const pairedDevices = uniqueDevices.filter((d) => d.state === 'Paired (not connected)');
-    const unpairedDevices = uniqueDevices.filter((d) => d.state === 'Unpaired');
-
-    if (availableDevices.length > 0) {
-      events.push(
-        table(
-          ['Name', 'Identifier', 'Platform', 'Model', 'Connection', 'Developer Mode'],
-          availableDevices.map((device) => ({
-            Name: device.name,
-            Identifier: device.identifier,
-            Platform: `${device.platform} ${device.osVersion ?? ''}`.trim(),
-            Model: device.model ?? device.productType ?? 'Unknown',
-            Connection: device.connectionType || 'Unknown',
-            'Developer Mode': device.developerModeStatus ?? 'Unknown',
-          })),
-          'Available Devices',
-        ),
-      );
-    }
-
-    if (pairedDevices.length > 0) {
-      events.push(
-        table(
-          ['Name', 'Identifier', 'Platform', 'Model'],
-          pairedDevices.map((device) => ({
-            Name: device.name,
-            Identifier: device.identifier,
-            Platform: `${device.platform} ${device.osVersion ?? ''}`.trim(),
-            Model: device.model ?? device.productType ?? 'Unknown',
-          })),
-          'Paired Devices',
-        ),
-      );
-    }
-
-    if (unpairedDevices.length > 0) {
-      events.push(
-        table(
-          ['Name', 'Identifier', 'Platform'],
-          unpairedDevices.map((device) => ({
-            Name: device.name,
-            Identifier: device.identifier,
-            Platform: `${device.platform} ${device.osVersion ?? ''}`.trim(),
-          })),
-          'Unpaired Devices',
-        ),
-      );
-    }
-
     const availableDevicesExist = uniqueDevices.some((d) => isAvailableState(d.state));
 
-    let nextStepParams: Record<string, Record<string, string | number | boolean>> | undefined;
+    const renderedDeviceList = renderGroupedDevices(
+      uniqueDevices.map((device) => ({
+        name: device.name,
+        identifier: device.identifier,
+        platform: device.platform,
+        osVersion: device.osVersion,
+        state: device.state,
+      })),
+    );
 
     if (availableDevicesExist) {
-      events.push(
-        statusLine('success', 'Devices discovered.'),
-        section('Hints', [
-          'Use the device ID/UDID from above when required by other tools.',
-          "Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.",
-          'Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.',
-        ]),
-      );
-
-      nextStepParams = {
-        build_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
-        build_run_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
-        test_device: { scheme: 'SCHEME', deviceId: 'DEVICE_UDID' },
-        get_device_app_path: { scheme: 'SCHEME' },
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `\n${renderedDeviceList}\n\nHints\n  Use the device ID/UDID from above when required by other tools.\n  Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.\n  Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.`,
+          },
+        ],
+        nextSteps: [],
       };
     } else if (uniqueDevices.length > 0) {
       events.push(
@@ -308,7 +344,7 @@ export async function list_devicesLogic(
       );
     }
 
-    return toolResponse(events, nextStepParams ? { nextStepParams } : undefined);
+    return toolResponse(events);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error listing devices: ${errorMessage}`);

@@ -25,6 +25,7 @@ import {
   type TestPreflightResult,
 } from './test-preflight.ts';
 import { formatToolPreflight } from './build-preflight.ts';
+import { resolveDeviceName } from './device-name-resolver.ts';
 import { createSimulatorTwoPhaseExecutionPlan } from './simulator-test-execution.ts';
 import { startBuildPipeline } from './xcodebuild-pipeline.ts';
 import type { XcodebuildPipeline } from './xcodebuild-pipeline.ts';
@@ -41,11 +42,7 @@ function emitXcresultFailures(pipeline: XcodebuildPipeline): void {
 }
 
 export function resolveTestProgressEnabled(progress: boolean | undefined): boolean {
-  if (typeof progress === 'boolean') {
-    return progress;
-  }
-
-  return process.env.XCODEBUILDMCP_RUNTIME === 'mcp';
+  return progress ?? process.env.XCODEBUILDMCP_RUNTIME === 'mcp';
 }
 
 /**
@@ -85,10 +82,12 @@ export async function handleTestLogic(
       ? { env: normalizeTestRunnerEnv(params.testRunnerEnv) }
       : undefined;
 
-    const isSimulatorPlatform = String(params.platform).includes('Simulator');
-    const shouldUseTwoPhaseSimulatorExecution = isSimulatorPlatform && Boolean(options?.preflight);
+    const shouldUseTwoPhaseSimulatorExecution =
+      String(params.platform).includes('Simulator') && Boolean(options?.preflight);
 
     const resolvedToolName = options?.toolName ?? 'test_sim';
+
+    const deviceName = params.deviceId ? resolveDeviceName(params.deviceId) : undefined;
 
     const configText = formatToolPreflight({
       operation: 'Test',
@@ -100,6 +99,7 @@ export async function handleTestLogic(
       simulatorName: params.simulatorName,
       simulatorId: params.simulatorId,
       deviceId: params.deviceId,
+      deviceName,
     });
 
     const discoveryText = options?.preflight ? formatTestDiscovery(options.preflight) : undefined;
@@ -113,9 +113,9 @@ export async function handleTestLogic(
         scheme: params.scheme,
         configuration: params.configuration,
         platform: String(params.platform),
-        ...(params.simulatorName ? { simulatorName: params.simulatorName } : {}),
-        ...(params.simulatorId ? { simulatorId: params.simulatorId } : {}),
-        ...(params.deviceId ? { deviceId: params.deviceId } : {}),
+        simulatorName: params.simulatorName,
+        simulatorId: params.simulatorId,
+        deviceId: params.deviceId,
         preflight: preflightText,
       },
       message: preflightText,

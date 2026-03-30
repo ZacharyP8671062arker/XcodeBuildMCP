@@ -1,14 +1,12 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { getDefaultCommandExecutor } from '../../../utils/command.ts';
 import { activeProcesses } from './active-processes.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
-import { header, statusLine, table } from '../../../utils/tool-event-builders.ts';
+import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
-/**
- * Process list dependencies for dependency injection
- */
 type ListProcessInfo = {
   executableName?: string;
   packagePath?: string;
@@ -21,12 +19,6 @@ export interface ProcessListDependencies {
   dateNow?: typeof Date.now;
 }
 
-/**
- * Swift package list business logic - extracted for testability and separation of concerns
- * @param params - Parameters (unused, but maintained for consistency)
- * @param dependencies - Injectable dependencies for testing
- * @returns ToolResponse with process list information
- */
 export async function swift_package_listLogic(
   params?: unknown,
   dependencies?: ProcessListDependencies,
@@ -48,7 +40,7 @@ export async function swift_package_listLogic(
 
   const processes = arrayFrom(processMap.entries());
 
-  const headerEvent = header('Swift Package List');
+  const headerEvent = header('Swift Package Processes');
 
   if (processes.length === 0) {
     return toolResponse([
@@ -57,28 +49,29 @@ export async function swift_package_listLogic(
     ]);
   }
 
-  const rows = processes.map(([pid, info]: [number, ListProcessInfo]) => {
+  const events: PipelineEvent[] = [headerEvent];
+
+  const cardLines: string[] = [''];
+  for (const [pid, info] of processes as Array<[number, ListProcessInfo]>) {
     // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
     const executableName = info.executableName || 'default';
     const runtime = Math.max(1, Math.round((dateNow() - info.startedAt.getTime()) / 1000));
     const packagePath = info.packagePath ?? 'unknown package';
-    return {
-      PID: String(pid),
-      Executable: executableName,
-      Package: packagePath,
-      Runtime: `${runtime}s`,
-    };
-  });
+    cardLines.push(
+      `\u{1F7E2} ${executableName}`,
+      `   PID: ${pid} | Uptime: ${runtime}s`,
+      `   Package: ${packagePath}`,
+      '',
+    );
+  }
 
-  return toolResponse([
-    headerEvent,
-    table(
-      ['PID', 'Executable', 'Package', 'Runtime'],
-      rows,
-      `Active Processes (${processes.length})`,
-    ),
-    statusLine('success', `${processes.length} process(es) running`),
-  ]);
+  while (cardLines.at(-1) === '') {
+    cardLines.pop();
+  }
+
+  events.push(section(`Running Processes (${processes.length}):`, cardLines));
+
+  return toolResponse(events);
 }
 
 const swiftPackageListSchema = z.object({});

@@ -1,35 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
-import {
-  createMockCommandResponse,
-  createMockExecutor,
-  createNoopExecutor,
-} from '../../../../test-utils/mock-executors.ts';
+import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
+import { expectPendingBuildResponse } from '../../../../test-utils/test-helpers.ts';
 import { schema, handler, buildDeviceLogic } from '../build_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 
-function expectPendingBuildResponse(
-  result: Awaited<ReturnType<typeof buildDeviceLogic>>,
-  nextStepToolId?: string,
-): void {
-  expect(result.content).toEqual([]);
-  expect(result._meta).toEqual(
-    expect.objectContaining({
-      pendingXcodebuild: expect.objectContaining({
-        kind: 'pending-xcodebuild',
-      }),
-    }),
-  );
-
-  if (nextStepToolId) {
-    expect(result.nextStepParams).toEqual(
-      expect.objectContaining({
-        [nextStepToolId]: expect.any(Object),
-      }),
-    );
-  } else {
-    expect(result.nextStepParams).toBeUndefined();
-  }
+function createSpyExecutor(): {
+  commandCalls: Array<{ args: string[]; logPrefix?: string }>;
+  executor: ReturnType<typeof createMockExecutor>;
+} {
+  const commandCalls: Array<{ args: string[]; logPrefix?: string }> = [];
+  const executor = createMockExecutor({
+    success: true,
+    output: 'Build succeeded',
+    onExecute: (command, logPrefix) => {
+      commandCalls.push({ args: command, logPrefix });
+    },
+  });
+  return { commandCalls, executor };
 }
 
 describe('build_device plugin', () => {
@@ -142,37 +130,18 @@ describe('build_device plugin', () => {
     });
 
     it('should verify workspace command generation with mock executor', async () => {
-      const commandCalls: Array<{
-        args: string[];
-        logPrefix?: string;
-        silent?: boolean;
-      }> = [];
-
-      const stubExecutor = async (
-        args: string[],
-        logPrefix?: string,
-        silent?: boolean,
-        opts?: { cwd?: string },
-        _detached?: boolean,
-      ) => {
-        commandCalls.push({ args, logPrefix, silent });
-        return createMockCommandResponse({
-          success: true,
-          output: 'Build succeeded',
-          error: undefined,
-        });
-      };
+      const spy = createSpyExecutor();
 
       await buildDeviceLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
         },
-        stubExecutor,
+        spy.executor,
       );
 
-      expect(commandCalls).toHaveLength(1);
-      expect(commandCalls[0].args).toEqual([
+      expect(spy.commandCalls).toHaveLength(1);
+      expect(spy.commandCalls[0].args).toEqual([
         'xcodebuild',
         '-workspace',
         '/path/to/MyProject.xcworkspace',
@@ -185,41 +154,22 @@ describe('build_device plugin', () => {
         'generic/platform=iOS',
         'build',
       ]);
-      expect(commandCalls[0].logPrefix).toBe('iOS Device Build');
+      expect(spy.commandCalls[0].logPrefix).toBe('iOS Device Build');
     });
 
     it('should verify command generation with mock executor', async () => {
-      const commandCalls: Array<{
-        args: string[];
-        logPrefix?: string;
-        silent?: boolean;
-      }> = [];
-
-      const stubExecutor = async (
-        args: string[],
-        logPrefix?: string,
-        silent?: boolean,
-        opts?: { cwd?: string },
-        _detached?: boolean,
-      ) => {
-        commandCalls.push({ args, logPrefix, silent });
-        return createMockCommandResponse({
-          success: true,
-          output: 'Build succeeded',
-          error: undefined,
-        });
-      };
+      const spy = createSpyExecutor();
 
       await buildDeviceLogic(
         {
           projectPath: '/path/to/MyProject.xcodeproj',
           scheme: 'MyScheme',
         },
-        stubExecutor,
+        spy.executor,
       );
 
-      expect(commandCalls).toHaveLength(1);
-      expect(commandCalls[0].args).toEqual([
+      expect(spy.commandCalls).toHaveLength(1);
+      expect(spy.commandCalls[0].args).toEqual([
         'xcodebuild',
         '-project',
         '/path/to/MyProject.xcodeproj',
@@ -232,7 +182,7 @@ describe('build_device plugin', () => {
         'generic/platform=iOS',
         'build',
       ]);
-      expect(commandCalls[0].logPrefix).toBe('iOS Device Build');
+      expect(spy.commandCalls[0].logPrefix).toBe('iOS Device Build');
     });
 
     it('should return exact successful build response', async () => {
@@ -272,26 +222,7 @@ describe('build_device plugin', () => {
     });
 
     it('should include optional parameters in command', async () => {
-      const commandCalls: Array<{
-        args: string[];
-        logPrefix?: string;
-        silent?: boolean;
-      }> = [];
-
-      const stubExecutor = async (
-        args: string[],
-        logPrefix?: string,
-        silent?: boolean,
-        opts?: { cwd?: string },
-        _detached?: boolean,
-      ) => {
-        commandCalls.push({ args, logPrefix, silent });
-        return createMockCommandResponse({
-          success: true,
-          output: 'Build succeeded',
-          error: undefined,
-        });
-      };
+      const spy = createSpyExecutor();
 
       await buildDeviceLogic(
         {
@@ -301,11 +232,11 @@ describe('build_device plugin', () => {
           derivedDataPath: '/tmp/derived-data',
           extraArgs: ['--verbose'],
         },
-        stubExecutor,
+        spy.executor,
       );
 
-      expect(commandCalls).toHaveLength(1);
-      expect(commandCalls[0].args).toEqual([
+      expect(spy.commandCalls).toHaveLength(1);
+      expect(spy.commandCalls[0].args).toEqual([
         'xcodebuild',
         '-project',
         '/path/to/MyProject.xcodeproj',
@@ -321,7 +252,7 @@ describe('build_device plugin', () => {
         '--verbose',
         'build',
       ]);
-      expect(commandCalls[0].logPrefix).toBe('iOS Device Build');
+      expect(spy.commandCalls[0].logPrefix).toBe('iOS Device Build');
     });
   });
 });

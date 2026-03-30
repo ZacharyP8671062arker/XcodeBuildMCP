@@ -140,6 +140,25 @@ export async function debug_attach_simLogic(
           ]);
         }
       }
+    } else {
+      try {
+        await debuggerManager.runCommand(session.id, 'process interrupt');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/already stopped|not running/i.test(message)) {
+          try {
+            await debuggerManager.detachSession(session.id);
+          } catch (detachError) {
+            const detachMessage =
+              detachError instanceof Error ? detachError.message : String(detachError);
+            log('warn', `Failed to detach debugger session after pause failure: ${detachMessage}`);
+          }
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Failed to pause debugger after attach: ${message}`),
+          ]);
+        }
+      }
     }
 
     const backendLabel = session.backend === 'dap' ? 'DAP debugger' : 'LLDB';

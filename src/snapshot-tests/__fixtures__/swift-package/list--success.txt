@@ -4,9 +4,9 @@
 Running Processes (2):
 
   🟢 long-server
-     PID: 12345 | Uptime: 10s
+     PID: <PID> | Uptime: <UPTIME>
      Package: <ROOT>/example_projects/spm
 
   🟢 quick-task
-     PID: 12346 | Uptime: 3s
+     PID: <PID> | Uptime: <UPTIME>
      Package: <ROOT>/example_projects/spm

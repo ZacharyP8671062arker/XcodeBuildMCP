@@ -53,7 +53,7 @@ export async function debug_breakpoint_addLogic(
     const events = [
       headerEvent,
       statusLine('success', `Breakpoint ${result.id} set`),
-      ...(rawOutput ? [section('Output', rawOutput.split('\n'))] : []),
+      ...(rawOutput ? [section('Output:', rawOutput.split('\n'))] : []),
     ];
 
     return toolResponse(events);

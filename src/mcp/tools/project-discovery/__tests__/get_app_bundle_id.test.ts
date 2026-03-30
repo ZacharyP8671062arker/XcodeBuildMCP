@@ -85,7 +85,8 @@ describe('get_app_bundle_id plugin', () => {
       expect(result.isError).toBeFalsy();
       const text = allText(result);
       expect(text).toContain('Get Bundle ID');
-      expect(text).toContain('Bundle ID: io.sentry.MyApp');
+      expect(text).toContain('Bundle ID');
+      expect(text).toContain('io.sentry.MyApp');
       expect(result.nextStepParams).toEqual({
         install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath: '/path/to/MyApp.app' },
         launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'io.sentry.MyApp' },
@@ -114,7 +115,8 @@ describe('get_app_bundle_id plugin', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Bundle ID: io.sentry.MyApp');
+      expect(text).toContain('Bundle ID');
+      expect(text).toContain('io.sentry.MyApp');
       expect(result.nextStepParams).toEqual({
         install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath: '/path/to/MyApp.app' },
         launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'io.sentry.MyApp' },

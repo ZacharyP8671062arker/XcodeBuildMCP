@@ -55,7 +55,10 @@ export async function erase_simsLogic(
       undefined,
     );
     if (result.success) {
-      return toolResponse([headerEvent, statusLine('success', `Simulator ${simulatorId} erased`)]);
+      return toolResponse([
+        headerEvent,
+        statusLine('success', 'Simulators were erased successfully'),
+      ]);
     }
 
     const errText = result.error ?? 'Unknown error';

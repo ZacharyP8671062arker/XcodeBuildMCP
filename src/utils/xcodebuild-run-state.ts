@@ -34,6 +34,30 @@ function normalizeDiagnosticKey(location: string | undefined, message: string): 
   return `${location ?? ''}|${message}`.trim().toLowerCase();
 }
 
+function normalizeTestIdentifier(value: string | undefined): string {
+  return (value ?? '').trim().replace(/\(\)$/u, '').toLowerCase();
+}
+
+function normalizeTestFailureLocation(location: string | undefined): string | null {
+  if (!location) {
+    return null;
+  }
+
+  const match = location.match(/([^/]+:\d+(?::\d+)?)$/u);
+  return (match?.[1] ?? location).trim().toLowerCase();
+}
+
+function normalizeTestFailureKey(event: TestFailureEvent): string {
+  const normalizedLocation = normalizeTestFailureLocation(event.location);
+  const normalizedMessage = event.message.trim().toLowerCase();
+
+  if (normalizedLocation) {
+    return `${normalizedLocation}|${normalizedMessage}`;
+  }
+
+  return `${normalizeTestIdentifier(event.suite)}|${normalizeTestIdentifier(event.test)}|${normalizedMessage}`;
+}
+
 export interface FinalizeOptions {
   emitSummary?: boolean;
   tailEvents?: PipelineEvent[];
@@ -111,7 +135,13 @@ export function createXcodebuildRunState(options: RunStateOptions): XcodebuildRu
         }
 
         case 'test-failure': {
-          acceptDedupedDiagnostic(event, state.testFailures);
+          const key = normalizeTestFailureKey(event);
+          if (seenDiagnostics.has(key)) {
+            return;
+          }
+          seenDiagnostics.add(key);
+          state.testFailures.push(event);
+          accept(event);
           break;
         }
 
@@ -162,6 +192,16 @@ export function createXcodebuildRunState(options: RunStateOptions): XcodebuildRu
       state.wallClockDurationMs = durationMs ?? null;
 
       if (options?.emitSummary !== false) {
+        const reconciledFailedTests = Math.max(state.failedTests, state.testFailures.length);
+        const reconciledPassedTests = Math.max(
+          0,
+          state.completedTests - state.failedTests - state.skippedTests,
+        );
+        const reconciledTotalTests =
+          operation === 'TEST'
+            ? reconciledPassedTests + reconciledFailedTests + state.skippedTests
+            : undefined;
+
         const summaryEvent: PipelineEvent = {
           type: 'summary',
           timestamp: new Date().toISOString(),
@@ -169,9 +209,9 @@ export function createXcodebuildRunState(options: RunStateOptions): XcodebuildRu
           status: state.finalStatus,
           ...(operation === 'TEST'
             ? {
-                totalTests: state.completedTests,
-                passedTests: state.completedTests - state.failedTests - state.skippedTests,
-                failedTests: state.failedTests,
+                totalTests: reconciledTotalTests,
+                passedTests: reconciledPassedTests,
+                failedTests: reconciledFailedTests,
                 skippedTests: state.skippedTests,
               }
             : {}),

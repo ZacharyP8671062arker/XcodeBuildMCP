@@ -72,11 +72,11 @@ describe('mcp-renderer', () => {
       .filter((item) => item.type === 'text')
       .map((item) => item.text);
 
-    expect(textItems[1]).toContain('Compiler Errors (1):');
-    expect(textItems[1]).toContain('  \u2717 unterminated string literal');
-    expect(textItems[1]).toContain('    /tmp/MCPTest/ContentView.swift:16:18');
-    expect(textItems[1]).not.toContain('error: unterminated string literal');
-    expect(textItems[2]).toContain('\u{274C} Build failed. (\u{23F1}\u{FE0F} 4.0s)');
+    expect(textItems[0]).toContain('Compiler Errors (1):');
+    expect(textItems[0]).toContain('  \u2717 unterminated string literal');
+    expect(textItems[0]).toContain('    /tmp/MCPTest/ContentView.swift:16:18');
+    expect(textItems[0]).not.toContain('error: unterminated string literal');
+    expect(textItems[0]).toContain('\u{274C} Build failed. (\u{23F1}\u{FE0F} 4.0s)');
   });
 
   it('buffers the same formatted sections in order and keeps next steps last', () => {
@@ -130,10 +130,10 @@ describe('mcp-renderer', () => {
       .map((item) => item.text);
 
     expect(textItems[0]).toContain('Build & Run');
-    expect(textItems[1]).toBe('\u203A Compiling');
-    expect(textItems[2]).toContain('\u{2705} Build succeeded.');
-    expect(textItems[3]).toContain('\u{2705} Build & Run complete');
-    expect(textItems[4]).toContain('\u2514 App Path: /tmp/build/MyApp.app');
-    expect(textItems.at(-1)).toContain('Next steps:');
+    expect(textItems[0]).toContain('\u203A Compiling');
+    expect(textItems[0]).toContain('\u{2705} Build succeeded.');
+    expect(textItems[0]).toContain('\u{2705} Build & Run complete');
+    expect(textItems[0]).toContain('\u2514 App Path: /tmp/build/MyApp.app');
+    expect(textItems[0]).toContain('Next steps:');
   });
 });

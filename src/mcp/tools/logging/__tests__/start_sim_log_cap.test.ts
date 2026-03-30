@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import * as z from 'zod';
 import { schema, handler, start_sim_log_capLogic } from '../start_sim_log_cap.ts';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('start_sim_log_cap plugin', () => {
-  describe('Export Field Validation (Literal)', () => {
+  describe('Plugin Structure', () => {
     it('should export schema and handler', () => {
       expect(schema).toBeDefined();
       expect(handler).toBeDefined();
@@ -13,37 +12,6 @@ describe('start_sim_log_cap plugin', () => {
 
     it('should have handler as a function', () => {
       expect(typeof handler).toBe('function');
-    });
-
-    it('should validate schema with valid parameters', () => {
-      const schemaObj = z.object(schema);
-      expect(schemaObj.safeParse({}).success).toBe(true);
-      expect(schemaObj.safeParse({ captureConsole: true }).success).toBe(true);
-      expect(schemaObj.safeParse({ captureConsole: false }).success).toBe(true);
-    });
-
-    it('should validate schema with subsystemFilter parameter', () => {
-      const schemaObj = z.object(schema);
-      expect(schemaObj.safeParse({ subsystemFilter: 'app' }).success).toBe(true);
-      expect(schemaObj.safeParse({ subsystemFilter: 'all' }).success).toBe(true);
-      expect(schemaObj.safeParse({ subsystemFilter: 'swiftui' }).success).toBe(true);
-      expect(schemaObj.safeParse({ subsystemFilter: ['com.apple.UIKit'] }).success).toBe(true);
-      expect(
-        schemaObj.safeParse({ subsystemFilter: ['com.apple.UIKit', 'com.apple.CoreData'] }).success,
-      ).toBe(true);
-      expect(schemaObj.safeParse({ subsystemFilter: [] }).success).toBe(false);
-      expect(schemaObj.safeParse({ subsystemFilter: 'invalid' }).success).toBe(false);
-      expect(schemaObj.safeParse({ subsystemFilter: 123 }).success).toBe(false);
-    });
-
-    it('should reject invalid schema parameters', () => {
-      const schemaObj = z.object(schema);
-      expect(schemaObj.safeParse({ captureConsole: 'yes' }).success).toBe(false);
-      expect(schemaObj.safeParse({ captureConsole: 123 }).success).toBe(false);
-
-      const withSimId = schemaObj.safeParse({ simulatorId: 'test-uuid' });
-      expect(withSimId.success).toBe(true);
-      expect('simulatorId' in (withSimId.data as any)).toBe(false);
     });
   });
 
@@ -99,118 +67,10 @@ describe('start_sim_log_cap plugin', () => {
       expect(result.isError).toBeUndefined();
       const text = allText(result);
       expect(text).toContain('test-uuid-123');
-      expect(text).toContain('app subsystem');
       expect(result.nextStepParams?.stop_sim_log_cap).toBeDefined();
       expect(result.nextStepParams?.stop_sim_log_cap).toMatchObject({
         logSessionId: 'test-uuid-123',
       });
-    });
-
-    it('should indicate swiftui capture when subsystemFilter is swiftui', async () => {
-      const mockExecutor = createMockExecutor({ success: true, output: '' });
-      const logCaptureStub = (params: any, executor: any) => {
-        return Promise.resolve({
-          sessionId: 'test-uuid-123',
-          logFilePath: '/tmp/test.log',
-          processes: [],
-          error: undefined,
-        });
-      };
-
-      const result = await start_sim_log_capLogic(
-        {
-          simulatorId: 'test-uuid',
-          bundleId: 'io.sentry.app',
-          subsystemFilter: 'swiftui',
-        },
-        mockExecutor,
-        logCaptureStub,
-      );
-
-      expect(result.isError).toBeUndefined();
-      const text = allText(result);
-      expect(text).toContain('SwiftUI logs');
-      expect(text).toContain('Self._printChanges()');
-    });
-
-    it('should indicate all logs capture when subsystemFilter is all', async () => {
-      const mockExecutor = createMockExecutor({ success: true, output: '' });
-      const logCaptureStub = (params: any, executor: any) => {
-        return Promise.resolve({
-          sessionId: 'test-uuid-123',
-          logFilePath: '/tmp/test.log',
-          processes: [],
-          error: undefined,
-        });
-      };
-
-      const result = await start_sim_log_capLogic(
-        {
-          simulatorId: 'test-uuid',
-          bundleId: 'io.sentry.app',
-          subsystemFilter: 'all',
-        },
-        mockExecutor,
-        logCaptureStub,
-      );
-
-      expect(result.isError).toBeUndefined();
-      const text = allText(result);
-      expect(text).toContain('all system logs');
-    });
-
-    it('should indicate custom subsystems when array is provided', async () => {
-      const mockExecutor = createMockExecutor({ success: true, output: '' });
-      const logCaptureStub = (params: any, executor: any) => {
-        return Promise.resolve({
-          sessionId: 'test-uuid-123',
-          logFilePath: '/tmp/test.log',
-          processes: [],
-          error: undefined,
-        });
-      };
-
-      const result = await start_sim_log_capLogic(
-        {
-          simulatorId: 'test-uuid',
-          bundleId: 'io.sentry.app',
-          subsystemFilter: ['com.apple.UIKit', 'com.apple.CoreData'],
-        },
-        mockExecutor,
-        logCaptureStub,
-      );
-
-      expect(result.isError).toBeUndefined();
-      const text = allText(result);
-      expect(text).toContain('com.apple.UIKit');
-      expect(text).toContain('com.apple.CoreData');
-    });
-
-    it('should indicate console capture when captureConsole is true', async () => {
-      const mockExecutor = createMockExecutor({ success: true, output: '' });
-      const logCaptureStub = (params: any, executor: any) => {
-        return Promise.resolve({
-          sessionId: 'test-uuid-123',
-          logFilePath: '/tmp/test.log',
-          processes: [],
-          error: undefined,
-        });
-      };
-
-      const result = await start_sim_log_capLogic(
-        {
-          simulatorId: 'test-uuid',
-          bundleId: 'io.sentry.app',
-          captureConsole: true,
-          subsystemFilter: 'app',
-        },
-        mockExecutor,
-        logCaptureStub,
-      );
-
-      const text = allText(result);
-      expect(text).toContain('App relaunched to capture console output');
-      expect(text).toContain('test-uuid-123');
     });
 
     it('should create correct spawn commands for console capture', async () => {

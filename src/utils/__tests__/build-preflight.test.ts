@@ -16,11 +16,11 @@ describe('formatToolPreflight', () => {
       [
         '\u{1F528} Build',
         '',
-        '  Scheme: MyApp',
-        '  Workspace: /path/to/MyApp.xcworkspace',
-        '  Configuration: Debug',
-        '  Platform: iOS Simulator',
-        '  Simulator: iPhone 17',
+        '   Scheme: MyApp',
+        '   Workspace: /path/to/MyApp.xcworkspace',
+        '   Configuration: Debug',
+        '   Platform: iOS Simulator',
+        '   Simulator: iPhone 17',
         '',
       ].join('\n'),
     );
@@ -40,17 +40,17 @@ describe('formatToolPreflight', () => {
       [
         '\u{1F528} Build',
         '',
-        '  Scheme: MyApp',
-        '  Project: /path/to/MyApp.xcodeproj',
-        '  Configuration: Release',
-        '  Platform: iOS Simulator',
-        '  Simulator: ABC-123-DEF',
+        '   Scheme: MyApp',
+        '   Project: /path/to/MyApp.xcodeproj',
+        '   Configuration: Release',
+        '   Platform: iOS Simulator',
+        '   Simulator: ABC-123-DEF',
         '',
       ].join('\n'),
     );
   });
 
-  it('formats build & run with device', () => {
+  it('formats build & run with device ID only', () => {
     const result = formatToolPreflight({
       operation: 'Build & Run',
       scheme: 'MyApp',
@@ -64,11 +64,36 @@ describe('formatToolPreflight', () => {
       [
         '\u{1F680} Build & Run',
         '',
-        '  Scheme: MyApp',
-        '  Project: /path/to/MyApp.xcodeproj',
-        '  Configuration: Debug',
-        '  Platform: iOS',
-        '  Device: DEVICE-UDID-123',
+        '   Scheme: MyApp',
+        '   Project: /path/to/MyApp.xcodeproj',
+        '   Configuration: Debug',
+        '   Platform: iOS',
+        '   Device: DEVICE-UDID-123',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('formats build & run with device name and ID', () => {
+    const result = formatToolPreflight({
+      operation: 'Build & Run',
+      scheme: 'MyApp',
+      projectPath: '/path/to/MyApp.xcodeproj',
+      configuration: 'Debug',
+      platform: 'iOS',
+      deviceId: 'DEVICE-UDID-123',
+      deviceName: "Cameron's iPhone",
+    });
+
+    expect(result).toBe(
+      [
+        '\u{1F680} Build & Run',
+        '',
+        '   Scheme: MyApp',
+        '   Project: /path/to/MyApp.xcodeproj',
+        '   Configuration: Debug',
+        '   Platform: iOS',
+        "   Device: Cameron's iPhone (DEVICE-UDID-123)",
         '',
       ].join('\n'),
     );
@@ -87,10 +112,10 @@ describe('formatToolPreflight', () => {
       [
         '\u{1F680} Build & Run',
         '',
-        '  Scheme: MacApp',
-        '  Project: /path/to/MacApp.xcodeproj',
-        '  Configuration: Debug',
-        '  Platform: macOS',
+        '   Scheme: MacApp',
+        '   Project: /path/to/MacApp.xcodeproj',
+        '   Configuration: Debug',
+        '   Platform: macOS',
         '',
       ].join('\n'),
     );
@@ -110,11 +135,11 @@ describe('formatToolPreflight', () => {
       [
         '\u{1F528} Build',
         '',
-        '  Scheme: MyMacApp',
-        '  Workspace: /path/to/workspace.xcworkspace',
-        '  Configuration: Debug',
-        '  Platform: macOS',
-        '  Architecture: arm64',
+        '   Scheme: MyMacApp',
+        '   Workspace: /path/to/workspace.xcworkspace',
+        '   Configuration: Debug',
+        '   Platform: macOS',
+        '   Architecture: arm64',
         '',
       ].join('\n'),
     );
@@ -133,10 +158,10 @@ describe('formatToolPreflight', () => {
       [
         '\u{1F9F9} Clean',
         '',
-        '  Scheme: MyApp',
-        '  Project: /path/to/MyApp.xcodeproj',
-        '  Configuration: Debug',
-        '  Platform: iOS',
+        '   Scheme: MyApp',
+        '   Project: /path/to/MyApp.xcodeproj',
+        '   Configuration: Debug',
+        '   Platform: iOS',
         '',
       ].join('\n'),
     );
@@ -154,9 +179,9 @@ describe('formatToolPreflight', () => {
       [
         '\u{1F528} Build',
         '',
-        '  Scheme: MyApp',
-        '  Configuration: Debug',
-        '  Platform: macOS',
+        '   Scheme: MyApp',
+        '   Configuration: Debug',
+        '   Platform: macOS',
         '',
       ].join('\n'),
     );
@@ -176,11 +201,11 @@ describe('formatToolPreflight', () => {
       [
         '\u{1F9EA} Test',
         '',
-        '  Scheme: MyApp',
-        '  Workspace: /path/to/MyApp.xcworkspace',
-        '  Configuration: Debug',
-        '  Platform: iOS Simulator',
-        '  Simulator: iPhone 17',
+        '   Scheme: MyApp',
+        '   Workspace: /path/to/MyApp.xcworkspace',
+        '   Configuration: Debug',
+        '   Platform: iOS Simulator',
+        '   Simulator: iPhone 17',
         '',
       ].join('\n'),
     );
@@ -196,7 +221,7 @@ describe('formatToolPreflight', () => {
       platform: 'macOS',
     });
 
-    expect(result).toContain('  Workspace: MyApp.xcworkspace');
+    expect(result).toContain('   Workspace: MyApp.xcworkspace');
     expect(result).not.toContain(cwd);
   });
 
@@ -209,7 +234,7 @@ describe('formatToolPreflight', () => {
       platform: 'macOS',
     });
 
-    expect(result).toContain('  Project: /other/location/MyApp.xcodeproj');
+    expect(result).toContain('   Project: /other/location/MyApp.xcodeproj');
   });
 
   it('prefers simulator name over simulator ID when both provided', () => {

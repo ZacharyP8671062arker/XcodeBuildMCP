@@ -1,13 +1,5 @@
-/**
- * Screenshot tool plugin - Capture screenshots from iOS Simulator
- *
- * Note: The simctl screenshot command captures the raw framebuffer in portrait orientation
- * regardless of the device's actual rotation. When the simulator is in landscape mode,
- * this results in a rotated image. This plugin detects the simulator window orientation
- * and applies a +90° rotation to correct landscape screenshots.
- */
-import * as path from 'path';
-import { tmpdir } from 'os';
+import * as path from 'node:path';
+import { tmpdir } from 'node:os';
 import * as z from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import type { ToolResponse } from '../../../types/common.ts';
@@ -42,7 +34,7 @@ async function getImageDimensions(
     const widthMatch = result.output.match(/pixelWidth:\s*(\d+)/);
     const heightMatch = result.output.match(/pixelHeight:\s*(\d+)/);
     if (widthMatch && heightMatch) {
-      return `${widthMatch[1]}x${heightMatch[1]}`;
+      return `${widthMatch[1]}x${heightMatch[1]}px`;
     }
     return null;
   } catch {
@@ -293,7 +285,7 @@ export async function screenshotLogic(
 
         return toolResponse([
           headerEvent,
-          statusLine('success', 'Screenshot captured.'),
+          statusLine('success', 'Screenshot captured'),
           detailTree([
             { label: 'Screenshot', value: screenshotPath },
             { label: 'Format', value: 'image/png (optimization failed)' },
@@ -318,13 +310,11 @@ export async function screenshotLogic(
 
         const textResponse = toolResponse([
           headerEvent,
-          statusLine('success', 'Screenshot captured.'),
-          detailTree(
-            [
-              { label: 'Format', value: 'image/jpeg' },
-              ...(base64Dims ? [{ label: 'Size', value: base64Dims }] : []),
-            ] as Array<{ label: string; value: string }>,
-          ),
+          statusLine('success', 'Screenshot captured'),
+          detailTree([
+            { label: 'Format', value: 'image/jpeg' },
+            ...(base64Dims ? [{ label: 'Size', value: base64Dims }] : []),
+          ] as Array<{ label: string; value: string }>),
         ]);
         textResponse.content.push(createImageContent(base64Image, 'image/jpeg'));
         return textResponse;
@@ -339,14 +329,12 @@ export async function screenshotLogic(
       const dims = await getImageDimensions(optimizedPath, executor);
       return toolResponse([
         headerEvent,
-        statusLine('success', 'Screenshot captured.'),
-        detailTree(
-          [
-            { label: 'Screenshot', value: optimizedPath },
-            { label: 'Format', value: 'image/jpeg' },
-            ...(dims ? [{ label: 'Size', value: dims }] : []),
-          ] as Array<{ label: string; value: string }>,
-        ),
+        statusLine('success', 'Screenshot captured'),
+        detailTree([
+          { label: 'Screenshot', value: optimizedPath },
+          { label: 'Format', value: 'image/jpeg' },
+          ...(dims ? [{ label: 'Size', value: dims }] : []),
+        ] as Array<{ label: string; value: string }>),
       ]);
     } catch (fileError) {
       log('error', `${LOG_PREFIX}/screenshot: Failed to process image file: ${fileError}`);

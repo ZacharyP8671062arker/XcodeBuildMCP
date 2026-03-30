@@ -136,6 +136,7 @@ describe('event formatting', () => {
         '',
         '  \u2717 unterminated string literal',
         '    example_projects/macOS/MCPTest/ContentView.swift:16:18',
+        '',
       ].join('\n'),
     );
   });
@@ -244,10 +245,9 @@ describe('event formatting', () => {
       },
     ]);
 
-    expect(rendered).toContain('Test Failures (2):');
-    expect(rendered).toContain('  MathTests');
-    expect(rendered).toContain('    ✗ testAdd');
-    expect(rendered).toContain('      XCTAssertEqual failed');
-    expect(rendered).toContain('      Expected 4, got 5');
+    expect(rendered).toContain('MathTests');
+    expect(rendered).toContain('  ✗ testAdd:');
+    expect(rendered).toContain('      - XCTAssertEqual failed');
+    expect(rendered).toContain('      - Expected 4, got 5');
   });
 });

@@ -1,10 +1,3 @@
-/**
- * macOS Shared Plugin: Build macOS (Unified)
- *
- * Builds a macOS app using xcodebuild from a project or workspace.
- * Accepts mutually exclusive `projectPath` or `workspacePath`.
- */
-
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
@@ -20,8 +13,9 @@ import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
+import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
+import { detailTree } from '../../../utils/tool-event-builders.ts';
 
-// Unified schema: XOR between projectPath and workspacePath
 const baseSchemaObject = z.object({
   projectPath: z.string().optional().describe('Path to the .xcodeproj file'),
   workspacePath: z.string().optional().describe('Path to the .xcworkspace file'),
@@ -59,15 +53,11 @@ const buildMacOSSchema = z.preprocess(
 
 export type BuildMacOSParams = z.infer<typeof buildMacOSSchema>;
 
-/**
- * Business logic for building macOS apps from project or workspace with dependency injection.
- * Exported for direct testing and reuse.
- */
 export async function buildMacOSLogic(
   params: BuildMacOSParams,
   executor: CommandExecutor,
 ): Promise<ToolResponse> {
-  log('info', `Starting macOS build for scheme ${params.scheme} (internal)`);
+  log('info', `Starting macOS build for scheme ${params.scheme}`);
 
   const processedParams = {
     ...params,
@@ -110,25 +100,59 @@ export async function buildMacOSLogic(
   const buildResult = await executeXcodeBuildCommand(
     processedParams,
     platformOptions,
-    processedParams.preferXcodebuild ?? false,
+    processedParams.preferXcodebuild,
     'build',
     executor,
     undefined,
     started.pipeline,
   );
 
+  if (buildResult.isError) {
+    return createPendingXcodebuildResponse(started, buildResult);
+  }
+
+  let bundleId: string | undefined;
+  try {
+    const appPath = await resolveAppPathFromBuildSettings(
+      {
+        projectPath: params.projectPath,
+        workspacePath: params.workspacePath,
+        scheme: params.scheme,
+        configuration: processedParams.configuration,
+        platform: XcodePlatform.macOS,
+        derivedDataPath: params.derivedDataPath,
+        extraArgs: params.extraArgs,
+      },
+      executor,
+    );
+
+    const plistResult = await executor(
+      ['/bin/sh', '-c', `defaults read "${appPath}/Contents/Info" CFBundleIdentifier`],
+      'Extract Bundle ID',
+      false,
+    );
+    if (plistResult.success && plistResult.output) {
+      bundleId = plistResult.output.trim();
+    }
+  } catch {
+    // non-fatal: bundle ID is informational
+  }
+
+  const tailEvents = bundleId ? [detailTree([{ label: 'Bundle ID', value: bundleId }])] : [];
+
   return createPendingXcodebuildResponse(
     started,
-    buildResult.isError
-      ? buildResult
-      : {
-          ...buildResult,
-          nextStepParams: {
-            get_mac_app_path: {
-              scheme: params.scheme,
-            },
-          },
+    {
+      ...buildResult,
+      nextStepParams: {
+        get_mac_app_path: {
+          scheme: params.scheme,
         },
+      },
+    },
+    {
+      tailEvents,
+    },
   );
 }
 

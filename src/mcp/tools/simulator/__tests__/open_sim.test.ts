@@ -44,7 +44,7 @@ describe('open_sim tool', () => {
 
       const text = allText(result);
       expect(text).toContain('Open Simulator');
-      expect(text).toContain('Simulator app opened');
+      expect(text).toContain('Simulator opened successfully');
       expect(result.isError).toBeFalsy();
       expect(result.nextStepParams).toEqual({
         boot_sim: { simulatorId: 'UUID_FROM_LIST_SIMS' },

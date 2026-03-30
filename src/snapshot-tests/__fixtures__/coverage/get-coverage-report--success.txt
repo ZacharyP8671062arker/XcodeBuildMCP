@@ -4,7 +4,7 @@
    xcresult: <TMPDIR>/TestResults.xcresult
    Target Filter: CalculatorAppTests
 
-ℹ️ Overall: 94.9% (354/373 lines)
+ℹ️ Overall: 94.9% (371/391 lines)
 
 Targets
-  CalculatorAppTests.xctest: 94.9% (354/373 lines)
+  CalculatorAppTests.xctest: 94.9% (371/391 lines)

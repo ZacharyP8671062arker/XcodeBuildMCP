@@ -18,15 +18,16 @@ describe('project-discovery workflow (flowdeck)', () => {
 
   describe('list-schemes', () => {
     it('success', () => {
-      const result = harness.run([
-        'project', 'schemes', '-w', WORKSPACE,
-      ]);
+      const result = harness.run(['project', 'schemes', '-w', WORKSPACE]);
       writeFlowdeckFixture(__filename, 'list-schemes--success', result.text);
     });
 
     it('error - invalid workspace', () => {
       const result = harness.run([
-        'project', 'schemes', '-w', '/nonexistent/path/Fake.xcworkspace',
+        'project',
+        'schemes',
+        '-w',
+        '/nonexistent/path/Fake.xcworkspace',
       ]);
       writeFlowdeckFixture(__filename, 'list-schemes--error-invalid-workspace', result.text);
     });
@@ -36,9 +37,7 @@ describe('project-discovery workflow (flowdeck)', () => {
     // flowdeck doesn't have a direct show-build-settings command
     // The closest is `flowdeck project configs` which lists build configurations
     it('success (configs)', () => {
-      const result = harness.run([
-        'project', 'configs', '-w', WORKSPACE,
-      ]);
+      const result = harness.run(['project', 'configs', '-w', WORKSPACE]);
       writeFlowdeckFixture(__filename, 'show-build-settings--success', result.text);
     });
   });

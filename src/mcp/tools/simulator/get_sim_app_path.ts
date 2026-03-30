@@ -19,7 +19,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
-import { formatQueryError, formatQueryFailureSummary } from '../../../utils/xcodebuild-error-utils.ts';
+import { formatQueryError } from '../../../utils/xcodebuild-error-utils.ts';
 import { extractAppPathFromBuildSettingsOutput } from '../../../utils/app-path-resolver.ts';
 
 const SIMULATOR_PLATFORMS = [
@@ -110,6 +110,20 @@ export async function get_sim_app_pathLogic(
     simulatorId: params.simulatorId,
   });
 
+  function buildErrorResponse(rawOutput: string): ToolResponse {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `\n${preflightText}\n${formatQueryError(rawOutput)}\n\n\u{274C} Failed to get app path`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  const startedAt = Date.now();
+
   try {
     const command = ['xcodebuild', '-showBuildSettings'];
 
@@ -132,49 +146,30 @@ export async function get_sim_app_pathLogic(
 
     if (!result.success) {
       const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `\n${preflightText}${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
-          },
-        ],
-        isError: true,
-      };
+      return buildErrorResponse(rawOutput);
     }
 
     if (!result.output) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `\n${preflightText}${formatQueryError('Failed to extract build settings output from the result.')}\n\n${formatQueryFailureSummary()}`,
-          },
-        ],
-        isError: true,
-      };
+      return buildErrorResponse('Failed to extract build settings output from the result.');
     }
 
     let appPath: string;
     try {
       appPath = extractAppPathFromBuildSettingsOutput(result.output);
     } catch {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `\n${preflightText}${formatQueryError('Failed to extract app path from build settings. Make sure the app has been built first.')}\n\n${formatQueryFailureSummary()}`,
-          },
-        ],
-        isError: true,
-      };
+      return buildErrorResponse(
+        'Failed to extract app path from build settings. Make sure the app has been built first.',
+      );
     }
+
+    const durationMs = Date.now() - startedAt;
+    const durationStr = (durationMs / 1000).toFixed(1);
 
     return {
       content: [
         {
           type: 'text',
-          text: `\n${preflightText}  └ App Path: ${appPath}`,
+          text: `\n${preflightText}\n\u{2705} Get app path successful (\u{23F1}\u{FE0F} ${durationStr}s)\n  \u{2514} App Path: ${appPath}`,
         },
       ],
       nextStepParams: {
@@ -187,15 +182,7 @@ export async function get_sim_app_pathLogic(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error retrieving app path: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `\n${preflightText}${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
-        },
-      ],
-      isError: true,
-    };
+    return buildErrorResponse(errorMessage);
   }
 }
 

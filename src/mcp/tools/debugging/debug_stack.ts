@@ -32,7 +32,7 @@ export async function debug_stackLogic(
     return toolResponse([
       headerEvent,
       statusLine('success', 'Stack trace retrieved'),
-      ...(trimmed ? [section('Frames', trimmed.split('\n'))] : []),
+      ...(trimmed ? [section('Frames:', trimmed.split('\n'))] : []),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

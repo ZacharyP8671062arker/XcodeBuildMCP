@@ -121,6 +121,27 @@ describe('xcodebuild-event-parser', () => {
     });
   });
 
+  it('attaches failure duration when the diagnostic and failed test case lines both appear', () => {
+    const events = collectEvents('TEST', [
+      {
+        source: 'stderr',
+        text: '/tmp/Test.swift:52: error: -[Suite testB] : XCTAssertEqual failed: ("0") is not equal to ("1")\n',
+      },
+      { source: 'stdout', text: "Test Case '-[Suite testB]' failed (0.002 seconds)\n" },
+    ]);
+
+    const failures = events.filter((e) => e.type === 'test-failure');
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({
+      type: 'test-failure',
+      suite: 'Suite',
+      test: 'testB',
+      location: '/tmp/Test.swift:52',
+      message: 'XCTAssertEqual failed: ("0") is not equal to ("1")',
+      durationMs: 2,
+    });
+  });
+
   it('emits error events for build errors', () => {
     const events = collectEvents('BUILD', [
       {
@@ -210,6 +231,30 @@ describe('xcodebuild-event-parser', () => {
 
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ type: 'build-stage', stage: 'RESOLVING_PACKAGES' });
+  });
+
+  it('attaches swift-testing failure duration when the issue and failed result lines both appear', () => {
+    const events = collectEvents('TEST', [
+      {
+        source: 'stdout',
+        text: '✘ Test "IntentionalFailureSuite/test" recorded an issue at /tmp/SimpleTests.swift:48:5: Expectation failed: true == false\n',
+      },
+      {
+        source: 'stdout',
+        text: '✘ Test "IntentionalFailureSuite/test" failed after 0.003 seconds with 1 issue.\n',
+      },
+    ]);
+
+    const failures = events.filter((e) => e.type === 'test-failure');
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toMatchObject({
+      type: 'test-failure',
+      suite: 'IntentionalFailureSuite',
+      test: 'test',
+      location: '/tmp/SimpleTests.swift:48',
+      message: 'Expectation failed: true == false',
+      durationMs: 3,
+    });
   });
 
   it('processes full test lifecycle', () => {

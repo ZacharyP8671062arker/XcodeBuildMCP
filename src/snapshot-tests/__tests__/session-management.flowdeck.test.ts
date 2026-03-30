@@ -19,11 +19,7 @@ describe('session-management workflow (flowdeck)', () => {
   describe('session-set-defaults', () => {
     it('success', () => {
       // flowdeck equivalent: config set
-      const result = harness.run([
-        'config', 'set',
-        '-w', WORKSPACE,
-        '-s', 'CalculatorApp',
-      ]);
+      const result = harness.run(['config', 'set', '-w', WORKSPACE, '-s', 'CalculatorApp']);
       writeFlowdeckFixture(__filename, 'session-set-defaults--success', result.text);
     });
   });

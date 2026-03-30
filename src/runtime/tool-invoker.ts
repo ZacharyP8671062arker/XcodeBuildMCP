@@ -198,8 +198,14 @@ export function postProcessToolResponse(params: {
     return true;
   });
 
+  const suppressTemplateNextSteps =
+    responseForNextSteps.nextSteps !== undefined && responseForNextSteps.nextSteps.length === 0;
+
   const withTemplates =
-    !suppressNextStepsForStructuredFailure && applyTemplateNextSteps && templateSteps.length > 0
+    !suppressNextStepsForStructuredFailure &&
+    applyTemplateNextSteps &&
+    !suppressTemplateNextSteps &&
+    templateSteps.length > 0
       ? {
           ...responseForNextSteps,
           nextSteps: mergeTemplateAndResponseNextSteps(

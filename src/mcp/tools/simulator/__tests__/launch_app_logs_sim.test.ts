@@ -86,9 +86,7 @@ describe('launch_app_logs_sim tool', () => {
       expect(text.indexOf('App launched successfully')).toBeLessThan(
         text.indexOf('Log Session ID: test-session-123'),
       );
-      expect(result.nextStepParams).toEqual({
-        stop_sim_log_cap: { logSessionId: 'test-session-123' },
-      });
+      expect(result.nextStepParams).toBeUndefined();
       expect(result.isError).toBeFalsy();
 
       expect(capturedParams).toEqual({

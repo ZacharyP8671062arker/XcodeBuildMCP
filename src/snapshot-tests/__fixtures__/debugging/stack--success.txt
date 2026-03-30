@@ -5,20 +5,7 @@
 
 Frames:
   Thread <THREAD_ID> (Thread 1)
-  frame #0: mach_msg2_trap at /usr/lib/system/libsystem_kernel.dylib`mach_msg2_trap:<OFFSET>
-  frame #1: mach_msg2_internal at /usr/lib/system/libsystem_kernel.dylib`mach_msg2_internal:<OFFSET>
-  frame #2: mach_msg_overwrite at /usr/lib/system/libsystem_kernel.dylib`mach_msg_overwrite:<OFFSET>
-  frame #3: mach_msg at /usr/lib/system/libsystem_kernel.dylib`mach_msg:6
-  frame #4: <ADDR> at <ADDR>:1
-  frame #5: <ADDR> at <ADDR>:1
-  frame #6: <ADDR> at <ADDR>:1
-  frame #7: <ADDR> at <ADDR>:1
-  frame #8: <ADDR> at <ADDR>:1
-  frame #9: <ADDR> at <ADDR>:1
-  frame #10: <ADDR> at <ADDR>:1
-  frame #11: <ADDR> at <ADDR>:1
-  frame #12: <ADDR> at <ADDR>:<OFFSET>
-  frame #13: static CalculatorApp.$main() at <HOME>/Library/Developer/CoreSimulator/Devices/<UUID>/data/Containers/Bundle/Application/<UUID>/CalculatorApp.app/CalculatorApp.debug.dylib`static CalculatorApp.CalculatorApp.$main() -> ():<OFFSET>
-  frame #14: main at <HOME>/Library/Developer/CoreSimulator/Devices/<UUID>/data/Containers/Bundle/Application/<UUID>/CalculatorApp.app/CalculatorApp.debug.dylib`main:<OFFSET>
-  frame #15: start_sim at /Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/usr/lib/dyld_sim`start_sim:<OFFSET>
-  frame #16: start at /usr/lib/dyld`start:<OFFSET>
+  <LOWER_FRAMES>
+  frame #<N>: static CalculatorApp.$main() at <HOME>/Library/Developer/CoreSimulator/Devices/<UUID>/data/Containers/Bundle/Application/<UUID>/CalculatorApp.app/CalculatorApp.debug.dylib`static CalculatorApp.CalculatorApp.$main() -> ():<OFFSET>
+  frame #<N>: main at <HOME>/Library/Developer/CoreSimulator/Devices/<UUID>/data/Containers/Bundle/Application/<UUID>/CalculatorApp.app/CalculatorApp.debug.dylib`main:<OFFSET>
+  <LOWER_FRAMES>

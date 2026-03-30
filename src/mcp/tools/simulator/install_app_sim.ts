@@ -47,8 +47,12 @@ export async function install_app_simLogic(
   executor: CommandExecutor,
   fileSystem?: FileSystemExecutor,
 ): Promise<ToolResponse> {
+  const simulatorDisplayName = params.simulatorName
+    ? `"${params.simulatorName}" (${params.simulatorId})`
+    : params.simulatorId;
+
   const headerEvent = header('Install App', [
-    { label: 'Simulator', value: params.simulatorId },
+    { label: 'Simulator', value: simulatorDisplayName },
     { label: 'App Path', value: params.appPath },
   ]);
 
@@ -84,21 +88,15 @@ export async function install_app_simLogic(
       log('warn', `Could not extract bundle ID from app: ${error}`);
     }
 
-    return toolResponse(
-      [
-        headerEvent,
-        statusLine('success', `App installed successfully in simulator ${params.simulatorId}`),
-      ],
-      {
-        nextStepParams: {
-          open_sim: {},
-          launch_app_sim: {
-            simulatorId: params.simulatorId,
-            bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
-          },
+    return toolResponse([headerEvent, statusLine('success', 'App installed successfully')], {
+      nextStepParams: {
+        open_sim: {},
+        launch_app_sim: {
+          simulatorId: params.simulatorId,
+          bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
         },
       },
-    );
+    });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during install app in simulator operation: ${errorMessage}`);

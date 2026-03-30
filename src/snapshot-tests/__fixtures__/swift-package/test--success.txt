@@ -5,5 +5,5 @@
    Configuration: debug
    Platform: Swift Package
 
-✅ Test succeeded. (<TEST_COUNTS>, ⏱️ <DURATION>)
-  └ Build Logs: <TMPDIR>/logs/swift_package_test_2026-03-28T08-19-43-542Z.log
+✅ 1 test passed, 0 skipped (⏱️ <DURATION>)
+  └ Build Logs: <TMPDIR>/logs/swift_package_test_<TIMESTAMP>.log

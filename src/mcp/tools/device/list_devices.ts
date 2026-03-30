@@ -83,7 +83,13 @@ function getDeviceEmoji(platform: string): string {
 }
 
 function renderGroupedDevices(
-  devices: Array<{ name: string; identifier: string; platform: string; osVersion?: string; state: string }>,
+  devices: Array<{
+    name: string;
+    identifier: string;
+    platform: string;
+    osVersion?: string;
+    state: string;
+  }>,
 ): string {
   const grouped = new Map<string, typeof devices>();
 
@@ -94,7 +100,9 @@ function renderGroupedDevices(
   }
 
   const lines: string[] = ['📱 List Devices', ''];
-  const orderedPlatforms = [...grouped.keys()].sort((a, b) => getPlatformOrder(a) - getPlatformOrder(b));
+  const orderedPlatforms = [...grouped.keys()].sort(
+    (a, b) => getPlatformOrder(a) - getPlatformOrder(b),
+  );
 
   for (const platform of orderedPlatforms) {
     const platformDevices = grouped.get(platform) ?? [];
@@ -216,7 +224,9 @@ export async function list_devicesLogic(
             const tunnelState = device.connectionProperties?.tunnelState ?? '';
             const transportType = device.connectionProperties?.transportType ?? '';
             const hasDirectConnection =
-              tunnelState === 'connected' || transportType === 'wired' || transportType === 'localNetwork';
+              tunnelState === 'connected' ||
+              transportType === 'wired' ||
+              transportType === 'localNetwork';
 
             let state: string;
             if (pairingState !== 'paired') {

@@ -315,9 +315,7 @@ describe('DefaultToolInvoker next steps post-processing', () => {
         mcpName: 'list_devices',
         workflow: 'device',
         stateful: false,
-        nextStepTemplates: [
-          { label: 'Build for device', toolId: 'build_device' },
-        ],
+        nextStepTemplates: [{ label: 'Build for device', toolId: 'build_device' }],
         handler: directHandler,
       }),
       makeTool({

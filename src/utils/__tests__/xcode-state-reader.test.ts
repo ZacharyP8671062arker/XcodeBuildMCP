@@ -218,4 +218,3 @@ describe('readXcodeIdeState', () => {
     expect(result.error).toBeDefined();
   });
 });
-

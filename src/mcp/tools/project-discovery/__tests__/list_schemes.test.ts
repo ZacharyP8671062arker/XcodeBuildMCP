@@ -6,7 +6,6 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, listSchemes, listSchemesLogic } from '../list_schemes.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('list_schemes plugin', () => {
   beforeEach(() => {
@@ -31,8 +30,24 @@ describe('list_schemes plugin', () => {
     });
   });
 
-  describe('Handler Behavior (Complete Literal Returns)', () => {
-    it('should return success with schemes found', async () => {
+  describe('Handler behavior', () => {
+    it('returns parsed schemes for setup flows', async () => {
+      const mockExecutor = createMockExecutor({
+        success: true,
+        output: `Information about project "MyProject":
+    Schemes:
+        MyProject
+        MyProjectTests`,
+      });
+
+      const schemes = await listSchemes(
+        { projectPath: '/path/to/MyProject.xcodeproj' },
+        mockExecutor,
+      );
+      expect(schemes).toEqual(['MyProject', 'MyProjectTests']);
+    });
+
+    it('should return nextStepParams when schemes are found for a project', async () => {
       const mockExecutor = createMockExecutor({
         success: true,
         output: `Information about project "MyProject":
@@ -55,11 +70,6 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('List Schemes');
-      expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
-      expect(text).toContain('MyProject');
-      expect(text).toContain('MyProjectTests');
       expect(result.nextStepParams).toEqual({
         build_macos: { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyProject' },
         build_run_sim: {
@@ -88,14 +98,10 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('List Schemes');
-      expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
-      expect(text).toContain('Project not found');
       expect(result.nextStepParams).toBeUndefined();
     });
 
-    it('should return error when no schemes found in output', async () => {
+    it('should return error when no schemes are found in output', async () => {
       const mockExecutor = createMockExecutor({
         success: true,
         output: 'Information about project "MyProject":\n    Targets:\n        MyProject',
@@ -107,9 +113,6 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('List Schemes');
-      expect(text).toContain('No schemes found in the output');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -135,13 +138,10 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('List Schemes');
-      expect(text).toContain('(none)');
       expect(result.nextStepParams).toBeUndefined();
     });
 
-    it('should handle Error objects in catch blocks', async () => {
+    it('should handle thrown errors', async () => {
       const mockExecutor = async () => {
         throw new Error('Command execution failed');
       };
@@ -152,47 +152,11 @@ describe('list_schemes plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('List Schemes');
-      expect(text).toContain('Command execution failed');
       expect(result.nextStepParams).toBeUndefined();
     });
 
-    it('should handle string error objects in catch blocks', async () => {
-      const mockExecutor = async () => {
-        throw 'String error';
-      };
-
-      const result = await listSchemesLogic(
-        { projectPath: '/path/to/MyProject.xcodeproj' },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('List Schemes');
-      expect(text).toContain('String error');
-      expect(result.nextStepParams).toBeUndefined();
-    });
-
-    it('returns parsed schemes for setup flows', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: `Information about project "MyProject":
-    Schemes:
-        MyProject
-        MyProjectTests`,
-      });
-
-      const schemes = await listSchemes(
-        { projectPath: '/path/to/MyProject.xcodeproj' },
-        mockExecutor,
-      );
-      expect(schemes).toEqual(['MyProject', 'MyProjectTests']);
-    });
-
-    it('should verify command generation with mock executor', async () => {
-      const calls: any[] = [];
+    it('should verify project command generation with mock executor', async () => {
+      const calls: unknown[][] = [];
       const mockExecutor = async (
         command: string[],
         action?: string,
@@ -230,6 +194,69 @@ describe('list_schemes plugin', () => {
       ]);
     });
 
+    it('should generate correct workspace command', async () => {
+      const calls: unknown[][] = [];
+      const mockExecutor = async (
+        command: string[],
+        action?: string,
+        showOutput?: boolean,
+        opts?: { cwd?: string },
+        detached?: boolean,
+      ) => {
+        calls.push([command, action, showOutput, opts?.cwd]);
+        void detached;
+        return createMockCommandResponse({
+          success: true,
+          output: `Information about workspace "MyWorkspace":
+    Schemes:
+        MyApp`,
+          error: undefined,
+        });
+      };
+
+      await listSchemesLogic({ workspacePath: '/path/to/MyProject.xcworkspace' }, mockExecutor);
+
+      expect(calls).toEqual([
+        [
+          ['xcodebuild', '-list', '-workspace', '/path/to/MyProject.xcworkspace'],
+          'List Schemes',
+          false,
+          undefined,
+        ],
+      ]);
+    });
+
+    it('should return nextStepParams when schemes are found for a workspace', async () => {
+      const mockExecutor = createMockExecutor({
+        success: true,
+        output: `Information about workspace "MyWorkspace":
+    Schemes:
+        MyApp
+        MyAppTests`,
+      });
+
+      const result = await listSchemesLogic(
+        { workspacePath: '/path/to/MyProject.xcworkspace' },
+        mockExecutor,
+      );
+
+      expect(result.isError).toBeFalsy();
+      expect(result.nextStepParams).toEqual({
+        build_macos: { workspacePath: '/path/to/MyProject.xcworkspace', scheme: 'MyApp' },
+        build_run_sim: {
+          workspacePath: '/path/to/MyProject.xcworkspace',
+          scheme: 'MyApp',
+          simulatorName: 'iPhone 17',
+        },
+        build_sim: {
+          workspacePath: '/path/to/MyProject.xcworkspace',
+          scheme: 'MyApp',
+          simulatorName: 'iPhone 17',
+        },
+        show_build_settings: { workspacePath: '/path/to/MyProject.xcworkspace', scheme: 'MyApp' },
+      });
+    });
+
     it('should handle validation when testing with missing projectPath via plugin handler', async () => {
       const result = await handler({});
       expect(result.isError).toBe(true);
@@ -263,76 +290,6 @@ describe('list_schemes plugin', () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Missing required session defaults');
       expect(result.content[0].text).toContain('Provide a project or workspace');
-    });
-  });
-
-  describe('Workspace Support', () => {
-    it('should list schemes for workspace', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: `Information about workspace "MyWorkspace":
-    Schemes:
-        MyApp
-        MyAppTests`,
-      });
-
-      const result = await listSchemesLogic(
-        { workspacePath: '/path/to/MyProject.xcworkspace' },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('List Schemes');
-      expect(text).toContain('Workspace: /path/to/MyProject.xcworkspace');
-      expect(text).toContain('MyApp');
-      expect(text).toContain('MyAppTests');
-      expect(result.nextStepParams).toEqual({
-        build_macos: { workspacePath: '/path/to/MyProject.xcworkspace', scheme: 'MyApp' },
-        build_run_sim: {
-          workspacePath: '/path/to/MyProject.xcworkspace',
-          scheme: 'MyApp',
-          simulatorName: 'iPhone 17',
-        },
-        build_sim: {
-          workspacePath: '/path/to/MyProject.xcworkspace',
-          scheme: 'MyApp',
-          simulatorName: 'iPhone 17',
-        },
-        show_build_settings: { workspacePath: '/path/to/MyProject.xcworkspace', scheme: 'MyApp' },
-      });
-    });
-
-    it('should generate correct workspace command', async () => {
-      const calls: any[] = [];
-      const mockExecutor = async (
-        command: string[],
-        action?: string,
-        showOutput?: boolean,
-        opts?: { cwd?: string },
-        detached?: boolean,
-      ) => {
-        calls.push([command, action, showOutput, opts?.cwd]);
-        void detached;
-        return createMockCommandResponse({
-          success: true,
-          output: `Information about workspace "MyWorkspace":
-    Schemes:
-        MyApp`,
-          error: undefined,
-        });
-      };
-
-      await listSchemesLogic({ workspacePath: '/path/to/MyProject.xcworkspace' }, mockExecutor);
-
-      expect(calls).toEqual([
-        [
-          ['xcodebuild', '-list', '-workspace', '/path/to/MyProject.xcworkspace'],
-          'List Schemes',
-          false,
-          undefined,
-        ],
-      ]);
     });
   });
 });

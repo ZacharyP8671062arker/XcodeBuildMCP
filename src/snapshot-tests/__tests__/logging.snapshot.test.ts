@@ -29,7 +29,9 @@ describe('logging workflow', () => {
         deviceId: DEVICE_ID,
       });
       if (installResult.isError) {
-        throw new Error(`Failed to prepare device app for logging snapshots:\n${installResult.rawText}`);
+        throw new Error(
+          `Failed to prepare device app for logging snapshots:\n${installResult.rawText}`,
+        );
       }
 
       await harness.invoke('device', 'stop', {

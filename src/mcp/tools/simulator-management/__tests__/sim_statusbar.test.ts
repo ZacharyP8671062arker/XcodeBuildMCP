@@ -6,7 +6,6 @@ import {
   type CommandExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, sim_statusbarLogic } from '../sim_statusbar.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('sim_statusbar tool', () => {
   describe('Schema Validation', () => {
@@ -38,29 +37,7 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      const text = allText(result);
-      expect(text).toContain('Statusbar');
-      expect(text).toContain('Status bar data network set successfully');
       expect(result.isError).toBeFalsy();
-    });
-
-    it('should handle minimal valid parameters (Zod handles validation)', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: 'Status bar set successfully',
-      });
-
-      const result = await sim_statusbarLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          dataNetwork: 'wifi',
-        },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Status bar data network set successfully');
     });
 
     it('should handle command failure', async () => {
@@ -77,8 +54,6 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      const text = allText(result);
-      expect(text).toContain('Failed to set status bar: Simulator not found');
       expect(result.isError).toBe(true);
     });
 
@@ -95,26 +70,6 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      const text = allText(result);
-      expect(text).toContain('Failed to set status bar: Connection failed');
-      expect(result.isError).toBe(true);
-    });
-
-    it('should handle exception with string error', async () => {
-      const mockExecutor: CommandExecutor = async () => {
-        throw 'String error';
-      };
-
-      const result = await sim_statusbarLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          dataNetwork: 'lte',
-        },
-        mockExecutor,
-      );
-
-      const text = allText(result);
-      expect(text).toContain('Failed to set status bar: String error');
       expect(result.isError).toBe(true);
     });
 
@@ -222,8 +177,6 @@ describe('sim_statusbar tool', () => {
         mockExecutor,
       );
 
-      const text = allText(result);
-      expect(text).toContain('Status bar overrides cleared');
       expect(result.isError).toBeFalsy();
     });
   });

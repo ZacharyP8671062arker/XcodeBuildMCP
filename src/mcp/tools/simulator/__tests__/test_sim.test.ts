@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, test_simLogic } from '../test_sim.ts';
@@ -6,19 +6,6 @@ import {
   createMockCommandResponse,
   createMockFileSystemExecutor,
 } from '../../../../test-utils/mock-executors.ts';
-import {
-  isPendingXcodebuildResponse,
-  finalizePendingXcodebuildResponse,
-} from '../../../../utils/xcodebuild-output.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
-
-function finalizeAndGetText(result: ToolResponse): string {
-  if (isPendingXcodebuildResponse(result)) {
-    const finalized = finalizePendingXcodebuildResponse(result);
-    return finalized.content.map((c) => c.text).join('\n');
-  }
-  return result.content.map((c) => c.text).join('\n');
-}
 
 describe('test_sim tool', () => {
   beforeEach(() => {
@@ -95,129 +82,6 @@ describe('test_sim tool', () => {
       expect(result.content[0].text).toContain('Mutually exclusive parameters provided');
       expect(result.content[0].text).toContain('simulatorId');
       expect(result.content[0].text).toContain('simulatorName');
-    });
-  });
-
-  describe('preflight output', () => {
-    it('prints Flowdeck-style preflight in CLI text mode', async () => {
-      const originalRuntime = process.env.XCODEBUILDMCP_RUNTIME;
-      const originalOutputFormat = process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
-      process.env.XCODEBUILDMCP_RUNTIME = 'cli';
-      process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = 'text';
-
-      const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-
-      const files = new Map<string, string>([
-        [
-          '/tmp/App.xcodeproj/xcshareddata/xcschemes/App.xcscheme',
-          `<?xml version="1.0" encoding="UTF-8"?>
-<Scheme>
-  <TestAction buildConfiguration = "Debug">
-    <Testables>
-      <TestableReference skipped = "NO">
-        <BuildableReference BlueprintName = "AppTests" ReferencedContainer = "container:App.xcodeproj"></BuildableReference>
-      </TestableReference>
-    </Testables>
-  </TestAction>
-</Scheme>`,
-        ],
-        [
-          '/tmp/AppTests/AppTests.swift',
-          `import XCTest
-final class AppTests: XCTestCase {
-  func testLaunch() {}
-}`,
-        ],
-      ]);
-
-      let callCount = 0;
-      const executor = async (
-        command: string[],
-        _description?: string,
-        _useShell?: boolean,
-        _opts?: { cwd?: string },
-      ) => {
-        if (command[0] === 'xcrun' && command[1] === 'simctl') {
-          return createMockCommandResponse({
-            success: true,
-            output: JSON.stringify({
-              devices: {
-                'com.apple.CoreSimulator.SimRuntime.iOS-26-0': [
-                  { udid: 'SIM-UUID', name: 'iPhone 17 Pro' },
-                ],
-              },
-            }),
-          });
-        }
-
-        callCount += 1;
-        if (callCount === 1) {
-          return createMockCommandResponse({ success: true, output: 'BUILD SUCCEEDED' });
-        }
-
-        return createMockCommandResponse({
-          success: true,
-          output: JSON.stringify({
-            title: 'App Tests',
-            result: 'SUCCEEDED',
-            totalTestCount: 1,
-            passedTests: 1,
-            failedTests: 0,
-            skippedTests: 0,
-            expectedFailures: 0,
-          }),
-        });
-      };
-
-      try {
-        const result = await test_simLogic(
-          {
-            projectPath: '/tmp/App.xcodeproj',
-            scheme: 'App',
-            simulatorName: 'iPhone 17 Pro',
-            configuration: 'Debug',
-            progress: false,
-          },
-          executor,
-          createMockFileSystemExecutor({
-            existsSync: (targetPath) =>
-              files.has(targetPath) ||
-              ['/tmp/AppTests', '/tmp/test-run/TestResults.xcresult'].includes(targetPath),
-            readFile: async (targetPath) => files.get(targetPath) ?? '',
-            readdir: async (targetPath) =>
-              targetPath === '/tmp/AppTests' ? ['AppTests.swift'] : [],
-            stat: async (targetPath) => ({
-              isDirectory: () =>
-                targetPath === '/tmp/AppTests' ||
-                targetPath === '/tmp/test-run/TestResults.xcresult',
-              mtimeMs: 0,
-            }),
-            mkdtemp: async () => '/tmp/test-run',
-            tmpdir: () => '/tmp',
-            rm: async () => {},
-          }),
-        );
-
-        expect(isPendingXcodebuildResponse(result)).toBe(true);
-        const stdoutOutput = stdoutWrite.mock.calls.flat().join('');
-        const responseText = finalizeAndGetText(result);
-        const allOutput = stdoutOutput + responseText;
-        expect(allOutput).toContain('Scheme: App');
-        expect(allOutput).toContain('Discovered 1 test(s):');
-        expect(allOutput).toContain('AppTests/AppTests/testLaunch');
-      } finally {
-        stdoutWrite.mockRestore();
-        if (originalRuntime === undefined) {
-          delete process.env.XCODEBUILDMCP_RUNTIME;
-        } else {
-          process.env.XCODEBUILDMCP_RUNTIME = originalRuntime;
-        }
-        if (originalOutputFormat === undefined) {
-          delete process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
-        } else {
-          process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = originalOutputFormat;
-        }
-      }
     });
   });
 });

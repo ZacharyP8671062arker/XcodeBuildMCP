@@ -70,7 +70,9 @@ export async function start_sim_log_capLogic(
     return toolResponse([headerEvent, statusLine('error', `Error starting log capture: ${error}`)]);
   }
 
-  const items: Array<{ label: string; value: string }> = [{ label: 'Session ID', value: sessionId }];
+  const items: Array<{ label: string; value: string }> = [
+    { label: 'Session ID', value: sessionId },
+  ];
   if (captureConsole) {
     items.push({ label: 'Console', value: 'App relaunched to capture console output' });
   }

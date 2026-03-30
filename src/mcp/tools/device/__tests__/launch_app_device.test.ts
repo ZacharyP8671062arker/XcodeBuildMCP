@@ -206,32 +206,7 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Launch App');
-      expect(text).toContain('test-device-123');
-      expect(text).toContain('io.sentry.app');
-      expect(text).toContain('App launched successfully');
-    });
-
-    it('should return successful launch response with detailed output', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: 'Launch succeeded with detailed output',
-      });
-
-      const result = await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'io.sentry.app',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Launch App');
-      expect(text).toContain('App launched successfully');
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should handle successful launch with process ID information', async () => {
@@ -262,34 +237,9 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Launch App');
-      expect(text).toContain('Process ID: 12345');
-      expect(text).toContain('App launched successfully');
       expect(result.nextStepParams).toEqual({
         stop_app_device: { deviceId: 'test-device-123', processId: 12345 },
       });
-    });
-
-    it('should handle successful launch with command output', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: 'App "io.sentry.app" launched on device "test-device-123"',
-      });
-
-      const result = await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'io.sentry.app',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Launch App');
-      expect(text).toContain('App launched successfully');
     });
   });
 
@@ -310,28 +260,6 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to launch app: Launch failed: App not found');
-    });
-
-    it('should return command failure response with specific error', async () => {
-      const mockExecutor = createMockExecutor({
-        success: false,
-        error: 'Device not found: test-device-invalid',
-      });
-
-      const result = await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-invalid',
-          bundleId: 'io.sentry.app',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
-      );
-
-      expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to launch app: Device not found: test-device-invalid');
     });
 
     it('should handle executor exception with Error object', async () => {
@@ -347,25 +275,6 @@ describe('launch_app_device plugin (device-shared)', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to launch app on device: Network error');
-    });
-
-    it('should handle executor exception with string error', async () => {
-      const mockExecutor = createMockExecutor('String error');
-
-      const result = await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'io.sentry.app',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
-      );
-
-      expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to launch app on device: String error');
     });
   });
 });

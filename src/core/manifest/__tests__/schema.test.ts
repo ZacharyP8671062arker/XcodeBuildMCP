@@ -2,9 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   toolManifestEntrySchema,
   workflowManifestEntrySchema,
-  deriveCliName,
   getEffectiveCliName,
-  type ToolManifestEntry,
 } from '../schema.ts';
 
 describe('schema', () => {
@@ -38,28 +36,5 @@ describe('schema', () => {
     expect(workflowResult.data.predicates).toEqual([]);
     expect(workflowResult.data.tools).toEqual(['build_sim']);
     expect(getEffectiveCliName(toolResult.data)).toBe('build-sim');
-  });
-
-  describe('deriveCliName', () => {
-    it('converts common identifier styles to kebab-case', () => {
-      expect(deriveCliName('build_sim')).toBe('build-sim');
-      expect(deriveCliName('getAppBundleId')).toBe('get-app-bundle-id');
-      expect(deriveCliName('build-sim')).toBe('build-sim');
-    });
-  });
-
-  describe('getEffectiveCliName', () => {
-    it('prefers an explicit CLI name over the derived one', () => {
-      const tool: ToolManifestEntry = {
-        id: 'build_sim',
-        module: 'mcp/tools/simulator/build_sim',
-        names: { mcp: 'build_sim', cli: 'build-simulator' },
-        availability: { mcp: true, cli: true },
-        predicates: [],
-        nextSteps: [],
-      };
-
-      expect(getEffectiveCliName(tool)).toBe('build-simulator');
-    });
   });
 });

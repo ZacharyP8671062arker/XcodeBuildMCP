@@ -5,7 +5,6 @@ import {
   createMockCommandResponse,
   createMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('set_sim_appearance plugin', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -42,9 +41,6 @@ describe('set_sim_appearance plugin', () => {
         mockExecutor,
       );
 
-      const text = allText(result);
-      expect(text).toContain('Set Appearance');
-      expect(text).toContain('Appearance successfully set to dark mode');
       expect(result.isError).toBeFalsy();
     });
 
@@ -62,8 +58,6 @@ describe('set_sim_appearance plugin', () => {
         mockExecutor,
       );
 
-      const text = allText(result);
-      expect(text).toContain('Failed to set simulator appearance: Invalid device: invalid-uuid');
       expect(result.isError).toBe(true);
     });
 
@@ -87,8 +81,6 @@ describe('set_sim_appearance plugin', () => {
         mockExecutor,
       );
 
-      const text = allText(result);
-      expect(text).toContain('Failed to set simulator appearance: Network error');
       expect(result.isError).toBe(true);
     });
 

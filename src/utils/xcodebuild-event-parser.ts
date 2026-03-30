@@ -264,7 +264,11 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       }
 
       if (testCase.status === 'failed') {
-        applyFailureDuration(testCase.suiteName, testCase.testName, parseDurationMs(testCase.durationText));
+        applyFailureDuration(
+          testCase.suiteName,
+          testCase.testName,
+          parseDurationMs(testCase.durationText),
+        );
       }
 
       if (operation === 'TEST') {

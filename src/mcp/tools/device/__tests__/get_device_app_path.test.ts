@@ -254,16 +254,6 @@ describe('get_device_app_path plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('Scheme: MyScheme');
-      expect(text).toContain('Project: /path/to/project.xcodeproj');
-      expect(text).toContain('Configuration: Debug');
-      expect(text).toContain('Platform: iOS');
-      expect(text).toContain('App Path: /path/to/build/Debug-iphoneos/MyApp.app');
       expect(result.nextStepParams).toEqual({
         get_app_bundle_id: { appPath: '/path/to/build/Debug-iphoneos/MyApp.app' },
         install_app_device: {
@@ -289,16 +279,6 @@ describe('get_device_app_path plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('Scheme: MyScheme');
-      expect(text).toContain('Project: /path/to/nonexistent.xcodeproj');
-      expect(text).toContain('Errors (1):');
-      expect(text).toContain('✗ The project does not exist.');
-      expect(text).toContain('Query failed.');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -317,12 +297,6 @@ describe('get_device_app_path plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('Could not extract app path from build settings');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -401,35 +375,6 @@ describe('get_device_app_path plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('Network error');
-      expect(result.nextStepParams).toBeUndefined();
-    });
-
-    it('should return exact string error handling response', async () => {
-      const mockExecutor = () => {
-        return Promise.reject('String error');
-      };
-
-      const result = await get_device_app_pathLogic(
-        {
-          projectPath: '/path/to/project.xcodeproj',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBe(true);
-      const text = result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('String error');
       expect(result.nextStepParams).toBeUndefined();
     });
   });

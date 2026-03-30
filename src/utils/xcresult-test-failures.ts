@@ -34,8 +34,8 @@ export function extractTestFailuresFromXcresult(xcresultPath: string): PipelineE
       const nextSuiteContext =
         node.nodeType === 'Test Case'
           ? suiteContext
-          : parsedNodeName.suiteName ??
-              (node.nodeType === 'Test Suite' ? node.name.replaceAll('_', ' ') : suiteContext);
+          : (parsedNodeName.suiteName ??
+            (node.nodeType === 'Test Suite' ? node.name.replaceAll('_', ' ') : suiteContext));
 
       if (node.nodeType === 'Test Case' && node.result === 'Failed' && node.children) {
         for (const child of node.children) {

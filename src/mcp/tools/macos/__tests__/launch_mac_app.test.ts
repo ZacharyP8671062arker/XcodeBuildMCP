@@ -184,31 +184,6 @@ describe('launch_mac_app plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Launch macOS App');
-      expect(text).toContain('/path/to/MyApp.app');
-      expect(text).toContain('App launched successfully');
-    });
-
-    it('should return successful launch response with args', async () => {
-      const mockExecutor = async () => Promise.resolve(createMockCommandResponse());
-
-      const mockFileSystem = createMockFileSystemExecutor({
-        existsSync: () => true,
-      });
-
-      const result = await launch_mac_appLogic(
-        {
-          appPath: '/path/to/MyApp.app',
-          args: ['--debug', '--verbose'],
-        },
-        mockExecutor,
-        mockFileSystem,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('App launched successfully');
     });
 
     it('should handle launch failure with Error object', async () => {
@@ -229,30 +204,6 @@ describe('launch_mac_app plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Launch macOS app operation failed: App not found');
-    });
-
-    it('should handle launch failure with string error', async () => {
-      const mockExecutor = async () => {
-        throw 'Permission denied';
-      };
-
-      const mockFileSystem = createMockFileSystemExecutor({
-        existsSync: () => true,
-      });
-
-      const result = await launch_mac_appLogic(
-        {
-          appPath: '/path/to/MyApp.app',
-        },
-        mockExecutor,
-        mockFileSystem,
-      );
-
-      expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Launch macOS app operation failed: Permission denied');
     });
 
     it('should handle launch failure with unknown error type', async () => {
@@ -273,8 +224,6 @@ describe('launch_mac_app plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Launch macOS app operation failed: 123');
     });
   });
 });

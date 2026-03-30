@@ -41,8 +41,10 @@ const RESULT_BUNDLE_LINE_REGEX = /\S+\[\d+:\d+\] Writing error result bundle to 
 const DEVICE_TRANSPORT_TYPE_REGEX = /\b(wired|localNetwork)\b/g;
 const TARGET_DEVICE_IDENTIFIER_REGEX = /(TARGET_DEVICE_IDENTIFIER = )([0-9A-Fa-f]{24,40})/g;
 const CODEX_ARG0_PATH_REGEX = /<HOME>\/\.codex\/tmp\/arg0\/codex-arg0[A-Za-z0-9]+/g;
-const CODEX_WORKTREE_NODE_MODULES_REGEX = /<HOME>\/\.codex\/worktrees\/[^/:]+\/node_modules\/\.bin/g;
-const ACQUIRED_USAGE_ASSERTION_TIME_REGEX = /(^\s*)\d{2}:\d{2}:\d{2}( {2}Acquired usage assertion\.)$/gm;
+const CODEX_WORKTREE_NODE_MODULES_REGEX =
+  /<HOME>\/\.codex\/worktrees\/[^/:]+\/node_modules\/\.bin/g;
+const ACQUIRED_USAGE_ASSERTION_TIME_REGEX =
+  /(^\s*)\d{2}:\d{2}:\d{2}( {2}Acquired usage assertion\.)$/gm;
 const TRAILING_WHITESPACE_REGEX = /[ \t]+$/gm;
 
 function sortLinesInBlock(text: string, marker: RegExp): string {

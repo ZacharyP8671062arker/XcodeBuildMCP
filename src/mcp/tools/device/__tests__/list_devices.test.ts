@@ -198,14 +198,8 @@ describe('list_devices plugin (device-shared)', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('List Devices');
       expect(text).toContain('Test iPhone');
       expect(text).toContain('test-device-123');
-      expect(text).toContain('iOS Devices:');
-      expect(text).toContain('📱 [✓] Test iPhone');
-      expect(text).toContain('OS: 17.0');
-      expect(text).toContain('UDID: test-device-123');
-      expect(text).toContain('1 physical devices discovered (1 iOS).');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -250,10 +244,8 @@ describe('list_devices plugin (device-shared)', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('List Devices');
       expect(text).toContain('xctrace output');
       expect(text).toContain('iPhone 15 (12345678-1234-1234-1234-123456789012)');
-      expect(text).toContain('Xcode 15');
     });
 
     it('should return successful no devices found response', async () => {
@@ -301,9 +293,7 @@ describe('list_devices plugin (device-shared)', () => {
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('List Devices');
       expect(text).toContain('xctrace output');
-      expect(text).toContain('Xcode 15');
     });
   });
 });

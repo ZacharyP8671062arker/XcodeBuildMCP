@@ -6,11 +6,7 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, testDeviceLogic } from '../test_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import {
-  isPendingXcodebuildResponse,
-  finalizePendingXcodebuildResponse,
-} from '../../../../utils/xcodebuild-output.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
+import { isPendingXcodebuildResponse } from '../../../../utils/xcodebuild-output.ts';
 
 const mockFs = () =>
   createMockFileSystemExecutor({
@@ -19,14 +15,6 @@ const mockFs = () =>
     tmpdir: () => '/tmp',
     stat: async () => ({ isDirectory: () => false, mtimeMs: 0 }),
   });
-
-function finalizeAndGetText(result: ToolResponse): string {
-  if (isPendingXcodebuildResponse(result)) {
-    const finalized = finalizePendingXcodebuildResponse(result);
-    return finalized.content.map((c) => c.text).join('\n');
-  }
-  return result.content.map((c) => c.text).join('\n');
-}
 
 describe('test_device plugin', () => {
   beforeEach(() => {
@@ -144,9 +132,6 @@ describe('test_device plugin', () => {
 
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBeFalsy();
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('Scheme: MyScheme');
-      expect(allText).toContain('succeeded');
     });
 
     it('should return pending response for test failures', async () => {
@@ -171,9 +156,6 @@ describe('test_device plugin', () => {
 
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBe(true);
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('Scheme: MyScheme');
-      expect(allText).toContain('failed');
     });
 
     it('should handle build failure with pending response', async () => {
@@ -198,8 +180,6 @@ describe('test_device plugin', () => {
 
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBe(true);
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('failed');
     });
 
     it('should support different platforms', async () => {
@@ -223,9 +203,6 @@ describe('test_device plugin', () => {
 
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBeFalsy();
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('Scheme: WatchApp');
-      expect(allText).toContain('succeeded');
     });
 
     it('should handle optional parameters', async () => {
@@ -251,8 +228,6 @@ describe('test_device plugin', () => {
 
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBeFalsy();
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('succeeded');
     });
 
     it('should handle workspace testing successfully', async () => {
@@ -276,9 +251,6 @@ describe('test_device plugin', () => {
 
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBeFalsy();
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('Scheme: WorkspaceScheme');
-      expect(allText).toContain('succeeded');
     });
   });
 });

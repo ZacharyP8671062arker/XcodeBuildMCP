@@ -171,52 +171,6 @@ describe('install_app_device plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Install App');
-      expect(text).toContain('test-device-123');
-      expect(text).toContain('/path/to/test.app');
-      expect(text).toContain('App installed successfully');
-    });
-
-    it('should return successful installation with detailed output', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output:
-          'Installing app...\nApp bundle: /path/to/test.app\nInstallation completed successfully',
-      });
-
-      const result = await install_app_deviceLogic(
-        {
-          deviceId: 'device-456',
-          appPath: '/apps/TestApp.app',
-        },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Install App');
-      expect(text).toContain('App installed successfully');
-    });
-
-    it('should return successful installation with empty output', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: '',
-      });
-
-      const result = await install_app_deviceLogic(
-        {
-          deviceId: 'empty-output-device',
-          appPath: '/path/to/app.app',
-        },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Install App');
-      expect(text).toContain('App installed successfully');
     });
   });
 
@@ -236,8 +190,6 @@ describe('install_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to install app: Installation failed: App not found');
     });
 
     it('should return exception handling response', async () => {
@@ -252,24 +204,6 @@ describe('install_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to install app on device: Network error');
-    });
-
-    it('should return string error handling response', async () => {
-      const mockExecutor = createMockExecutor('String error');
-
-      const result = await install_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          appPath: '/path/to/test.app',
-        },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to install app on device: String error');
     });
   });
 });

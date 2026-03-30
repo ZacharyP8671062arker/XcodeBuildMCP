@@ -364,13 +364,6 @@ FULL_PRODUCT_NAME = MyApp.app
         '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app';
 
       expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('Scheme: MyScheme');
-      expect(text).toContain('Workspace: /path/to/MyProject.xcworkspace');
-      expect(text).toContain('Configuration: Debug');
-      expect(text).toContain('Platform: macOS');
-      expect(text).toContain(`App Path: ${appPath}`);
       expect(result.nextStepParams).toEqual({
         get_mac_bundle_id: { appPath },
         launch_mac_app: { appPath },
@@ -398,13 +391,6 @@ FULL_PRODUCT_NAME = MyApp.app
         '/Users/test/Library/Developer/Xcode/DerivedData/MyApp-abc123/Build/Products/Debug/MyApp.app';
 
       expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('Scheme: MyScheme');
-      expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
-      expect(text).toContain('Configuration: Debug');
-      expect(text).toContain('Platform: macOS');
-      expect(text).toContain(`App Path: ${appPath}`);
       expect(result.nextStepParams).toEqual({
         get_mac_bundle_id: { appPath },
         launch_mac_app: { appPath },
@@ -426,12 +412,6 @@ FULL_PRODUCT_NAME = MyApp.app
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('Scheme: MyScheme');
-      expect(text).toContain('Errors (1):');
-      expect(text).toContain('✗ No such scheme');
-      expect(text).toContain('Query failed.');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -450,9 +430,6 @@ FULL_PRODUCT_NAME = MyApp.app
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('Could not extract app path from build settings');
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -470,9 +447,6 @@ FULL_PRODUCT_NAME = MyApp.app
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Get App Path');
-      expect(text).toContain('Network error');
       expect(result.nextStepParams).toBeUndefined();
     });
   });

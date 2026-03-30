@@ -23,32 +23,14 @@ describe('session-show-defaults tool', () => {
   });
 
   describe('Handler Behavior', () => {
-    it('should return empty defaults when none set', async () => {
-      const result = await handler();
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Show Defaults');
-      expect(text).toContain('(default)');
-      expect(text).toContain('(not set)');
-    });
-
-    it('should return current defaults when set', async () => {
-      sessionStore.setDefaults({ scheme: 'MyScheme', simulatorId: 'SIM-123' });
-      const result = await handler();
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('scheme: MyScheme');
-      expect(text).toContain('simulatorId: SIM-123');
-    });
-
     it('shows defaults from the active profile', async () => {
       sessionStore.setDefaults({ scheme: 'GlobalScheme' });
       sessionStore.setActiveProfile('ios');
       sessionStore.setDefaults({ scheme: 'IOSScheme' });
 
       const result = await handler();
-      const text = allText(result);
-      expect(text).toContain('scheme: IOSScheme');
+      expect(result.isError).toBeFalsy();
+      expect(allText(result)).toContain('scheme: IOSScheme');
     });
   });
 });

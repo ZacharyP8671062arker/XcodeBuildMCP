@@ -200,7 +200,6 @@ describe('scaffold_ios_project plugin', () => {
 
       await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
     });
-
   });
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
@@ -367,6 +366,5 @@ describe('scaffold_ios_project plugin', () => {
 
       await initConfigStoreForTest({ iosTemplatePath: '/mock/template/path' });
     });
-
   });
 });

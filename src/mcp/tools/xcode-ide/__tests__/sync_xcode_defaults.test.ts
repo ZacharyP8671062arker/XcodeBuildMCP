@@ -42,5 +42,4 @@ describe('sync_xcode_defaults tool', () => {
       expect(allText(result)).toContain('Failed to read Xcode IDE state');
     });
   });
-
 });

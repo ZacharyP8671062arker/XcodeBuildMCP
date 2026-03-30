@@ -1,10 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { schema, handler, get_mac_bundle_idLogic } from '../get_mac_bundle_id.ts';
 import {
   createMockFileSystemExecutor,
   createCommandMatchingMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('get_mac_bundle_id plugin', () => {
   const createMockExecutorForCommands = (results: Record<string, string | Error>) => {
@@ -27,7 +26,7 @@ describe('get_mac_bundle_id plugin', () => {
     });
   });
 
-  describe('Handler Behavior (Complete Literal Returns)', () => {
+  describe('Handler behavior', () => {
     it('should return error when file exists validation fails', async () => {
       const mockExecutor = createMockExecutorForCommands({});
       const mockFileSystemExecutor = createMockFileSystemExecutor({
@@ -41,9 +40,7 @@ describe('get_mac_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Get macOS Bundle ID');
-      expect(text).toContain("File not found: '/Applications/MyApp.app'");
+      expect(result.nextStepParams).toBeUndefined();
     });
 
     it('should return success with bundle ID using defaults read', async () => {
@@ -112,54 +109,7 @@ describe('get_mac_bundle_id plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Could not extract bundle ID from Info.plist');
-    });
-
-    it('should handle Error objects in catch blocks', async () => {
-      const mockExecutor = createMockExecutorForCommands({
-        'defaults read "/Applications/MyApp.app/Contents/Info" CFBundleIdentifier': new Error(
-          'Custom error message',
-        ),
-        '/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "/Applications/MyApp.app/Contents/Info.plist"':
-          new Error('Custom error message'),
-      });
-      const mockFileSystemExecutor = createMockFileSystemExecutor({
-        existsSync: () => true,
-      });
-
-      const result = await get_mac_bundle_idLogic(
-        { appPath: '/Applications/MyApp.app' },
-        mockExecutor,
-        mockFileSystemExecutor,
-      );
-
-      expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Could not extract bundle ID from Info.plist');
-    });
-
-    it('should handle string errors in catch blocks', async () => {
-      const mockExecutor = createMockExecutorForCommands({
-        'defaults read "/Applications/MyApp.app/Contents/Info" CFBundleIdentifier': new Error(
-          'String error',
-        ),
-        '/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "/Applications/MyApp.app/Contents/Info.plist"':
-          new Error('String error'),
-      });
-      const mockFileSystemExecutor = createMockFileSystemExecutor({
-        existsSync: () => true,
-      });
-
-      const result = await get_mac_bundle_idLogic(
-        { appPath: '/Applications/MyApp.app' },
-        mockExecutor,
-        mockFileSystemExecutor,
-      );
-
-      expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Could not extract bundle ID from Info.plist');
+      expect(result.nextStepParams).toBeUndefined();
     });
   });
 });

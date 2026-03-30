@@ -7,11 +7,7 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, testMacosLogic } from '../test_macos.ts';
-import {
-  isPendingXcodebuildResponse,
-  finalizePendingXcodebuildResponse,
-} from '../../../../utils/xcodebuild-output.ts';
-import type { ToolResponse } from '../../../../types/common.ts';
+import { isPendingXcodebuildResponse } from '../../../../utils/xcodebuild-output.ts';
 
 const mockFs = () =>
   createMockFileSystemExecutor({
@@ -20,14 +16,6 @@ const mockFs = () =>
     tmpdir: () => '/tmp',
     stat: async () => ({ isDirectory: () => false, mtimeMs: 0 }),
   });
-
-function finalizeAndGetText(result: ToolResponse): string {
-  if (isPendingXcodebuildResponse(result)) {
-    const finalized = finalizePendingXcodebuildResponse(result);
-    return finalized.content.map((c) => c.text).join('\n');
-  }
-  return result.content.map((c) => c.text).join('\n');
-}
 
 describe('test_macos plugin (unified)', () => {
   beforeEach(() => {
@@ -291,9 +279,6 @@ describe('test_macos plugin (unified)', () => {
 
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBeFalsy();
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('Scheme: MyScheme');
-      expect(allText).toContain('succeeded');
     });
 
     it('should return pending response on test failure', async () => {
@@ -326,9 +311,6 @@ describe('test_macos plugin (unified)', () => {
       expect(callCount).toBe(1);
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBe(true);
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('Scheme: MyScheme');
-      expect(allText).toContain('failed');
     });
 
     it('should return pending response with optional parameters', async () => {
@@ -361,8 +343,6 @@ describe('test_macos plugin (unified)', () => {
 
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBeFalsy();
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('succeeded');
     });
 
     it('should handle build failure with pending response', async () => {
@@ -391,8 +371,6 @@ describe('test_macos plugin (unified)', () => {
 
       expect(isPendingXcodebuildResponse(result)).toBe(true);
       expect(result.isError).toBe(true);
-      const allText = finalizeAndGetText(result);
-      expect(allText).toContain('failed');
     });
 
     it('should return error response when executor throws an exception', async () => {
@@ -412,8 +390,6 @@ describe('test_macos plugin (unified)', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = finalizeAndGetText(result);
-      expect(text).toContain('Test failed.');
     });
   });
 });

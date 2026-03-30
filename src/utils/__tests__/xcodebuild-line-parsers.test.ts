@@ -15,11 +15,12 @@ describe('parseDurationMs', () => {
 
 describe('parseRawTestName', () => {
   it('normalizes module-prefixed slash test names', () => {
-    expect(parseRawTestName('CalculatorAppTests.CalculatorAppTests/testCalculatorServiceFailure'))
-      .toEqual({
-        suiteName: 'CalculatorAppTests',
-        testName: 'testCalculatorServiceFailure',
-      });
+    expect(
+      parseRawTestName('CalculatorAppTests.CalculatorAppTests/testCalculatorServiceFailure'),
+    ).toEqual({
+      suiteName: 'CalculatorAppTests',
+      testName: 'testCalculatorServiceFailure',
+    });
   });
 
   it('normalizes module-prefixed objective-c style test names', () => {

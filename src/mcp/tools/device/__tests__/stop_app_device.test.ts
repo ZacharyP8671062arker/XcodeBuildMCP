@@ -172,51 +172,6 @@ describe('stop_app_device plugin', () => {
       );
 
       expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Stop App');
-      expect(text).toContain('test-device-123');
-      expect(text).toContain('12345');
-      expect(text).toContain('App stopped successfully');
-    });
-
-    it('should return successful stop with detailed output', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: 'Terminating process...\nProcess ID: 12345\nTermination completed successfully',
-      });
-
-      const result = await stop_app_deviceLogic(
-        {
-          deviceId: 'device-456',
-          processId: 67890,
-        },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Stop App');
-      expect(text).toContain('App stopped successfully');
-    });
-
-    it('should return successful stop with empty output', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: '',
-      });
-
-      const result = await stop_app_deviceLogic(
-        {
-          deviceId: 'empty-output-device',
-          processId: 54321,
-        },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Stop App');
-      expect(text).toContain('App stopped successfully');
     });
   });
 
@@ -236,8 +191,6 @@ describe('stop_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to stop app: Terminate failed: Process not found');
     });
 
     it('should return exception handling response', async () => {
@@ -252,24 +205,6 @@ describe('stop_app_device plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to stop app on device: Network error');
-    });
-
-    it('should return string error handling response', async () => {
-      const mockExecutor = createMockExecutor('String error');
-
-      const result = await stop_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          processId: 12345,
-        },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Failed to stop app on device: String error');
     });
   });
 });

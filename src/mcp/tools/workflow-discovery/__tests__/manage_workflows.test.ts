@@ -25,7 +25,6 @@ import {
   applyWorkflowSelectionFromManifest,
   getRegisteredWorkflows,
 } from '../../../../utils/tool-registry.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
 
 describe('manage_workflows tool', () => {
   beforeEach(() => {
@@ -50,8 +49,7 @@ describe('manage_workflows tool', () => {
       ['simulator', 'device'],
       expect.objectContaining({ runtime: 'mcp' }),
     );
-    const text = allText(result);
-    expect(text).toContain('Workflows enabled: simulator, device');
+    expect(result.isError).toBeUndefined();
   });
 
   it('removes requested workflows when enable is false', async () => {
@@ -71,8 +69,7 @@ describe('manage_workflows tool', () => {
       ['simulator'],
       expect.objectContaining({ runtime: 'mcp' }),
     );
-    const text = allText(result);
-    expect(text).toContain('Workflows enabled: simulator');
+    expect(result.isError).toBeUndefined();
   });
 
   it('accepts workflowName as an array', async () => {

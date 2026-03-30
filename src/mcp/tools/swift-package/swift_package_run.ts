@@ -83,8 +83,7 @@ export async function swift_package_runLogic(
 
   const isSnapshotRealExecutor = process.env.SNAPSHOT_TEST_REAL_EXECUTOR === '1';
   const isTestEnvironment =
-    !isSnapshotRealExecutor &&
-    (process.env.VITEST === 'true' || process.env.NODE_ENV === 'test');
+    !isSnapshotRealExecutor && (process.env.VITEST === 'true' || process.env.NODE_ENV === 'test');
 
   const swiftArgs = ['run', '--package-path', resolvedPath];
 

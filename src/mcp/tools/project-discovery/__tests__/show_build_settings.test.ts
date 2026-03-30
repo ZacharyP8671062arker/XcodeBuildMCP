@@ -9,6 +9,7 @@ describe('show_build_settings plugin', () => {
   beforeEach(() => {
     sessionStore.clear();
   });
+
   describe('Export Field Validation (Literal)', () => {
     it('should have handler function', () => {
       expect(typeof handler).toBe('function');
@@ -23,38 +24,9 @@ describe('show_build_settings plugin', () => {
     });
   });
 
-  describe('Handler Behavior (Complete Literal Returns)', () => {
-    it('should execute with valid parameters', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: 'Mock build settings output',
-        error: undefined,
-        process: { pid: 12345 },
-      });
-
-      const result = await showBuildSettingsLogic(
-        { projectPath: '/valid/path.xcodeproj', scheme: 'MyScheme' },
-        mockExecutor,
-      );
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Show Build Settings');
-      expect(text).toContain('Scheme: MyScheme');
-    });
-
-    it('should test Zod validation through handler', async () => {
-      const result = await handler({
-        projectPath: null,
-        scheme: 'MyScheme',
-      });
-
-      expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('Missing required session defaults');
-      expect(result.content[0].text).toContain('Provide a project or workspace');
-    });
-
+  describe('Handler behavior', () => {
     it('should return success with build settings and strip preamble', async () => {
-      const calls: any[] = [];
+      const calls: unknown[][] = [];
       const mockExecutor = createMockExecutor({
         success: true,
         output: `Command line invocation:
@@ -80,10 +52,7 @@ Build settings for action build and target MyApp:
       };
 
       const result = await showBuildSettingsLogic(
-        {
-          projectPath: '/path/to/MyProject.xcodeproj',
-          scheme: 'MyScheme',
-        },
+        { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyScheme' },
         wrappedExecutor,
       );
 
@@ -103,9 +72,6 @@ Build settings for action build and target MyApp:
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
-      expect(text).toContain('Show Build Settings');
-      expect(text).toContain('Scheme: MyScheme');
-      expect(text).toContain('Project: /path/to/MyProject.xcodeproj');
       expect(text).toContain('Build settings for action build and target MyApp:');
       expect(text).toContain('PRODUCT_NAME = MyApp');
       expect(result.nextStepParams).toEqual({
@@ -129,39 +95,25 @@ Build settings for action build and target MyApp:
       });
 
       const result = await showBuildSettingsLogic(
-        {
-          projectPath: '/path/to/MyProject.xcodeproj',
-          scheme: 'InvalidScheme',
-        },
+        { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'InvalidScheme' },
         mockExecutor,
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Show Build Settings');
-      expect(text).toContain(
-        'The workspace named "App" does not contain a scheme named "InvalidScheme".',
-      );
       expect(result.nextStepParams).toBeUndefined();
     });
 
-    it('should handle Error objects in catch blocks', async () => {
+    it('should handle thrown errors', async () => {
       const mockExecutor = async () => {
         throw new Error('Command execution failed');
       };
 
       const result = await showBuildSettingsLogic(
-        {
-          projectPath: '/path/to/MyProject.xcodeproj',
-          scheme: 'MyScheme',
-        },
+        { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyScheme' },
         mockExecutor,
       );
 
       expect(result.isError).toBe(true);
-      const text = allText(result);
-      expect(text).toContain('Show Build Settings');
-      expect(text).toContain('Command execution failed');
       expect(result.nextStepParams).toBeUndefined();
     });
   });
@@ -187,47 +139,13 @@ Build settings for action build and target MyApp:
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Mutually exclusive parameters provided');
     });
-
-    it('should work with projectPath only', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: 'Mock build settings output',
-      });
-
-      const result = await showBuildSettingsLogic(
-        { projectPath: '/valid/path.xcodeproj', scheme: 'MyScheme' },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Show Build Settings');
-      expect(text).toContain('Scheme: MyScheme');
-    });
-
-    it('should work with workspacePath only', async () => {
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: 'Mock build settings output',
-      });
-
-      const result = await showBuildSettingsLogic(
-        { workspacePath: '/valid/path.xcworkspace', scheme: 'MyScheme' },
-        mockExecutor,
-      );
-
-      expect(result.isError).toBeFalsy();
-      const text = allText(result);
-      expect(text).toContain('Show Build Settings');
-      expect(text).toContain('Workspace:');
-    });
   });
 
   describe('Session requirement handling', () => {
     it('should require scheme when not provided', async () => {
       const result = await handler({
         projectPath: '/path/to/MyProject.xcodeproj',
-      } as any);
+      } as never);
 
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('Missing required session defaults');

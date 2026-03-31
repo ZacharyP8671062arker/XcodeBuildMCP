@@ -28,7 +28,7 @@ describe('session-show-defaults tool', () => {
       sessionStore.setActiveProfile('ios');
       sessionStore.setDefaults({ scheme: 'IOSScheme' });
 
-      const result = await handler();
+      const result = await handler({});
       expect(result.isError).toBeFalsy();
       expect(allText(result)).toContain('scheme: IOSScheme');
     });

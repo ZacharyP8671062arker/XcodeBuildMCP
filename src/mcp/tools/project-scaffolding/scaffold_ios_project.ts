@@ -12,6 +12,7 @@ import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 
 const BaseScaffoldSchema = z.object({
   projectName: z.string().min(1),
@@ -461,11 +462,17 @@ async function scaffoldProject(
 
 export const schema = ScaffoldiOSProjectSchema.shape;
 
-export async function handler(args: Record<string, unknown>): Promise<ToolResponse> {
-  const params = ScaffoldiOSProjectSchema.parse(args);
-  return scaffold_ios_projectLogic(
-    params,
-    getDefaultCommandExecutor(),
-    getDefaultFileSystemExecutor(),
-  );
+interface ScaffoldIOSToolContext {
+  commandExecutor: CommandExecutor;
+  fileSystemExecutor: FileSystemExecutor;
 }
+
+export const handler = createTypedToolWithContext(
+  ScaffoldiOSProjectSchema,
+  (params: ScaffoldIOSProjectParams, ctx: ScaffoldIOSToolContext) =>
+    scaffold_ios_projectLogic(params, ctx.commandExecutor, ctx.fileSystemExecutor),
+  () => ({
+    commandExecutor: getDefaultCommandExecutor(),
+    fileSystemExecutor: getDefaultFileSystemExecutor(),
+  }),
+);

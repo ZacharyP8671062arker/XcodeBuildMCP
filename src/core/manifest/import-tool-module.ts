@@ -1,7 +1,6 @@
 /**
- * Tool module importer with backward-compatible adapter.
- * Dynamically imports tool modules and adapts both old (PluginMeta default export)
- * and new (named exports) formats.
+ * Tool module importer.
+ * Dynamically imports tool modules using named exports only.
  */
 
 import * as path from 'node:path';
@@ -19,9 +18,7 @@ const moduleCache = new Map<string, ImportedToolModule>();
 /**
  * Import a tool module by its manifest module path.
  *
- * Supports two module formats:
- * 1. Legacy: `export default { name, schema, handler, ... }`
- * 2. New: Named exports `{ schema, handler }`
+ * Accepts named exports only: `export const schema = ...` and `export const handler = ...`
  *
  * @param moduleId - Extensionless module path (e.g., 'mcp/tools/simulator/build_sim')
  * @returns Imported tool module with schema and handler
@@ -43,33 +40,25 @@ export async function importToolModule(moduleId: string): Promise<ImportedToolMo
     throw new Error(`Failed to import tool module '${moduleId}': ${err}`);
   }
 
-  const result = extractToolExports(mod, moduleId);
-  moduleCache.set(moduleId, result);
+  if (!mod.schema || typeof mod.handler !== 'function') {
+    throw new Error(
+      `Tool module '${moduleId}' does not export the required shape. ` +
+        `Expected named exports: export const schema = ... and export const handler = ...`,
+    );
+  }
 
+  const result: ImportedToolModule = {
+    schema: mod.schema as ToolSchemaShape,
+    handler: mod.handler as (params: Record<string, unknown>) => Promise<unknown>,
+  };
+
+  moduleCache.set(moduleId, result);
   return result;
 }
 
-function extractToolExports(mod: Record<string, unknown>, moduleId: string): ImportedToolModule {
-  if (mod.default && typeof mod.default === 'object') {
-    const defaultExport = mod.default as Record<string, unknown>;
-
-    if (defaultExport.schema && typeof defaultExport.handler === 'function') {
-      return {
-        schema: defaultExport.schema as ToolSchemaShape,
-        handler: defaultExport.handler as (params: Record<string, unknown>) => Promise<unknown>,
-      };
-    }
-  }
-
-  if (mod.schema && typeof mod.handler === 'function') {
-    return {
-      schema: mod.schema as ToolSchemaShape,
-      handler: mod.handler as (params: Record<string, unknown>) => Promise<unknown>,
-    };
-  }
-
-  throw new Error(
-    `Tool module '${moduleId}' does not export the required shape. ` +
-      `Expected either a default export with { schema, handler } or named exports { schema, handler }.`,
-  );
+/**
+ * Reset module cache (for tests).
+ */
+export function __resetToolModuleCacheForTests(): void {
+  moduleCache.clear();
 }

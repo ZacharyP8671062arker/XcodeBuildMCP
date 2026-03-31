@@ -4,6 +4,7 @@ import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 
 const swiftPackageStopSchema = z.object({
   pid: z.number(),
@@ -90,17 +91,13 @@ export async function swift_package_stopLogic(
 
 export const schema = swiftPackageStopSchema.shape;
 
-export async function handler(args: Record<string, unknown>): Promise<ToolResponse> {
-  const parseResult = swiftPackageStopSchema.safeParse(args);
-  if (!parseResult.success) {
-    const details = parseResult.error.issues
-      .map((e) => `${e.path.join('.')}: ${e.message}`)
-      .join(', ');
-    return toolResponse([
-      header('Swift Package Stop'),
-      statusLine('error', `Parameter validation failed: ${details}`),
-    ]);
-  }
-
-  return swift_package_stopLogic(parseResult.data);
+interface SwiftPackageStopContext {
+  processManager: ProcessManager;
 }
+
+export const handler = createTypedToolWithContext(
+  swiftPackageStopSchema,
+  (params: SwiftPackageStopParams, ctx: SwiftPackageStopContext) =>
+    swift_package_stopLogic(params, ctx.processManager),
+  () => ({ processManager: getDefaultProcessManager() }),
+);

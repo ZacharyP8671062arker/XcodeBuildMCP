@@ -1,17 +1,19 @@
+import * as z from 'zod';
 import { sessionStore } from '../../../utils/session-store.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, section } from '../../../utils/tool-event-builders.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
+import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 import {
   formatProfileLabel,
   buildFullDetailTree,
   formatDetailLines,
 } from './session-format-helpers.ts';
 
-export const schema = {};
+const schemaObject = z.object({});
 
-export async function handler(): Promise<ToolResponse> {
+export async function sessionShowDefaultsLogic(): Promise<ToolResponse> {
   const namedProfiles = sessionStore.listProfiles();
   const profileKeys: Array<string | null> = [null, ...namedProfiles];
 
@@ -26,3 +28,11 @@ export async function handler(): Promise<ToolResponse> {
 
   return toolResponse(events);
 }
+
+export const schema = schemaObject.shape;
+
+export const handler = createTypedToolWithContext(
+  schemaObject,
+  () => sessionShowDefaultsLogic(),
+  () => undefined,
+);

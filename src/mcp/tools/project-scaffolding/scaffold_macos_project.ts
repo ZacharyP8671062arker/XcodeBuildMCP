@@ -10,6 +10,7 @@ import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 
 const BaseScaffoldSchema = z.object({
   projectName: z.string().min(1),
@@ -368,11 +369,17 @@ export async function scaffold_macos_projectLogic(
 
 export const schema = ScaffoldmacOSProjectSchema.shape;
 
-export async function handler(args: Record<string, unknown>): Promise<ToolResponse> {
-  const validatedArgs = ScaffoldmacOSProjectSchema.parse(args);
-  return scaffold_macos_projectLogic(
-    validatedArgs,
-    getDefaultCommandExecutor(),
-    getDefaultFileSystemExecutor(),
-  );
+interface ScaffoldMacOSToolContext {
+  commandExecutor: CommandExecutor;
+  fileSystemExecutor: FileSystemExecutor;
 }
+
+export const handler = createTypedToolWithContext(
+  ScaffoldmacOSProjectSchema,
+  (params: ScaffoldMacOSProjectParams, ctx: ScaffoldMacOSToolContext) =>
+    scaffold_macos_projectLogic(params, ctx.commandExecutor, ctx.fileSystemExecutor),
+  () => ({
+    commandExecutor: getDefaultCommandExecutor(),
+    fileSystemExecutor: getDefaultFileSystemExecutor(),
+  }),
+);

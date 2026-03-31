@@ -81,7 +81,7 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
   });
 
   it('status handler returns bridge status without MCP server instance', async () => {
-    const result = await statusHandler();
+    const result = await statusHandler({});
     const text = allText(result);
     expect(text).toContain('Bridge Status');
     expect(text).toContain('"bridgeAvailable": true');
@@ -89,7 +89,7 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
   });
 
   it('sync handler uses direct bridge client when MCP server is not initialized', async () => {
-    const result = await syncHandler();
+    const result = await syncHandler({});
     const text = allText(result);
     expect(text).toContain('Bridge Sync');
     expect(text).toContain('"total": 2');
@@ -99,7 +99,7 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
   });
 
   it('disconnect handler succeeds without MCP server instance', async () => {
-    const result = await disconnectHandler();
+    const result = await disconnectHandler({});
     const text = allText(result);
     expect(text).toContain('Bridge Disconnect');
     expect(text).toContain('"connected": false');

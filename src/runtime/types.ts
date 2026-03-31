@@ -1,6 +1,6 @@
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolResponse } from '../types/common.ts';
-import type { ToolSchemaShape, PluginMeta } from '../core/plugin-types.ts';
+import type { ToolSchemaShape } from '../core/plugin-types.ts';
 
 export interface NextStepTemplate {
   label: string;
@@ -55,7 +55,7 @@ export interface ToolDefinition {
   /**
    * Shared handler (same used by MCP). No duplication.
    */
-  handler: PluginMeta['handler'];
+  handler: (params: Record<string, unknown>) => Promise<ToolResponse>;
 }
 
 export interface ToolResolution {

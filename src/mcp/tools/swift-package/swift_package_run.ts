@@ -80,10 +80,6 @@ export async function swift_package_runLogic(
   const resolvedPath = path.resolve(params.packagePath);
   const timeout = Math.min(params.timeout ?? 30, 300) * 1000; // Convert to ms, max 5 minutes
 
-  const isSnapshotRealExecutor = process.env.SNAPSHOT_TEST_REAL_EXECUTOR === '1';
-  const isTestEnvironment =
-    !isSnapshotRealExecutor && (process.env.VITEST === 'true' || process.env.NODE_ENV === 'test');
-
   const swiftArgs = ['run', '--package-path', resolvedPath];
 
   const headerEvent = header('Swift Package Run', [
@@ -119,17 +115,6 @@ export async function swift_package_runLogic(
   return withErrorHandling(
     async () => {
       if (params.background) {
-        if (isTestEnvironment) {
-          const mockPid = 12345;
-          return toolResponse([
-            headerEvent,
-            statusLine('success', `Started executable in background (PID: ${mockPid})`),
-            section('Next Steps', [
-              `Use swift_package_stop with PID ${mockPid} to terminate when needed.`,
-            ]),
-          ]);
-        }
-
         const command = ['swift', ...swiftArgs];
         const cleanEnv = Object.fromEntries(
           Object.entries(process.env).filter(([, value]) => value !== undefined),
@@ -215,22 +200,6 @@ export async function swift_package_runLogic(
 
       if (isTimedOutResult(result)) {
         const timeoutSeconds = timeout / 1000;
-        if (isTestEnvironment) {
-          const mockPid = 12345;
-          return toolResponse([
-            headerEvent,
-            statusLine(
-              'warning',
-              `Process timed out after ${timeoutSeconds} seconds but may continue running.`,
-            ),
-            section('Details', [
-              `PID: ${mockPid} (mock)`,
-              `Use swift_package_stop with PID ${mockPid} to terminate when needed.`,
-              result.output || '(no output so far)',
-            ]),
-          ]);
-        }
-
         return toolResponse([
           headerEvent,
           statusLine('warning', `Process timed out after ${timeoutSeconds} seconds.`),
@@ -243,14 +212,12 @@ export async function swift_package_runLogic(
 
       const capturedOutput = stdoutChunks.join('').trim();
       const resolvedExecutableName = params.executableName ?? path.basename(resolvedPath);
-      const executablePath = isTestEnvironment
-        ? null
-        : await resolveExecutablePath(
-            executor,
-            resolvedPath,
-            resolvedExecutableName,
-            params.configuration,
-          );
+      const executablePath = await resolveExecutablePath(
+        executor,
+        resolvedPath,
+        resolvedExecutableName,
+        params.configuration,
+      );
       const processId = result.process?.pid;
       const buildRunEvents =
         result.success && executablePath

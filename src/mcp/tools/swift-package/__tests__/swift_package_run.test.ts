@@ -263,8 +263,17 @@ describe('swift_package_run plugin', () => {
       expect(executorCalls[0].useShell).toBe(false);
     });
 
-    it('should not call executor for background mode', async () => {
-      const mockExecutor = createNoopExecutor();
+    it('should call executor for background mode with detached flag', async () => {
+      const mockExecutor: CommandExecutor = (command, logPrefix, useShell, opts, detached) => {
+        executorCalls.push({ command, logPrefix, useShell, opts, detached });
+        return Promise.resolve(
+          createMockCommandResponse({
+            success: true,
+            output: '',
+            error: undefined,
+          }),
+        );
+      };
 
       const result = await swift_package_runLogic(
         {
@@ -274,6 +283,8 @@ describe('swift_package_run plugin', () => {
         mockExecutor,
       );
 
+      expect(executorCalls.length).toBeGreaterThan(0);
+      expect(executorCalls[0].detached).toBe(true);
       const text = result.content.map((c) => c.text).join('\n');
       expect(text).toContain('Started executable in background');
     });
@@ -290,7 +301,10 @@ describe('swift_package_run plugin', () => {
     });
 
     it('should return success response for background mode', async () => {
-      const mockExecutor = createNoopExecutor();
+      const mockExecutor = createMockExecutor({
+        success: true,
+        output: '',
+      });
       const result = await swift_package_runLogic(
         {
           packagePath: '/test/package',

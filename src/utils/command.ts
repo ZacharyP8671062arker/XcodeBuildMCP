@@ -219,31 +219,9 @@ export function __getRealFileSystemExecutor(): FileSystemExecutor {
 }
 
 export function getDefaultCommandExecutor(): CommandExecutor {
-  if (process.env.VITEST === 'true' || process.env.NODE_ENV === 'test') {
-    if (process.env.SNAPSHOT_TEST_REAL_EXECUTOR === '1') return defaultExecutor;
-    if (_testCommandExecutorOverride) return _testCommandExecutorOverride;
-    throw new Error(
-      `🚨 REAL SYSTEM EXECUTOR DETECTED IN TEST! 🚨\n` +
-        `This test is trying to use the default command executor instead of a mock.\n` +
-        `Fix: Pass createMockExecutor() as the commandExecutor parameter in your test.\n` +
-        `Example: await plugin.handler(args, createMockExecutor({success: true}), mockFileSystem)\n` +
-        `See docs/dev/TESTING.md for proper testing patterns.`,
-    );
-  }
-  return defaultExecutor;
+  return _testCommandExecutorOverride ?? defaultExecutor;
 }
 
 export function getDefaultFileSystemExecutor(): FileSystemExecutor {
-  if (process.env.VITEST === 'true' || process.env.NODE_ENV === 'test') {
-    if (process.env.SNAPSHOT_TEST_REAL_EXECUTOR === '1') return defaultFileSystemExecutor;
-    if (_testFileSystemExecutorOverride) return _testFileSystemExecutorOverride;
-    throw new Error(
-      `🚨 REAL FILESYSTEM EXECUTOR DETECTED IN TEST! 🚨\n` +
-        `This test is trying to use the default filesystem executor instead of a mock.\n` +
-        `Fix: Pass createMockFileSystemExecutor() as the fileSystemExecutor parameter in your test.\n` +
-        `Example: await plugin.handler(args, mockCmd, createMockFileSystemExecutor())\n` +
-        `See docs/dev/TESTING.md for proper testing patterns.`,
-    );
-  }
-  return defaultFileSystemExecutor;
+  return _testFileSystemExecutorOverride ?? defaultFileSystemExecutor;
 }

@@ -150,34 +150,24 @@ export async function createSnapshotHarness(): Promise<SnapshotHarness> {
     args: Record<string, unknown>,
   ): Promise<SnapshotResult> {
     const toolModule = await importSnapshotToolModule(toolModulePath);
-    const prev = process.env.SNAPSHOT_TEST_REAL_EXECUTOR;
-    process.env.SNAPSHOT_TEST_REAL_EXECUTOR = '1';
-    try {
-      const raw = (await toolModule.handler(args)) as ToolResponse;
-      const { tool, catalog } = buildMinimalToolCatalog(
-        manifestEntry,
-        toolModule.handler as ToolDefinition['handler'],
-      );
-      const response = postProcessToolResponse({
-        tool,
-        response: raw,
-        catalog,
-        runtime: 'mcp',
-        applyTemplateNextSteps: raw.nextStepParams != null,
-      });
-      const rawText = toolResponseToText(response);
-      return {
-        text: normalizeSnapshotOutput(rawText),
-        rawText,
-        isError: response.isError === true,
-      };
-    } finally {
-      if (prev === undefined) {
-        delete process.env.SNAPSHOT_TEST_REAL_EXECUTOR;
-      } else {
-        process.env.SNAPSHOT_TEST_REAL_EXECUTOR = prev;
-      }
-    }
+    const raw = (await toolModule.handler(args)) as ToolResponse;
+    const { tool, catalog } = buildMinimalToolCatalog(
+      manifestEntry,
+      toolModule.handler as ToolDefinition['handler'],
+    );
+    const response = postProcessToolResponse({
+      tool,
+      response: raw,
+      catalog,
+      runtime: 'mcp',
+      applyTemplateNextSteps: raw.nextStepParams != null,
+    });
+    const rawText = toolResponseToText(response);
+    return {
+      text: normalizeSnapshotOutput(rawText),
+      rawText,
+      isError: response.isError === true,
+    };
   }
 
   function cleanup(): void {}

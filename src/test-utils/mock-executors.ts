@@ -421,6 +421,21 @@ export function createNoopFileSystemExecutor(): FileSystemExecutor {
 }
 
 /**
+ * Create a no-op interactive spawner that throws an error if called.
+ * Use this for tests where a spawner is required but should never be called.
+ */
+export function createNoopInteractiveSpawner(): InteractiveSpawner {
+  return () => {
+    throw new Error(
+      `🚨 NOOP INTERACTIVE SPAWNER CALLED! 🚨\n` +
+        `This spawner should never be called in this test context.\n` +
+        `If you see this error, it means the test is exercising a code path that wasn't expected.\n` +
+        `Either fix the test to avoid this code path, or use createMockInteractiveSpawner() instead.`,
+    );
+  };
+}
+
+/**
  * Create a mock environment detector for testing
  * @param options Mock options for environment detection
  * @returns Mock environment detector

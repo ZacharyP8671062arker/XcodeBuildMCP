@@ -53,6 +53,7 @@ export interface SectionEvent extends BaseEvent {
   title: string;
   icon?: 'red-circle' | 'yellow-circle' | 'green-circle' | 'checkmark' | 'cross' | 'info';
   lines: string[];
+  blankLineAfterTitle?: boolean;
 }
 
 export interface DetailTreeEvent extends BaseEvent {

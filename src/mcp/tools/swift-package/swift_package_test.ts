@@ -99,12 +99,7 @@ export async function swift_package_testLogic(
         onStderr: (chunk: string) => pipeline.onStderr(chunk),
       });
 
-      const response: ToolResponse = result.success
-        ? { content: [], isError: false }
-        : {
-            content: [{ type: 'text', text: result.error || result.output || 'Unknown error' }],
-            isError: true,
-          };
+      const response: ToolResponse = { content: [], isError: !result.success };
 
       return createPendingXcodebuildResponse(started, response);
     },

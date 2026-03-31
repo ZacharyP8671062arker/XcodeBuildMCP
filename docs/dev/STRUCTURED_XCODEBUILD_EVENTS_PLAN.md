@@ -20,20 +20,23 @@ No exceptions. If a tool produces user-visible output, it goes through the pipel
 
 ## Architecture principle
 
-One renderer, two sinks.
+Shared formatting, runtime-specific renderers.
 
-There is exactly one rendering path that converts structured events into formatted text. The only difference between CLI and MCP is where that text goes:
+All renderers share a single set of formatting functions (`event-formatting.ts`) that define how each event type is converted to text. This is the single source of truth for output formatting. Each runtime has its own renderer that orchestrates those shared formatters according to its needs:
 
-- CLI sink: writes formatted text to stdout as events arrive (streaming)
-- MCP sink: buffers the same formatted text and returns it in `ToolResponse.content`
+- **MCP renderer** (`mcp-renderer.ts`): Buffers formatted text and returns it in `ToolResponse.content`. Applies session-level warning suppression.
+- **CLI text renderer** (`cli-text-renderer.ts`): Writes formatted text to stdout as events arrive. In interactive TTY mode, uses a Clack spinner for transient status updates (build stages, progress). Manages durable vs transient line state.
+- **CLI JSONL renderer** (`cli-jsonl-renderer.ts`): Serialises each event as one JSON line to stdout. Does not go through the text formatters.
 
-There is no separate MCP renderer. There is no separate CLI renderer. There is one renderer with one output format. The sinks are dumb pipes.
+The renderers are not "dumb pipes" — the CLI text renderer in particular is a state machine that tracks transient lines, flush timing, and interactive spinner state. This is why the architecture uses separate renderer implementations rather than a single renderer with sink adapters.
 
-The only sink-level concerns are:
+The key invariant is: **all text formatting lives in `event-formatting.ts`**. Renderers orchestrate when and how those formatters are called, but no renderer contains its own formatting logic.
 
-- CLI interactive mode: a Clack spinner for transient status updates (the rendered durable text is identical)
-- Next steps syntax: CLI renders `xcodebuildmcp workflow tool --flag "value"`, MCP renders `tool_name({ param: "value" })`. This is a single parameterised formatting function, not a separate renderer.
-- Warning suppression: a session-level filter applied before rendering, not a rendering concern.
+Runtime-specific rendering concerns:
+
+- CLI interactive mode: Clack spinner for transient status updates, durable flush rules before summary events
+- Next steps syntax: CLI renders `xcodebuildmcp workflow tool --flag "value"`, MCP renders `tool_name({ param: "value" })`. This is a single parameterised formatting function.
+- Warning suppression: session-level filter applied in MCP renderer before rendering.
 
 ## Why this matters
 
@@ -245,62 +248,82 @@ flowchart LR
         B --> C[Event parser]
         B --> D[Run-state]
         C --> D
-        D --> E[XcodebuildEvent stream]
+        D --> E[PipelineEvent stream]
     end
 
     subgraph "All other tools"
-        F[Tool logic] --> G[ToolEvent stream]
+        F[Tool logic] --> G[PipelineEvent array]
     end
 
-    E --> H[Unified renderer]
-    G --> H
+    E --> H[resolveRenderers]
+    G --> I[toolResponse] --> H
 
-    H --> I{Runtime?}
-    I -->|CLI| J[stdout sink]
-    I -->|MCP / Daemon| K[Buffer sink]
+    H --> J[MCP renderer]
+    H --> K{CLI mode?}
 
-    J --> L[Streaming text to terminal]
-    K --> M[ToolResponse.content]
+    J --> L[Buffer → ToolResponse.content]
 
-    H --> N{CLI JSON mode?}
-    N -->|Yes| O[JSONL sink]
-    O --> P[Streaming JSON to stdout]
+    K -->|text| M[CLI text renderer]
+    K -->|json| N[CLI JSONL renderer]
+
+    M --> O[stdout - streaming text]
+    N --> P[stdout - streaming JSON]
+
+    subgraph "Shared formatting"
+        Q[event-formatting.ts]
+    end
+
+    J -.-> Q
+    M -.-> Q
 ```
 
-### Sink behaviour
+### Renderer behaviour
 
-#### CLI stdout sink
+#### MCP renderer
 
-- Writes each rendered line to stdout immediately
-- In interactive TTY mode: uses Clack spinner for transient status events, replaces in place
-- In non-interactive mode: writes all events as durable lines
-- Formatting is identical to MCP — the only difference is transient spinner behaviour
-
-#### MCP buffer sink
-
-- Buffers all rendered text
+- Buffers all formatted text parts
 - Returns as `ToolResponse.content` when the tool completes
-- Identical formatting to CLI non-interactive mode
+- Applies session-level warning suppression
+- Groups compiler errors, warnings, and test failures for batch rendering before summary
 
-#### CLI JSONL sink
+#### CLI text renderer
+
+- Writes formatted text to stdout as events arrive
+- In interactive TTY mode: uses Clack spinner for transient status events, tracks durable vs transient line state
+- In non-interactive mode: writes all events as durable lines
+- Groups compiler errors, warnings, and test failures for batch rendering before summary
+- Tracks `lastVisibleEventType` for compact spacing between consecutive status lines
+
+#### CLI JSONL renderer
 
 - Serialises each event as one JSON line to stdout
-- Does not go through the text renderer
-- Only available for xcodebuild-backed tools (they have a rich event model)
-- Non-xcodebuild tools do not need JSONL — their output is simple enough that text suffices
+- Does not go through the text formatters
+- Available for all tools (events are the same union type)
 
-## Renderer contract
+### Renderer resolution
 
-One renderer. One set of formatting rules. All tools.
+`resolveRenderers()` in `src/utils/renderers/index.ts` always creates the MCP renderer (for `ToolResponse.content`). If running in CLI mode, it also creates either the CLI text renderer or CLI JSONL renderer based on output format.
+
+`toolResponse()` in `src/utils/tool-response.ts` feeds events through all active renderers and extracts content from the MCP renderer.
+
+## Formatting contract
+
+One set of formatting functions. All renderers.
 
 ```ts
-interface ToolOutputRenderer {
-  onEvent(event: ToolEvent | XcodebuildEvent): void;
-  finalize(): string[];  // returns buffered lines (used by MCP sink)
-}
+// src/utils/renderers/event-formatting.ts
+formatHeaderEvent(event: HeaderEvent): string;
+formatBuildStageEvent(event: BuildStageEvent): string;
+formatStatusLineEvent(event: StatusLineEvent): string;
+formatSectionEvent(event: SectionEvent): string;
+formatDetailTreeEvent(event: DetailTreeEvent): string;
+formatTableEvent(event: TableEvent): string;
+formatFileRefEvent(event: FileRefEvent): string;
+formatSummaryEvent(event: SummaryEvent): string;
+formatNextStepsEvent(event: NextStepsEvent, runtime: 'cli' | 'mcp'): string;
 ```
 
-The renderer is the single source of truth for:
+The formatting layer is the single source of truth for:
 
 - emoji selection per operation/level/icon
 - spacing between sections (always one blank line)
@@ -618,29 +641,60 @@ The `message` field must not include severity prefix. Correct: `"unterminated st
 
 ## Implementation steps
 
-One canonical list. Work top to bottom. Nothing is considered done until checked off.
+One canonical list. Checked items are done. Remaining items are work-in-progress.
 
-- [ ] Write snapshot test fixtures for all tools (TDD — fixtures define the target UX, code is updated to match)
-- [ ] Define `ToolEvent` union type in `src/types/tool-events.ts`
-- [ ] Define `toolResponse()` builder + helper functions: `header()`, `section()`, `statusLine()`, `fileRef()`, `table()`, `detailTree()`, `nextSteps()`
-- [ ] Build unified renderer that handles `ToolEvent` (single renderer, produces formatted text)
-- [ ] Build CLI stdout sink (streaming text + Clack spinner for transient events)
-- [ ] Build MCP buffer sink (buffers same formatted text, returns in `ToolResponse.content`)
-- [ ] Preserve CLI JSONL sink for xcodebuild events
-- [ ] Migrate xcodebuild pipeline run-state to emit `ToolEvent` instead of `XcodebuildEvent` directly to renderers (preserve parser, run-state, streaming, Clack)
-- [ ] Migrate simple action tools: `set_sim_appearance`, `set_sim_location`, `reset_sim_location`, `sim_statusbar`, `boot_sim`, `open_sim`, `stop_app_sim`, `stop_app_device`, `stop_mac_app`, `launch_app_sim`, `launch_app_device`, `launch_mac_app`, `install_app_sim`, `install_app_device`
-- [ ] Migrate query tools: `list_sims`, `list_devices`, `discover_projs`, `list_schemes`, `show_build_settings`, `get_sim_app_path`, `get_device_app_path`, `get_app_bundle_id`, `get_mac_bundle_id`
-- [ ] Migrate coverage tools: `get_coverage_report`, `get_file_coverage`
-- [ ] Migrate scaffolding tools: `scaffold_ios_project`, `scaffold_macos_project`
-- [ ] Migrate session tools: `session_set_defaults`, `session_show_defaults`, `session_clear_defaults`, `session_use_defaults_profile`
-- [ ] Migrate logging tools: `start_sim_log_cap`, `stop_sim_log_cap`, `start_device_log_cap`, `stop_device_log_cap`
-- [ ] Migrate debugging tools: `debug_attach_sim`, `debug_breakpoint_add`, `debug_breakpoint_remove`, `debug_continue`, `debug_detach`, `debug_lldb_command`, `debug_stack`, `debug_variables`
-- [ ] Migrate UI automation tools: `snapshot_ui`, `tap`, `type_text`, `screenshot`, `button`, `gesture`, `key_press`, `key_sequence`, `long_press`, `swipe`, `touch`
-- [ ] Migrate swift-package tools: `swift_package_build`, `swift_package_test`, `swift_package_clean`, `swift_package_run`, `swift_package_list`, `swift_package_stop`
-- [ ] Migrate xcode-ide tools: `xcode_ide_call_tool`, `xcode_ide_list_tools`, `xcode_tools_bridge_disconnect`, `xcode_tools_bridge_status`, `xcode_tools_bridge_sync`, `sync_xcode_defaults`
-- [ ] Migrate doctor tool
-- [ ] Delete legacy rendering code: `mcp-renderer.ts`, `cli-text-renderer.ts`, `formatToolPreflight`, per-tool ad-hoc formatting, transitional xcodebuild helpers (`finalizeBuildPhase`, `createPostBuildError`, `appendStructuredEvents`, `createCompletionStatusEvent`, `finalizeBuildPipelineResult`)
-- [ ] All snapshot tests pass
+### Infrastructure (done)
+
+- [x] Define `PipelineEvent` union type in `src/types/pipeline-events.ts` (named `PipelineEvent`, not `ToolEvent`)
+- [x] Define `toolResponse()` builder + helper functions: `header()`, `section()`, `statusLine()`, `fileRef()`, `table()`, `detailTree()`, `nextSteps()` in `src/utils/tool-event-builders.ts`
+- [x] Build shared formatting layer in `src/utils/renderers/event-formatting.ts`
+- [x] Build MCP renderer (`src/utils/renderers/mcp-renderer.ts`) — buffers formatted text for `ToolResponse.content`
+- [x] Build CLI text renderer (`src/utils/renderers/cli-text-renderer.ts`) — streaming text to stdout with interactive spinner support
+- [x] Preserve CLI JSONL renderer (`src/utils/renderers/cli-jsonl-renderer.ts`) for machine-readable output
+- [x] Build `resolveRenderers()` orchestration in `src/utils/renderers/index.ts`
+- [x] Build `toolResponse()` entry point in `src/utils/tool-response.ts` that feeds events through renderers
+- [x] Migrate xcodebuild pipeline run-state to emit `PipelineEvent` types through renderers (preserve parser, run-state, streaming, Clack)
+- [x] Write designed fixtures for all tools (`__fixtures_designed__/`)
+
+### Tool migration (mostly done)
+
+- [x] Migrate xcodebuild tools: `build_sim`, `build_device`, `build_macos`, `build_run_sim`, `build_run_device`, `build_run_macos`
+- [x] Migrate simple action tools: `set_sim_appearance`, `set_sim_location`, `reset_sim_location`, `sim_statusbar`, `boot_sim`, `open_sim`, `stop_app_sim`, `stop_app_device`, `stop_mac_app`, `launch_app_sim`, `launch_app_device`, `launch_mac_app`, `install_app_sim`, `install_app_device`
+- [x] Migrate most query tools: `list_sims`, `discover_projs`, `list_schemes`, `show_build_settings`, `get_app_bundle_id`, `get_mac_bundle_id`
+- [x] Migrate coverage tools: `get_coverage_report`, `get_file_coverage`
+- [x] Migrate scaffolding tools: `scaffold_ios_project`, `scaffold_macos_project`
+- [x] Migrate session tools: `session_set_defaults`, `session_clear_defaults`, `session_use_defaults_profile`
+- [x] Migrate logging tools: `start_sim_log_cap`, `stop_sim_log_cap`, `start_device_log_cap`, `stop_device_log_cap`
+- [x] Migrate debugging tools: `debug_attach_sim`, `debug_breakpoint_add`, `debug_breakpoint_remove`, `debug_continue`, `debug_detach`, `debug_lldb_command`, `debug_stack`, `debug_variables`
+- [x] Migrate UI automation tools: `snapshot_ui`, `tap`, `type_text`, `button`, `gesture`, `key_press`, `key_sequence`, `long_press`, `swipe`, `touch`
+- [x] Migrate swift-package tools: `swift_package_build`, `swift_package_clean`, `swift_package_list`, `swift_package_stop`
+- [x] Migrate xcode-ide tools: `xcode_ide_call_tool`, `xcode_ide_list_tools`, `xcode_tools_bridge_disconnect`, `xcode_tools_bridge_status`, `xcode_tools_bridge_sync`, `sync_xcode_defaults`
+- [x] Migrate doctor tool
+
+### Remaining: tools that were migrated then reverted to manual text
+
+These tools were migrated to the pipeline in `ac33b97f` but reverted to manual `ToolResponse` construction in `c0693a1d`. The fixtures in `__fixtures__/` define the correct target output. The pipeline (renderers and/or event types) needs to be extended to produce that output — the tools should NOT hand-craft text to match fixtures.
+
+- [x] Re-migrate `get_sim_app_path` — extended `SectionEvent` with `blankLineAfterTitle`, added `extractQueryErrorMessages`, added `suppressCliStream` to `toolResponse()` for late-bound CLI next steps
+- [x] Re-migrate `get_device_app_path` — same approach
+- [x] Re-migrate `get_mac_app_path` — same approach
+- [x] Re-migrate `list_devices` success path — uses `blankLineAfterTitle` sections for grouped-by-platform layout
+- [x] Clean up `swift_package_run` error fallback — removed manual content, relies on pipeline-produced structured diagnostics
+- [x] Clean up `swift_package_test` error fallback — same
+- [ ] Re-migrate `session_show_defaults` — remove inline emoji from section titles, use `detailTree()` instead of manual tree connectors
+- [ ] Re-migrate `screenshot` — remove manual content branches for base64 fallback
+
+### Remaining: presentation leakage in migrated tools
+
+These tools use `toolResponse()` but embed presentation details in event payloads that should be owned by the renderer:
+
+- [ ] `list_sims` — remove inline emoji and `✓`/`✗` markers from section content; these should come from the renderer or event type metadata
+- [ ] `session_show_defaults` — use `detailTree()` events instead of `formatDetailLines()` manual tree connectors
+
+### Remaining: cleanup
+
+- [ ] Delete `formatToolPreflight` in `src/utils/build-preflight.ts` once all tools use pipeline `HeaderEvent`
+- [ ] All snapshot tests pass against `__fixtures__/` (target output)
 - [ ] Manual verification of CLI output for representative tools
 
 ## Success criteria
@@ -648,20 +702,22 @@ One canonical list. Work top to bottom. Nothing is considered done until checked
 This work is successful when:
 
 - every tool emits structured events through the pipeline
-- one renderer produces all formatted output
-- CLI and MCP output are identical (differing only in sink: stdout vs buffer)
+- shared formatting functions in `event-formatting.ts` produce all formatted output
+- CLI and MCP durable output are identical (CLI interactive mode may show transient spinner updates)
 - file paths are always normalised — no tool can produce a raw absolute path
 - spacing between sections is always correct — no tool can get it wrong
 - the only way to add a new tool's output is to emit events — there is no escape hatch
 - adding a new output format (e.g. markdown, HTML) requires only a new renderer, not touching any tool code
+- all `__fixtures__/` snapshot tests pass with output produced by the pipeline, not by manual text construction
 
 ## Design constraints
 
-- no separate renderer per output mode (one renderer, parameterised by runtime for next-steps syntax)
+- all text formatting lives in `event-formatting.ts` — renderers orchestrate, they do not contain formatting logic
 - no formatted text construction inside tool logic
-- no emoji characters inside tool logic (renderer owns the mapping)
-- no `displayPath()` calls inside tool logic (renderer owns path normalisation)
-- no spacing/indentation decisions inside tool logic (renderer owns layout)
+- no emoji characters inside tool logic (formatting layer owns the mapping)
+- no `displayPath()` calls inside tool logic (formatting layer owns path normalisation)
+- no spacing/indentation decisions inside tool logic (formatting layer owns layout)
 - xcodebuild event parser and run-state layer are preserved — they work well and do not need to change
-- CLI JSONL mode is preserved for xcodebuild events only
+- CLI JSONL mode is preserved for all tools
 - no attempt to make non-xcodebuild tools streamable initially — they complete fast enough that buffered rendering is fine
+- if the pipeline cannot produce a fixture's target output, extend the pipeline (new event types, new formatting functions) — do not bypass the pipeline to match fixtures manually

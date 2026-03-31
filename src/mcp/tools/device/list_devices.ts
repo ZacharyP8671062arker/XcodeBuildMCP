@@ -71,7 +71,7 @@ function getDeviceEmoji(platform: string): string {
   }
 }
 
-function renderGroupedDevices(
+function buildDevicePlatformSections(
   devices: Array<{
     name: string;
     identifier: string;
@@ -79,7 +79,7 @@ function renderGroupedDevices(
     osVersion?: string;
     state: string;
   }>,
-): string {
+): { sections: PipelineEvent[]; summary: string } {
   const grouped = new Map<string, typeof devices>();
 
   for (const device of devices) {
@@ -88,27 +88,25 @@ function renderGroupedDevices(
     grouped.set(device.platform, group);
   }
 
-  const lines: string[] = ['📱 List Devices', ''];
   const orderedPlatforms = [...grouped.keys()].sort(
     (a, b) => getPlatformOrder(a) - getPlatformOrder(b),
   );
 
+  const sections: PipelineEvent[] = [];
   for (const platform of orderedPlatforms) {
     const platformDevices = grouped.get(platform) ?? [];
-    if (platformDevices.length === 0) {
-      continue;
-    }
+    if (platformDevices.length === 0) continue;
 
-    lines.push(`${platform} Devices:`);
-    lines.push('');
-
+    const lines: string[] = [];
     for (const device of platformDevices) {
-      const availability = isAvailableState(device.state) ? '✓' : '✗';
-      lines.push(`  ${getDeviceEmoji(platform)} [${availability}] ${device.name}`);
-      lines.push(`    OS: ${device.osVersion ?? 'Unknown'}`);
-      lines.push(`    UDID: ${device.identifier}`);
+      const availability = isAvailableState(device.state) ? '\u2713' : '\u2717';
+      lines.push(`${getDeviceEmoji(platform)} [${availability}] ${device.name}`);
+      lines.push(`  OS: ${device.osVersion ?? 'Unknown'}`);
+      lines.push(`  UDID: ${device.identifier}`);
       lines.push('');
     }
+
+    sections.push(section(`${platform} Devices:`, lines, { blankLineAfterTitle: true }));
   }
 
   const platformCounts = orderedPlatforms.map((platform) => {
@@ -116,9 +114,8 @@ function renderGroupedDevices(
     return `${count} ${platform}`;
   });
 
-  lines.push(`✅ ${devices.length} physical devices discovered (${platformCounts.join(', ')}).`);
-
-  return lines.join('\n');
+  const summary = `${devices.length} physical devices discovered (${platformCounts.join(', ')}).`;
+  return { sections, summary };
 }
 
 /**
@@ -310,26 +307,27 @@ export async function list_devicesLogic(
 
       const availableDevicesExist = uniqueDevices.some((d) => isAvailableState(d.state));
 
-      const renderedDeviceList = renderGroupedDevices(
-        uniqueDevices.map((device) => ({
-          name: device.name,
-          identifier: device.identifier,
-          platform: device.platform,
-          osVersion: device.osVersion,
-          state: device.state,
-        })),
-      );
-
       if (availableDevicesExist) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `\n${renderedDeviceList}\n\nHints\n  Use the device ID/UDID from above when required by other tools.\n  Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.\n  Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.`,
-            },
-          ],
-          nextSteps: [],
-        };
+        const { sections: platformSections, summary } = buildDevicePlatformSections(
+          uniqueDevices.map((device) => ({
+            name: device.name,
+            identifier: device.identifier,
+            platform: device.platform,
+            osVersion: device.osVersion,
+            state: device.state,
+          })),
+        );
+
+        return toolResponse([
+          headerEvent,
+          ...platformSections,
+          statusLine('success', summary),
+          section('Hints', [
+            'Use the device ID/UDID from above when required by other tools.',
+            "Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.",
+            'Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.',
+          ]),
+        ]);
       } else {
         events.push(
           statusLine('warning', 'No devices are currently available for testing.'),

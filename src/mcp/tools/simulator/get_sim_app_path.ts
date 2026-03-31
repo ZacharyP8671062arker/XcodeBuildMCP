@@ -18,11 +18,12 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { formatToolPreflight } from '../../../utils/build-preflight.ts';
-import { formatQueryError } from '../../../utils/xcodebuild-error-utils.ts';
 import { extractAppPathFromBuildSettingsOutput } from '../../../utils/app-path-resolver.ts';
+import { extractQueryErrorMessages } from '../../../utils/xcodebuild-error-utils.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
-import { header } from '../../../utils/tool-event-builders.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
 const SIMULATOR_PLATFORMS = [
   XcodePlatform.iOSSimulator,
@@ -101,27 +102,33 @@ export async function get_sim_app_pathLogic(
 
   log('info', `Getting app path for scheme ${params.scheme} on platform ${params.platform}`);
 
-  const preflightText = formatToolPreflight({
-    operation: 'Get App Path',
-    scheme: params.scheme,
-    workspacePath: params.workspacePath,
-    projectPath: params.projectPath,
-    configuration,
-    platform: params.platform,
-    simulatorName: params.simulatorName,
-    simulatorId: params.simulatorId,
-  });
+  const headerParams: Array<{ label: string; value: string }> = [
+    { label: 'Scheme', value: params.scheme },
+  ];
+  if (params.workspacePath) {
+    headerParams.push({ label: 'Workspace', value: params.workspacePath });
+  } else if (params.projectPath) {
+    headerParams.push({ label: 'Project', value: params.projectPath });
+  }
+  headerParams.push({ label: 'Configuration', value: configuration });
+  headerParams.push({ label: 'Platform', value: params.platform });
+  if (params.simulatorName) {
+    headerParams.push({ label: 'Simulator', value: params.simulatorName });
+  } else if (params.simulatorId) {
+    headerParams.push({ label: 'Simulator', value: params.simulatorId });
+  }
 
-  function buildErrorResponse(rawOutput: string): ToolResponse {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `\n${preflightText}\n${formatQueryError(rawOutput)}\n\n\u{274C} Failed to get app path`,
-        },
-      ],
-      isError: true,
-    };
+  const headerEvent = header('Get App Path', headerParams);
+
+  function buildErrorEvents(rawOutput: string): PipelineEvent[] {
+    const messages = extractQueryErrorMessages(rawOutput);
+    return [
+      headerEvent,
+      section(`Errors (${messages.length}):`, [...messages.map((m) => `\u{2717} ${m}`), ''], {
+        blankLineAfterTitle: true,
+      }),
+      statusLine('error', 'Failed to get app path'),
+    ];
   }
 
   const startedAt = Date.now();
@@ -149,45 +156,51 @@ export async function get_sim_app_pathLogic(
 
       if (!result.success) {
         const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
-        return buildErrorResponse(rawOutput);
+        return toolResponse(buildErrorEvents(rawOutput));
       }
 
       if (!result.output) {
-        return buildErrorResponse('Failed to extract build settings output from the result.');
+        return toolResponse(
+          buildErrorEvents('Failed to extract build settings output from the result.'),
+        );
       }
 
       let appPath: string;
       try {
         appPath = extractAppPathFromBuildSettingsOutput(result.output);
       } catch {
-        return buildErrorResponse(
-          'Failed to extract app path from build settings. Make sure the app has been built first.',
+        return toolResponse(
+          buildErrorEvents(
+            'Failed to extract app path from build settings. Make sure the app has been built first.',
+          ),
         );
       }
 
       const durationMs = Date.now() - startedAt;
       const durationStr = (durationMs / 1000).toFixed(1);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `\n${preflightText}\n\u{2705} Get app path successful (\u{23F1}\u{FE0F} ${durationStr}s)\n  \u{2514} App Path: ${appPath}`,
-          },
+      return toolResponse(
+        [
+          headerEvent,
+          statusLine('success', `Get app path successful (\u{23F1}\u{FE0F} ${durationStr}s)`),
+          detailTree([{ label: 'App Path', value: appPath }]),
         ],
-        nextStepParams: {
-          get_app_bundle_id: { appPath },
-          boot_sim: { simulatorId: 'SIMULATOR_UUID' },
-          install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
-          launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'BUNDLE_ID' },
+        {
+          nextStepParams: {
+            get_app_bundle_id: { appPath },
+            boot_sim: { simulatorId: 'SIMULATOR_UUID' },
+            install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
+            launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'BUNDLE_ID' },
+          },
+          suppressCliStream: true,
         },
-      };
+      );
     },
     {
-      header: header('Get App Path'),
+      header: headerEvent,
       errorMessage: ({ message }) => `Error retrieving app path: ${message}`,
       logMessage: ({ message }) => `Error retrieving app path: ${message}`,
-      mapError: ({ message }) => buildErrorResponse(message),
+      mapError: ({ message }) => toolResponse(buildErrorEvents(message)),
     },
   );
 }

@@ -37,3 +37,18 @@ export function formatQueryError(rawOutput: string): string {
 export function formatQueryFailureSummary(): string {
   return '\u{274C} Query failed.';
 }
+
+export function extractQueryErrorMessages(rawOutput: string): string[] {
+  const parsed = parseXcodebuildErrorMessage(rawOutput);
+  if (parsed) {
+    return [parsed];
+  }
+
+  const cleaned = cleanXcodebuildOutput(rawOutput);
+  if (cleaned) {
+    const errorLines = cleaned.split('\n').filter((l) => l.trim());
+    if (errorLines.length > 0) return errorLines.map((l) => l.trim());
+  }
+
+  return ['Unknown error'];
+}

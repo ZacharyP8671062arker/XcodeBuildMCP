@@ -252,8 +252,13 @@ export function formatSectionEvent(event: SectionEvent): string {
     return headerLine;
   }
   const indent = event.icon ? '   ' : '  ';
-  const indented = event.lines.map((line) => `${indent}${line}`);
-  return [headerLine, ...indented].join('\n');
+  const indented = event.lines.map((line) => (line === '' ? '' : `${indent}${line}`));
+  const lines = [headerLine];
+  if (event.blankLineAfterTitle) {
+    lines.push('');
+  }
+  lines.push(...indented);
+  return lines.join('\n');
 }
 
 export function formatTableEvent(event: TableEvent): string {

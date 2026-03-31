@@ -4,19 +4,23 @@ import { resolveRenderers } from './renderers/index.ts';
 
 export interface ToolResponseOptions {
   nextStepParams?: NextStepParamsMap;
+  suppressCliStream?: boolean;
 }
 
 export function toolResponse(events: PipelineEvent[], options?: ToolResponseOptions): ToolResponse {
   const { renderers, mcpRenderer } = resolveRenderers();
   const hasCliRenderer = renderers.length > 1;
+  const skipCliStream = hasCliRenderer && options?.suppressCliStream === true;
 
   for (const event of events) {
     for (const renderer of renderers) {
+      if (skipCliStream && renderer !== mcpRenderer) continue;
       renderer.onEvent(event);
     }
   }
 
   for (const renderer of renderers) {
+    if (skipCliStream && renderer !== mcpRenderer) continue;
     renderer.finalize();
   }
 
@@ -30,6 +34,6 @@ export function toolResponse(events: PipelineEvent[], options?: ToolResponseOpti
     content: mcpRenderer.getContent(),
     isError: hasError || undefined,
     nextStepParams: options?.nextStepParams,
-    ...(hasCliRenderer ? { _meta: { pipelineStreamMode: 'complete' } } : {}),
+    ...(!skipCliStream && hasCliRenderer ? { _meta: { pipelineStreamMode: 'complete' } } : {}),
   };
 }

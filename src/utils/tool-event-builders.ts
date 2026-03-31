@@ -27,7 +27,7 @@ export function header(
 export function section(
   title: string,
   lines: string[],
-  opts?: { icon?: SectionEvent['icon'] },
+  opts?: { icon?: SectionEvent['icon']; blankLineAfterTitle?: boolean },
 ): SectionEvent {
   return {
     type: 'section',
@@ -35,6 +35,7 @@ export function section(
     title,
     icon: opts?.icon,
     lines,
+    blankLineAfterTitle: opts?.blankLineAfterTitle,
   };
 }
 

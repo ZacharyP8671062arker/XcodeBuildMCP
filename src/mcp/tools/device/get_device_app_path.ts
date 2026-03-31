@@ -17,17 +17,15 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { mapDevicePlatform } from './build-settings.ts';
-import { formatToolPreflight } from '../../../utils/build-preflight.ts';
-import {
-  formatQueryError,
-  formatQueryFailureSummary,
-} from '../../../utils/xcodebuild-error-utils.ts';
+import { extractQueryErrorMessages } from '../../../utils/xcodebuild-error-utils.ts';
 import {
   extractAppPathFromBuildSettingsOutput,
   getBuildSettingsDestination,
 } from '../../../utils/app-path-resolver.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
-import { header } from '../../../utils/tool-event-builders.ts';
+import { toolResponse } from '../../../utils/tool-response.ts';
+import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
 // Unified schema: XOR between projectPath and workspacePath, sharing common options
 const baseOptions = {
@@ -69,14 +67,30 @@ export async function get_device_app_pathLogic(
 ): Promise<ToolResponse> {
   const platform = mapDevicePlatform(params.platform);
   const configuration = params.configuration ?? 'Debug';
-  const preflightText = formatToolPreflight({
-    operation: 'Get App Path',
-    scheme: params.scheme,
-    workspacePath: params.workspacePath,
-    projectPath: params.projectPath,
-    configuration,
-    platform,
-  });
+
+  const headerParams: Array<{ label: string; value: string }> = [
+    { label: 'Scheme', value: params.scheme },
+  ];
+  if (params.workspacePath) {
+    headerParams.push({ label: 'Workspace', value: params.workspacePath });
+  } else if (params.projectPath) {
+    headerParams.push({ label: 'Project', value: params.projectPath });
+  }
+  headerParams.push({ label: 'Configuration', value: configuration });
+  headerParams.push({ label: 'Platform', value: platform });
+
+  const headerEvent = header('Get App Path', headerParams);
+
+  function buildErrorEvents(rawOutput: string): PipelineEvent[] {
+    const messages = extractQueryErrorMessages(rawOutput);
+    return [
+      headerEvent,
+      section(`Errors (${messages.length}):`, [...messages.map((m) => `\u{2717} ${m}`), ''], {
+        blankLineAfterTitle: true,
+      }),
+      statusLine('error', 'Query failed.'),
+    ];
+  }
 
   log('info', `Getting app path for scheme ${params.scheme} on platform ${platform}`);
 
@@ -116,46 +130,32 @@ export async function get_device_app_pathLogic(
 
       if (!result.success) {
         const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `\n${preflightText}\n${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
-            },
-          ],
-          isError: true,
-        };
+        return toolResponse(buildErrorEvents(rawOutput));
       }
 
       const appPath = extractAppPathFromBuildSettingsOutput(result.output);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `\n${preflightText}\n\u2705 Success\n  \u2514 App Path: ${appPath}`,
-          },
+      return toolResponse(
+        [
+          headerEvent,
+          statusLine('success', 'Success'),
+          detailTree([{ label: 'App Path', value: appPath }]),
         ],
-        nextStepParams: {
-          get_app_bundle_id: { appPath },
-          install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-          launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
+        {
+          nextStepParams: {
+            get_app_bundle_id: { appPath },
+            install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+            launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
+          },
+          suppressCliStream: true,
         },
-      };
+      );
     },
     {
-      header: header('Get App Path'),
+      header: headerEvent,
       errorMessage: ({ message }) => `Error retrieving app path: ${message}`,
       logMessage: ({ message }) => `Error retrieving app path: ${message}`,
-      mapError: ({ message }) => ({
-        content: [
-          {
-            type: 'text' as const,
-            text: `\n${preflightText}\n${formatQueryError(message)}\n\n${formatQueryFailureSummary()}`,
-          },
-        ],
-        isError: true,
-      }),
+      mapError: ({ message }) => toolResponse(buildErrorEvents(message)),
     },
   );
 }

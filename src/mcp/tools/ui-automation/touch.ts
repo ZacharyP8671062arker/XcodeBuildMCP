@@ -23,6 +23,7 @@ import { getSnapshotUiWarning } from './shared/snapshot-ui-state.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
 import type { AxeHelpers } from './shared/axe-command.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const touchSchema = z.object({
@@ -87,49 +88,47 @@ export async function touchLogic(
     `${LOG_PREFIX}/${toolName}: Starting ${actionText} at (${x}, ${y}) on ${simulatorId}`,
   );
 
-  try {
-    await executeAxeCommand(commandArgs, simulatorId, 'touch', executor, axeHelpers);
-    log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+  return withErrorHandling(
+    async () => {
+      await executeAxeCommand(commandArgs, simulatorId, 'touch', executor, axeHelpers);
+      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
-    const coordinateWarning = getSnapshotUiWarning(simulatorId);
-    const warnings = [guard.warningText, coordinateWarning].filter(
-      (w): w is string => typeof w === 'string' && w.length > 0,
-    );
-    return toolResponse([
-      headerEvent,
-      statusLine('success', `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`),
-      ...warnings.map((w) => statusLine('warning', w)),
-    ]);
-  } catch (error) {
-    log(
-      'error',
-      `${LOG_PREFIX}/${toolName}: Failed - ${error instanceof Error ? error.message : String(error)}`,
-    );
-    if (error instanceof DependencyError) {
-      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
-    } else if (error instanceof AxeError) {
+      const coordinateWarning = getSnapshotUiWarning(simulatorId);
+      const warnings = [guard.warningText, coordinateWarning].filter(
+        (w): w is string => typeof w === 'string' && w.length > 0,
+      );
       return toolResponse([
         headerEvent,
-        statusLine('error', `Failed to execute touch event: ${error.message}`),
-        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+        statusLine('success', `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`),
+        ...warnings.map((w) => statusLine('warning', w)),
       ]);
-    } else if (error instanceof SystemError) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `System error executing axe: ${error.message}`),
-        ...(error.originalError?.stack
-          ? [section('Stack Trace', [error.originalError.stack])]
-          : []),
-      ]);
-    }
-    return toolResponse([
-      headerEvent,
-      statusLine(
-        'error',
-        `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
-      ),
-    ]);
-  }
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `An unexpected error occurred: ${message}`,
+      logMessage: ({ message }) => `${LOG_PREFIX}/${toolName}: Failed - ${message}`,
+      mapError: ({ error, headerEvent: hdr }) => {
+        if (error instanceof DependencyError) {
+          return toolResponse([hdr, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
+        } else if (error instanceof AxeError) {
+          return toolResponse([
+            hdr,
+            statusLine('error', `Failed to execute touch event: ${error.message}`),
+            ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+          ]);
+        } else if (error instanceof SystemError) {
+          return toolResponse([
+            hdr,
+            statusLine('error', `System error executing axe: ${error.message}`),
+            ...(error.originalError?.stack
+              ? [section('Stack Trace', [error.originalError.stack])]
+              : []),
+          ]);
+        }
+        return undefined;
+      },
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

@@ -15,6 +15,7 @@ import { getDefaultFileSystemExecutor, getDefaultCommandExecutor } from '../../.
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, section, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
 const stopDeviceLogCapSchema = z.object({
@@ -30,40 +31,42 @@ export async function stop_device_log_capLogic(
   const { logSessionId } = params;
   const headerEvent = header('Stop Log Capture', [{ label: 'Session ID', value: logSessionId }]);
 
-  try {
-    log('info', `Attempting to stop device log capture session: ${logSessionId}`);
+  return withErrorHandling(
+    async () => {
+      log('info', `Attempting to stop device log capture session: ${logSessionId}`);
 
-    const result = await stopDeviceLogSessionById(logSessionId, fileSystemExecutor, {
-      timeoutMs: 1000,
-      readLogContent: true,
-    });
+      const result = await stopDeviceLogSessionById(logSessionId, fileSystemExecutor, {
+        timeoutMs: 1000,
+        readLogContent: true,
+      });
 
-    if (result.error) {
-      log('error', `Failed to stop device log capture session ${logSessionId}: ${result.error}`);
-      return toolResponse([
+      if (result.error) {
+        log('error', `Failed to stop device log capture session ${logSessionId}: ${result.error}`);
+        return toolResponse([
+          headerEvent,
+          statusLine(
+            'error',
+            `Failed to stop device log capture session ${logSessionId}: ${result.error}`,
+          ),
+        ]);
+      }
+
+      const events = [
         headerEvent,
-        statusLine(
-          'error',
-          `Failed to stop device log capture session ${logSessionId}: ${result.error}`,
-        ),
-      ]);
-    }
-
-    const events = [
-      headerEvent,
-      statusLine('success', 'Log capture stopped.'),
-      ...(result.logFilePath ? [detailTree([{ label: 'Logs', value: result.logFilePath }])] : []),
-      section('Captured Logs:', result.logContent.split('\n')),
-    ];
-    return toolResponse(events);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log('error', `Failed to stop device log capture session ${logSessionId}: ${message}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to stop device log capture session ${logSessionId}: ${message}`),
-    ]);
-  }
+        statusLine('success', 'Log capture stopped.'),
+        ...(result.logFilePath ? [detailTree([{ label: 'Logs', value: result.logFilePath }])] : []),
+        section('Captured Logs:', result.logContent.split('\n')),
+      ];
+      return toolResponse(events);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) =>
+        `Failed to stop device log capture session ${logSessionId}: ${message}`,
+      logMessage: ({ message }) =>
+        `Failed to stop device log capture session ${logSessionId}: ${message}`,
+    },
+  );
 }
 
 export { stopAllDeviceLogCaptures };

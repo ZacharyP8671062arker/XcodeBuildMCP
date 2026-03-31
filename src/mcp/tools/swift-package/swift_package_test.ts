@@ -9,6 +9,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
@@ -91,28 +92,28 @@ export async function swift_package_testLogic(
 
   const { pipeline } = started;
 
-  try {
-    const result = await executor(['swift', ...swiftArgs], 'Swift Package Test', false, {
-      onStdout: (chunk: string) => pipeline.onStdout(chunk),
-      onStderr: (chunk: string) => pipeline.onStderr(chunk),
-    });
+  return withErrorHandling(
+    async () => {
+      const result = await executor(['swift', ...swiftArgs], 'Swift Package Test', false, {
+        onStdout: (chunk: string) => pipeline.onStdout(chunk),
+        onStderr: (chunk: string) => pipeline.onStderr(chunk),
+      });
 
-    const response: ToolResponse = result.success
-      ? { content: [], isError: false }
-      : {
-          content: [{ type: 'text', text: result.error || result.output || 'Unknown error' }],
-          isError: true,
-        };
+      const response: ToolResponse = result.success
+        ? { content: [], isError: false }
+        : {
+            content: [{ type: 'text', text: result.error || result.output || 'Unknown error' }],
+            isError: true,
+          };
 
-    return createPendingXcodebuildResponse(started, response);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log('error', `Swift package test failed: ${message}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to execute swift test: ${message}`),
-    ]);
-  }
+      return createPendingXcodebuildResponse(started, response);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to execute swift test: ${message}`,
+      logMessage: ({ message }) => `Swift package test failed: ${message}`,
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

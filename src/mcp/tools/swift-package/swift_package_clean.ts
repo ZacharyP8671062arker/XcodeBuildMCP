@@ -6,6 +6,7 @@ import { log } from '../../../utils/logging/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const swiftPackageCleanSchema = z.object({
@@ -25,29 +26,29 @@ export async function swift_package_cleanLogic(
 
   const headerEvent = header('Swift Package Clean', [{ label: 'Package', value: resolvedPath }]);
 
-  try {
-    const result = await executor(['swift', ...swiftArgs], 'Swift Package Clean', false);
-    if (!result.success) {
-      const errorMessage = result.error || result.output || 'Unknown error';
+  return withErrorHandling(
+    async () => {
+      const result = await executor(['swift', ...swiftArgs], 'Swift Package Clean', false);
+      if (!result.success) {
+        const errorMessage = result.error || result.output || 'Unknown error';
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Swift package clean failed: ${errorMessage}`),
+        ]);
+      }
+
       return toolResponse([
         headerEvent,
-        statusLine('error', `Swift package clean failed: ${errorMessage}`),
+        ...(result.output ? [section('Output', [result.output])] : []),
+        statusLine('success', 'Swift package cleaned successfully'),
       ]);
-    }
-
-    return toolResponse([
-      headerEvent,
-      ...(result.output ? [section('Output', [result.output])] : []),
-      statusLine('success', 'Swift package cleaned successfully'),
-    ]);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log('error', `Swift package clean failed: ${message}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to execute swift package clean: ${message}`),
-    ]);
-  }
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to execute swift package clean: ${message}`,
+      logMessage: ({ message }) => `Swift package clean failed: ${message}`,
+    },
+  );
 }
 
 export const schema = swiftPackageCleanSchema.shape;

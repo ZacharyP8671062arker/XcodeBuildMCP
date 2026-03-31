@@ -17,6 +17,7 @@ import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
 import type { AxeHelpers } from './shared/axe-command.ts';
 export type { AxeHelpers } from './shared/axe-command.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const baseTapSchema = z.object({
@@ -156,47 +157,50 @@ export async function tapLogic(
 
   log('info', `${LOG_PREFIX}/${toolName}: Starting for ${targetDescription} on ${simulatorId}`);
 
-  try {
-    await executeAxeCommand(commandArgs, simulatorId, 'tap', executor, axeHelpers);
-    log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+  return withErrorHandling(
+    async () => {
+      await executeAxeCommand(commandArgs, simulatorId, 'tap', executor, axeHelpers);
+      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
-    const coordinateWarning = usesCoordinates ? getSnapshotUiWarning(simulatorId) : null;
-    const warnings = [guard.warningText, coordinateWarning].filter(
-      (w): w is string => typeof w === 'string' && w.length > 0,
-    );
-    return toolResponse([
-      headerEvent,
-      statusLine('success', `${actionDescription} simulated successfully.`),
-      ...warnings.map((w) => statusLine('warning', w)),
-    ]);
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `${LOG_PREFIX}/${toolName}: Failed - ${errorMessage}`);
-    if (error instanceof DependencyError) {
-      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
-    } else if (error instanceof AxeError) {
+      const coordinateWarning = usesCoordinates ? getSnapshotUiWarning(simulatorId) : null;
+      const warnings = [guard.warningText, coordinateWarning].filter(
+        (w): w is string => typeof w === 'string' && w.length > 0,
+      );
       return toolResponse([
         headerEvent,
-        statusLine(
-          'error',
-          `Failed to simulate ${actionDescription.toLowerCase()}: ${error.message}`,
-        ),
-        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+        statusLine('success', `${actionDescription} simulated successfully.`),
+        ...warnings.map((w) => statusLine('warning', w)),
       ]);
-    } else if (error instanceof SystemError) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `System error executing axe: ${error.message}`),
-        ...(error.originalError?.stack
-          ? [section('Stack Trace', [error.originalError.stack])]
-          : []),
-      ]);
-    }
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `An unexpected error occurred: ${errorMessage}`),
-    ]);
-  }
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `An unexpected error occurred: ${message}`,
+      logMessage: ({ message }) => `${LOG_PREFIX}/${toolName}: Failed - ${message}`,
+      mapError: ({ error, headerEvent: hdr }) => {
+        if (error instanceof DependencyError) {
+          return toolResponse([hdr, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
+        } else if (error instanceof AxeError) {
+          return toolResponse([
+            hdr,
+            statusLine(
+              'error',
+              `Failed to simulate ${actionDescription.toLowerCase()}: ${error.message}`,
+            ),
+            ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+          ]);
+        } else if (error instanceof SystemError) {
+          return toolResponse([
+            hdr,
+            statusLine('error', `System error executing axe: ${error.message}`),
+            ...(error.originalError?.stack
+              ? [section('Stack Trace', [error.originalError.stack])]
+              : []),
+          ]);
+        }
+        return undefined;
+      },
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

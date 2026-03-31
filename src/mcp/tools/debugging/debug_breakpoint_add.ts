@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
@@ -40,27 +41,30 @@ export async function debug_breakpoint_addLogic(
 ): Promise<ToolResponse> {
   const headerEvent = header('Add Breakpoint');
 
-  try {
-    const spec: BreakpointSpec = params.function
-      ? { kind: 'function', name: params.function }
-      : { kind: 'file-line', file: params.file!, line: params.line! };
+  return withErrorHandling(
+    async () => {
+      const spec: BreakpointSpec = params.function
+        ? { kind: 'function', name: params.function }
+        : { kind: 'file-line', file: params.file!, line: params.line! };
 
-    const result = await ctx.debugger.addBreakpoint(params.debugSessionId, spec, {
-      condition: params.condition,
-    });
+      const result = await ctx.debugger.addBreakpoint(params.debugSessionId, spec, {
+        condition: params.condition,
+      });
 
-    const rawOutput = result.rawOutput.trim();
-    const events = [
-      headerEvent,
-      statusLine('success', `Breakpoint ${result.id} set`),
-      ...(rawOutput ? [section('Output:', rawOutput.split('\n'))] : []),
-    ];
+      const rawOutput = result.rawOutput.trim();
+      const events = [
+        headerEvent,
+        statusLine('success', `Breakpoint ${result.id} set`),
+        ...(rawOutput ? [section('Output:', rawOutput.split('\n'))] : []),
+      ];
 
-    return toolResponse(events);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return toolResponse([headerEvent, statusLine('error', `Failed to add breakpoint: ${message}`)]);
-  }
+      return toolResponse(events);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to add breakpoint: ${message}`,
+    },
+  );
 }
 
 export const schema = baseSchemaObject.shape;

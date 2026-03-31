@@ -8,6 +8,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
@@ -50,26 +51,26 @@ export async function stop_app_simLogic(
     { label: 'Bundle ID', value: params.bundleId },
   ]);
 
-  try {
-    const command = ['xcrun', 'simctl', 'terminate', simulatorId, params.bundleId];
-    const result = await executor(command, 'Stop App in Simulator', false);
+  return withErrorHandling(
+    async () => {
+      const command = ['xcrun', 'simctl', 'terminate', simulatorId, params.bundleId];
+      const result = await executor(command, 'Stop App in Simulator', false);
 
-    if (!result.success) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Stop app in simulator operation failed: ${result.error}`),
-      ]);
-    }
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Stop app in simulator operation failed: ${result.error}`),
+        ]);
+      }
 
-    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error stopping app in simulator: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Stop app in simulator operation failed: ${errorMessage}`),
-    ]);
-  }
+      return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Stop app in simulator operation failed: ${message}`,
+      logMessage: ({ message }) => `Error stopping app in simulator: ${message}`,
+    },
+  );
 }
 
 const publicSchemaObject = z.strictObject(

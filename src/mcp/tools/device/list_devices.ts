@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const listDevicesSchema = z.object({});
@@ -135,220 +136,220 @@ export async function list_devicesLogic(
   log('info', 'Starting device discovery');
   const headerEvent = header('List Devices');
 
-  try {
-    // Try modern devicectl with JSON output first (iOS 17+, Xcode 15+)
-    const tempDir = pathDeps?.tmpdir ? pathDeps.tmpdir() : tmpdir();
-    const timestamp = pathDeps?.join ? '123' : Date.now(); // Use fixed timestamp for tests
-    const tempJsonPath = pathDeps?.join
-      ? pathDeps.join(tempDir, `devicectl-${timestamp}.json`)
-      : join(tempDir, `devicectl-${timestamp}.json`);
-    const devices = [];
-    let useDevicectl = false;
+  return withErrorHandling(
+    async () => {
+      // Try modern devicectl with JSON output first (iOS 17+, Xcode 15+)
+      const tempDir = pathDeps?.tmpdir ? pathDeps.tmpdir() : tmpdir();
+      const timestamp = pathDeps?.join ? '123' : Date.now(); // Use fixed timestamp for tests
+      const tempJsonPath = pathDeps?.join
+        ? pathDeps.join(tempDir, `devicectl-${timestamp}.json`)
+        : join(tempDir, `devicectl-${timestamp}.json`);
+      const devices = [];
+      let useDevicectl = false;
 
-    try {
-      const result = await executor(
-        ['xcrun', 'devicectl', 'list', 'devices', '--json-output', tempJsonPath],
-        'List Devices (devicectl with JSON)',
-        false,
-      );
+      try {
+        const result = await executor(
+          ['xcrun', 'devicectl', 'list', 'devices', '--json-output', tempJsonPath],
+          'List Devices (devicectl with JSON)',
+          false,
+        );
 
-      if (result.success) {
-        useDevicectl = true;
-        // Read and parse the JSON file
-        const jsonContent = fsDeps?.readFile
-          ? await fsDeps.readFile(tempJsonPath, 'utf8')
-          : await fs.readFile(tempJsonPath, 'utf8');
-        const deviceCtlData: unknown = JSON.parse(jsonContent);
+        if (result.success) {
+          useDevicectl = true;
+          // Read and parse the JSON file
+          const jsonContent = fsDeps?.readFile
+            ? await fsDeps.readFile(tempJsonPath, 'utf8')
+            : await fs.readFile(tempJsonPath, 'utf8');
+          const deviceCtlData: unknown = JSON.parse(jsonContent);
 
-        const deviceCtlResult = deviceCtlData as { result?: { devices?: unknown[] } };
-        const deviceList = deviceCtlResult?.result?.devices;
+          const deviceCtlResult = deviceCtlData as { result?: { devices?: unknown[] } };
+          const deviceList = deviceCtlResult?.result?.devices;
 
-        if (Array.isArray(deviceList)) {
-          for (const deviceRaw of deviceList) {
-            if (typeof deviceRaw !== 'object' || deviceRaw === null) continue;
+          if (Array.isArray(deviceList)) {
+            for (const deviceRaw of deviceList) {
+              if (typeof deviceRaw !== 'object' || deviceRaw === null) continue;
 
-            const device = deviceRaw as {
-              visibilityClass?: string;
-              connectionProperties?: {
-                pairingState?: string;
-                tunnelState?: string;
-                transportType?: string;
+              const device = deviceRaw as {
+                visibilityClass?: string;
+                connectionProperties?: {
+                  pairingState?: string;
+                  tunnelState?: string;
+                  transportType?: string;
+                };
+                deviceProperties?: {
+                  platformIdentifier?: string;
+                  name?: string;
+                  osVersionNumber?: string;
+                  developerModeStatus?: string;
+                  marketingName?: string;
+                };
+                hardwareProperties?: {
+                  productType?: string;
+                  cpuType?: { name?: string };
+                };
+                identifier?: string;
               };
-              deviceProperties?: {
-                platformIdentifier?: string;
-                name?: string;
-                osVersionNumber?: string;
-                developerModeStatus?: string;
-                marketingName?: string;
-              };
-              hardwareProperties?: {
-                productType?: string;
-                cpuType?: { name?: string };
-              };
-              identifier?: string;
-            };
 
-            // Skip simulators or unavailable devices
-            if (
-              device.visibilityClass === 'Simulator' ||
-              !device.connectionProperties?.pairingState
-            ) {
-              continue;
+              // Skip simulators or unavailable devices
+              if (
+                device.visibilityClass === 'Simulator' ||
+                !device.connectionProperties?.pairingState
+              ) {
+                continue;
+              }
+
+              const platform = getPlatformLabel(
+                [
+                  device.deviceProperties?.platformIdentifier,
+                  device.deviceProperties?.marketingName,
+                  device.hardwareProperties?.productType,
+                  device.deviceProperties?.name,
+                ]
+                  .filter((value): value is string => typeof value === 'string' && value.length > 0)
+                  .join(' '),
+              );
+
+              // Determine connection state
+              const pairingState = device.connectionProperties?.pairingState ?? '';
+              const tunnelState = device.connectionProperties?.tunnelState ?? '';
+              const transportType = device.connectionProperties?.transportType ?? '';
+              const hasDirectConnection =
+                tunnelState === 'connected' ||
+                transportType === 'wired' ||
+                transportType === 'localNetwork';
+
+              let state: string;
+              if (pairingState !== 'paired') {
+                state = 'Unpaired';
+              } else if (hasDirectConnection) {
+                state = 'Available';
+              } else {
+                state = 'Paired (not connected)';
+              }
+
+              devices.push({
+                name: device.deviceProperties?.name ?? 'Unknown Device',
+                identifier: device.identifier ?? 'Unknown',
+                platform,
+                model:
+                  device.deviceProperties?.marketingName ?? device.hardwareProperties?.productType,
+                osVersion: device.deviceProperties?.osVersionNumber,
+                state,
+                connectionType: transportType,
+                trustState: pairingState,
+                developerModeStatus: device.deviceProperties?.developerModeStatus,
+                productType: device.hardwareProperties?.productType,
+                cpuArchitecture: device.hardwareProperties?.cpuType?.name,
+              });
             }
-
-            const platform = getPlatformLabel(
-              [
-                device.deviceProperties?.platformIdentifier,
-                device.deviceProperties?.marketingName,
-                device.hardwareProperties?.productType,
-                device.deviceProperties?.name,
-              ]
-                .filter((value): value is string => typeof value === 'string' && value.length > 0)
-                .join(' '),
-            );
-
-            // Determine connection state
-            const pairingState = device.connectionProperties?.pairingState ?? '';
-            const tunnelState = device.connectionProperties?.tunnelState ?? '';
-            const transportType = device.connectionProperties?.transportType ?? '';
-            const hasDirectConnection =
-              tunnelState === 'connected' ||
-              transportType === 'wired' ||
-              transportType === 'localNetwork';
-
-            let state: string;
-            if (pairingState !== 'paired') {
-              state = 'Unpaired';
-            } else if (hasDirectConnection) {
-              state = 'Available';
-            } else {
-              state = 'Paired (not connected)';
-            }
-
-            devices.push({
-              name: device.deviceProperties?.name ?? 'Unknown Device',
-              identifier: device.identifier ?? 'Unknown',
-              platform,
-              model:
-                device.deviceProperties?.marketingName ?? device.hardwareProperties?.productType,
-              osVersion: device.deviceProperties?.osVersionNumber,
-              state,
-              connectionType: transportType,
-              trustState: pairingState,
-              developerModeStatus: device.deviceProperties?.developerModeStatus,
-              productType: device.hardwareProperties?.productType,
-              cpuArchitecture: device.hardwareProperties?.cpuType?.name,
-            });
           }
         }
-      }
-    } catch {
-      log('info', 'devicectl with JSON failed, trying xctrace fallback');
-    } finally {
-      // Clean up temp file
-      try {
-        if (fsDeps?.unlink) {
-          await fsDeps.unlink(tempJsonPath);
-        } else {
-          await fs.unlink(tempJsonPath);
-        }
       } catch {
-        // Ignore cleanup errors
+        log('info', 'devicectl with JSON failed, trying xctrace fallback');
+      } finally {
+        // Clean up temp file
+        try {
+          if (fsDeps?.unlink) {
+            await fsDeps.unlink(tempJsonPath);
+          } else {
+            await fs.unlink(tempJsonPath);
+          }
+        } catch {
+          // Ignore cleanup errors
+        }
       }
-    }
 
-    // If devicectl failed or returned no devices, fallback to xctrace
-    if (!useDevicectl || devices.length === 0) {
-      const result = await executor(
-        ['xcrun', 'xctrace', 'list', 'devices'],
-        'List Devices (xctrace)',
-        false,
-      );
+      // If devicectl failed or returned no devices, fallback to xctrace
+      if (!useDevicectl || devices.length === 0) {
+        const result = await executor(
+          ['xcrun', 'xctrace', 'list', 'devices'],
+          'List Devices (xctrace)',
+          false,
+        );
 
-      if (!result.success) {
+        if (!result.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Failed to list devices: ${result.error}`),
+            section('Troubleshooting', [
+              'Make sure Xcode is installed and devices are connected and trusted.',
+            ]),
+          ]);
+        }
+
         return toolResponse([
           headerEvent,
-          statusLine('error', `Failed to list devices: ${result.error}`),
-          section('Troubleshooting', [
-            'Make sure Xcode is installed and devices are connected and trusted.',
-          ]),
+          section('Device listing (xctrace output)', [result.output]),
+          statusLine(
+            'info',
+            'For better device information, please upgrade to Xcode 15 or later which supports the modern devicectl command.',
+          ),
         ]);
       }
 
-      return toolResponse([
-        headerEvent,
-        section('Device listing (xctrace output)', [result.output]),
-        statusLine(
-          'info',
-          'For better device information, please upgrade to Xcode 15 or later which supports the modern devicectl command.',
-        ),
-      ]);
-    }
+      const uniqueDevices = [...new Map(devices.map((d) => [d.identifier, d])).values()];
 
-    const uniqueDevices = [...new Map(devices.map((d) => [d.identifier, d])).values()];
+      const events: PipelineEvent[] = [headerEvent];
 
-    const events: PipelineEvent[] = [headerEvent];
+      if (uniqueDevices.length === 0) {
+        events.push(
+          statusLine('warning', 'No physical Apple devices found.'),
+          section('Troubleshooting', [
+            'Make sure:',
+            '1. Devices are connected via USB or WiFi',
+            '2. Devices are unlocked and trusted',
+            '3. "Trust this computer" has been accepted on the device',
+            '4. Developer mode is enabled on the device (iOS 16+)',
+            '5. Xcode is properly installed',
+            '',
+            'For simulators, use the list_sims tool instead.',
+          ]),
+        );
+        return toolResponse(events);
+      }
 
-    if (uniqueDevices.length === 0) {
-      events.push(
-        statusLine('warning', 'No physical Apple devices found.'),
-        section('Troubleshooting', [
-          'Make sure:',
-          '1. Devices are connected via USB or WiFi',
-          '2. Devices are unlocked and trusted',
-          '3. "Trust this computer" has been accepted on the device',
-          '4. Developer mode is enabled on the device (iOS 16+)',
-          '5. Xcode is properly installed',
-          '',
-          'For simulators, use the list_sims tool instead.',
-        ]),
+      const availableDevicesExist = uniqueDevices.some((d) => isAvailableState(d.state));
+
+      const renderedDeviceList = renderGroupedDevices(
+        uniqueDevices.map((device) => ({
+          name: device.name,
+          identifier: device.identifier,
+          platform: device.platform,
+          osVersion: device.osVersion,
+          state: device.state,
+        })),
       );
+
+      if (availableDevicesExist) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `\n${renderedDeviceList}\n\nHints\n  Use the device ID/UDID from above when required by other tools.\n  Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.\n  Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.`,
+            },
+          ],
+          nextSteps: [],
+        };
+      } else {
+        events.push(
+          statusLine('warning', 'No devices are currently available for testing.'),
+          section('Troubleshooting', [
+            'Make sure devices are:',
+            '- Connected via USB',
+            '- Unlocked and trusted',
+            '- Have developer mode enabled (iOS 16+)',
+          ]),
+        );
+      }
+
       return toolResponse(events);
-    }
-
-    const availableDevicesExist = uniqueDevices.some((d) => isAvailableState(d.state));
-
-    const renderedDeviceList = renderGroupedDevices(
-      uniqueDevices.map((device) => ({
-        name: device.name,
-        identifier: device.identifier,
-        platform: device.platform,
-        osVersion: device.osVersion,
-        state: device.state,
-      })),
-    );
-
-    if (availableDevicesExist) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `\n${renderedDeviceList}\n\nHints\n  Use the device ID/UDID from above when required by other tools.\n  Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.\n  Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.`,
-          },
-        ],
-        nextSteps: [],
-      };
-    } else {
-      events.push(
-        statusLine('warning', 'No devices are currently available for testing.'),
-        section('Troubleshooting', [
-          'Make sure devices are:',
-          '- Connected via USB',
-          '- Unlocked and trusted',
-          '- Have developer mode enabled (iOS 16+)',
-        ]),
-      );
-    }
-
-    return toolResponse(events);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error listing devices: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to list devices: ${errorMessage}`),
-    ]);
-  }
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to list devices: ${message}`,
+      logMessage: ({ message }) => `Error listing devices: ${message}`,
+    },
+  );
 }
 
 export const schema = listDevicesSchema.shape;

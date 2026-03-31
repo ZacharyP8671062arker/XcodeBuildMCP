@@ -8,6 +8,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const setSimAppearanceSchema = z.object({
@@ -28,37 +29,35 @@ export async function set_sim_appearanceLogic(
     { label: 'Mode', value: params.mode },
   ]);
 
-  try {
-    const command = ['xcrun', 'simctl', 'ui', params.simulatorId, 'appearance', params.mode];
-    const result = await executor(command, 'Set Simulator Appearance', false);
+  return withErrorHandling(
+    async () => {
+      const command = ['xcrun', 'simctl', 'ui', params.simulatorId, 'appearance', params.mode];
+      const result = await executor(command, 'Set Simulator Appearance', false);
 
-    if (!result.success) {
-      log(
-        'error',
-        `Failed to set simulator appearance: ${result.error} (simulator: ${params.simulatorId})`,
-      );
+      if (!result.success) {
+        log(
+          'error',
+          `Failed to set simulator appearance: ${result.error} (simulator: ${params.simulatorId})`,
+        );
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Failed to set simulator appearance: ${result.error}`),
+        ]);
+      }
+
+      log('info', `Set simulator ${params.simulatorId} appearance to ${params.mode} mode`);
       return toolResponse([
         headerEvent,
-        statusLine('error', `Failed to set simulator appearance: ${result.error}`),
+        statusLine('success', `Appearance successfully set to ${params.mode} mode`),
       ]);
-    }
-
-    log('info', `Set simulator ${params.simulatorId} appearance to ${params.mode} mode`);
-    return toolResponse([
-      headerEvent,
-      statusLine('success', `Appearance successfully set to ${params.mode} mode`),
-    ]);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log(
-      'error',
-      `Error during set simulator appearance for simulator ${params.simulatorId}: ${errorMessage}`,
-    );
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to set simulator appearance: ${errorMessage}`),
-    ]);
-  }
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to set simulator appearance: ${message}`,
+      logMessage: ({ message }) =>
+        `Error during set simulator appearance for simulator ${params.simulatorId}: ${message}`,
+    },
+  );
 }
 
 const publicSchemaObject = z.strictObject(

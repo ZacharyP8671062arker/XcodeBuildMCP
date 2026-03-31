@@ -11,8 +11,8 @@ import { XcodePlatform } from '../../../types/common.ts';
 import { constructDestinationString } from '../../../utils/xcode.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
-import { log } from '../../../utils/logging/index.ts';
 
 const baseOptions = {
   scheme: z.string().optional().describe('Optional: The scheme to clean'),
@@ -149,25 +149,31 @@ export async function cleanLogic(
 
   command.push('clean');
 
-  try {
-    const result = await executor(command, 'Clean', false, { cwd: projectDir });
+  return withErrorHandling(
+    async () => {
+      const result = await executor(command, 'Clean', false, { cwd: projectDir });
 
-    if (!result.success) {
-      const combinedOutput = [result.error, result.output].filter(Boolean).join('\n').trim();
-      const errorLines = combinedOutput
-        .split('\n')
-        .filter((line) => /error:/i.test(line))
-        .map((line) => line.trim());
-      const errorMessage = errorLines.length > 0 ? errorLines.join('; ') : 'Unknown error';
-      return toolResponse([cleanHeaderEvent, statusLine('error', `Clean failed: ${errorMessage}`)]);
-    }
+      if (!result.success) {
+        const combinedOutput = [result.error, result.output].filter(Boolean).join('\n').trim();
+        const errorLines = combinedOutput
+          .split('\n')
+          .filter((line) => /error:/i.test(line))
+          .map((line) => line.trim());
+        const errorMessage = errorLines.length > 0 ? errorLines.join('; ') : 'Unknown error';
+        return toolResponse([
+          cleanHeaderEvent,
+          statusLine('error', `Clean failed: ${errorMessage}`),
+        ]);
+      }
 
-    return toolResponse([cleanHeaderEvent, statusLine('success', 'Clean successful')]);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log('error', `Clean failed: ${message}`);
-    return toolResponse([cleanHeaderEvent, statusLine('error', `Clean failed: ${message}`)]);
-  }
+      return toolResponse([cleanHeaderEvent, statusLine('success', 'Clean successful')]);
+    },
+    {
+      header: cleanHeaderEvent,
+      errorMessage: ({ message }) => `Clean failed: ${message}`,
+      logMessage: ({ message }) => `Clean failed: ${message}`,
+    },
+  );
 }
 
 const publicSchemaObject = baseSchemaObject.omit({

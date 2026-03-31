@@ -15,6 +15,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { formatDeviceId } from '../../../utils/device-name-resolver.ts';
 
@@ -42,29 +43,29 @@ export async function install_app_deviceLogic(
 
   log('info', `Installing app on device ${deviceId}`);
 
-  try {
-    const result = await executor(
-      ['xcrun', 'devicectl', 'device', 'install', 'app', '--device', deviceId, appPath],
-      'Install app on device',
-      false,
-    );
+  return withErrorHandling(
+    async () => {
+      const result = await executor(
+        ['xcrun', 'devicectl', 'device', 'install', 'app', '--device', deviceId, appPath],
+        'Install app on device',
+        false,
+      );
 
-    if (!result.success) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Failed to install app: ${result.error}`),
-      ]);
-    }
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Failed to install app: ${result.error}`),
+        ]);
+      }
 
-    return toolResponse([headerEvent, statusLine('success', 'App installed successfully.')]);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error installing app on device: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to install app on device: ${errorMessage}`),
-    ]);
-  }
+      return toolResponse([headerEvent, statusLine('success', 'App installed successfully.')]);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to install app on device: ${message}`,
+      logMessage: ({ message }) => `Error installing app on device: ${message}`,
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

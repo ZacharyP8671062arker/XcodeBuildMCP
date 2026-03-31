@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 import {
@@ -21,23 +22,26 @@ export async function debug_breakpoint_removeLogic(
 ): Promise<ToolResponse> {
   const headerEvent = header('Remove Breakpoint');
 
-  try {
-    const output = await ctx.debugger.removeBreakpoint(params.debugSessionId, params.breakpointId);
-    const rawOutput = output.trim();
-    const events = [
-      headerEvent,
-      statusLine('success', `Breakpoint ${params.breakpointId} removed`),
-      ...(rawOutput ? [section('Output:', rawOutput.split('\n'))] : []),
-    ];
+  return withErrorHandling(
+    async () => {
+      const output = await ctx.debugger.removeBreakpoint(
+        params.debugSessionId,
+        params.breakpointId,
+      );
+      const rawOutput = output.trim();
+      const events = [
+        headerEvent,
+        statusLine('success', `Breakpoint ${params.breakpointId} removed`),
+        ...(rawOutput ? [section('Output:', rawOutput.split('\n'))] : []),
+      ];
 
-    return toolResponse(events);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to remove breakpoint: ${message}`),
-    ]);
-  }
+      return toolResponse(events);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to remove breakpoint: ${message}`,
+    },
+  );
 }
 
 export const schema = debugBreakpointRemoveSchema.shape;

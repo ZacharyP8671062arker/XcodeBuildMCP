@@ -5,6 +5,7 @@ import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const openSimSchema = z.object({});
@@ -19,35 +20,35 @@ export async function open_simLogic(
 
   const headerEvent = header('Open Simulator');
 
-  try {
-    const command = ['open', '-a', 'Simulator'];
-    const result = await executor(command, 'Open Simulator', false);
+  return withErrorHandling(
+    async () => {
+      const command = ['open', '-a', 'Simulator'];
+      const result = await executor(command, 'Open Simulator', false);
 
-    if (!result.success) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Open simulator operation failed: ${result.error}`),
-      ]);
-    }
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Open simulator operation failed: ${result.error}`),
+        ]);
+      }
 
-    return toolResponse([headerEvent, statusLine('success', 'Simulator opened successfully')], {
-      nextStepParams: {
-        boot_sim: { simulatorId: 'UUID_FROM_LIST_SIMS' },
-        start_sim_log_cap: [
-          { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
-          { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID', captureConsole: true },
-        ],
-        launch_app_logs_sim: { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
-      },
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error during open simulator operation: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Open simulator operation failed: ${errorMessage}`),
-    ]);
-  }
+      return toolResponse([headerEvent, statusLine('success', 'Simulator opened successfully')], {
+        nextStepParams: {
+          boot_sim: { simulatorId: 'UUID_FROM_LIST_SIMS' },
+          start_sim_log_cap: [
+            { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
+            { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID', captureConsole: true },
+          ],
+          launch_app_logs_sim: { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
+        },
+      });
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Open simulator operation failed: ${message}`,
+      logMessage: ({ message }) => `Error during open simulator operation: ${message}`,
+    },
+  );
 }
 
 export const schema = openSimSchema.shape;

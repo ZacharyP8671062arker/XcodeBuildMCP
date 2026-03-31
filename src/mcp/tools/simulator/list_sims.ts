@@ -5,6 +5,7 @@ import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const listSimsSchema = z.object({
@@ -207,95 +208,97 @@ export async function list_simsLogic(
 
   const headerEvent = header('List Simulators');
 
-  try {
-    const simulators = await listSimulators(executor);
+  return withErrorHandling(
+    async () => {
+      const simulators = await listSimulators(executor);
 
-    const grouped = new Map<string, ListedSimulator[]>();
-    for (const simulator of simulators) {
-      const runtimeGroup = grouped.get(simulator.runtime) ?? [];
-      runtimeGroup.push(simulator);
-      grouped.set(simulator.runtime, runtimeGroup);
-    }
-
-    const platformGroups = new Map<string, Map<string, ListedSimulator[]>>();
-    for (const [runtime, devices] of grouped.entries()) {
-      if (devices.length === 0) continue;
-      const runtimeName = formatRuntimeName(runtime);
-      const platform = detectPlatform(runtimeName);
-      let platformMap = platformGroups.get(platform);
-      if (!platformMap) {
-        platformMap = new Map();
-        platformGroups.set(platform, platformMap);
+      const grouped = new Map<string, ListedSimulator[]>();
+      for (const simulator of simulators) {
+        const runtimeGroup = grouped.get(simulator.runtime) ?? [];
+        runtimeGroup.push(simulator);
+        grouped.set(simulator.runtime, runtimeGroup);
       }
-      platformMap.set(runtimeName, devices);
-    }
 
-    const platformCounts: Record<string, number> = {};
-    let totalCount = 0;
-
-    const sortedPlatforms = [...platformGroups.entries()].sort(
-      ([a], [b]) => getPlatformInfo(a).order - getPlatformInfo(b).order,
-    );
-
-    const sections = [];
-    for (const [platform, runtimes] of sortedPlatforms) {
-      const info = getPlatformInfo(platform);
-      const lines: string[] = [];
-      let platformTotal = 0;
-
-      for (const [runtimeName, devices] of runtimes.entries()) {
-        lines.push('');
-        lines.push(`${runtimeName}:`);
-
-        for (const device of devices) {
-          lines.push('');
-          const marker = device.state === 'Booted' ? '\u{2713}' : '\u{2717}';
-          lines.push(`  ${info.emoji} [${marker}] ${device.name} (${device.state})`);
-          lines.push(`    UDID: ${device.udid}`);
-          platformTotal++;
+      const platformGroups = new Map<string, Map<string, ListedSimulator[]>>();
+      for (const [runtime, devices] of grouped.entries()) {
+        if (devices.length === 0) continue;
+        const runtimeName = formatRuntimeName(runtime);
+        const platform = detectPlatform(runtimeName);
+        let platformMap = platformGroups.get(platform);
+        if (!platformMap) {
+          platformMap = new Map();
+          platformGroups.set(platform, platformMap);
         }
+        platformMap.set(runtimeName, devices);
       }
 
-      platformCounts[platform] = platformTotal;
-      totalCount += platformTotal;
-      sections.push(section(`${info.label}:`, lines));
-    }
+      const platformCounts: Record<string, number> = {};
+      let totalCount = 0;
 
-    const countParts = sortedPlatforms
-      .map(([platform]) => `${platformCounts[platform]} ${platform}`)
-      .join(', ');
-    const summaryMsg = `${totalCount} simulators available (${countParts}).`;
+      const sortedPlatforms = [...platformGroups.entries()].sort(
+        ([a], [b]) => getPlatformInfo(a).order - getPlatformInfo(b).order,
+      );
 
-    const hints = section('Hints', [
-      'Use the simulator ID/UDID from above when required by other tools.',
-      "Save a default simulator with session-set-defaults { simulatorId: 'SIMULATOR_UDID' }.",
-      'Before running boot/build/run tools, set the desired simulator identifier in session defaults.',
-    ]);
+      const sections = [];
+      for (const [platform, runtimes] of sortedPlatforms) {
+        const info = getPlatformInfo(platform);
+        const lines: string[] = [];
+        let platformTotal = 0;
 
-    return toolResponse([headerEvent, ...sections, statusLine('success', summaryMsg), hints], {
-      nextStepParams: {
-        boot_sim: { simulatorId: 'UUID_FROM_ABOVE' },
-        open_sim: {},
-        build_sim: { scheme: 'YOUR_SCHEME', simulatorId: 'UUID_FROM_ABOVE' },
-        get_sim_app_path: {
-          scheme: 'YOUR_SCHEME',
-          platform: 'iOS Simulator',
-          simulatorId: 'UUID_FROM_ABOVE',
+        for (const [runtimeName, devices] of runtimes.entries()) {
+          lines.push('');
+          lines.push(`${runtimeName}:`);
+
+          for (const device of devices) {
+            lines.push('');
+            const marker = device.state === 'Booted' ? '\u{2713}' : '\u{2717}';
+            lines.push(`  ${info.emoji} [${marker}] ${device.name} (${device.state})`);
+            lines.push(`    UDID: ${device.udid}`);
+            platformTotal++;
+          }
+        }
+
+        platformCounts[platform] = platformTotal;
+        totalCount += platformTotal;
+        sections.push(section(`${info.label}:`, lines));
+      }
+
+      const countParts = sortedPlatforms
+        .map(([platform]) => `${platformCounts[platform]} ${platform}`)
+        .join(', ');
+      const summaryMsg = `${totalCount} simulators available (${countParts}).`;
+
+      const hints = section('Hints', [
+        'Use the simulator ID/UDID from above when required by other tools.',
+        "Save a default simulator with session-set-defaults { simulatorId: 'SIMULATOR_UDID' }.",
+        'Before running boot/build/run tools, set the desired simulator identifier in session defaults.',
+      ]);
+
+      return toolResponse([headerEvent, ...sections, statusLine('success', summaryMsg), hints], {
+        nextStepParams: {
+          boot_sim: { simulatorId: 'UUID_FROM_ABOVE' },
+          open_sim: {},
+          build_sim: { scheme: 'YOUR_SCHEME', simulatorId: 'UUID_FROM_ABOVE' },
+          get_sim_app_path: {
+            scheme: 'YOUR_SCHEME',
+            platform: 'iOS Simulator',
+            simulatorId: 'UUID_FROM_ABOVE',
+          },
         },
+      });
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to list simulators: ${message}`,
+      logMessage: ({ message }) => `Error listing simulators: ${message}`,
+      mapError: ({ message, headerEvent: hdr }) => {
+        if (message.startsWith('Failed to list simulators:')) {
+          return toolResponse([hdr, statusLine('error', message)]);
+        }
+        return undefined;
       },
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.startsWith('Failed to list simulators:')) {
-      return toolResponse([headerEvent, statusLine('error', errorMessage)]);
-    }
-
-    log('error', `Error listing simulators: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to list simulators: ${errorMessage}`),
-    ]);
-  }
+    },
+  );
 }
 
 export const schema = listSimsSchema.shape;

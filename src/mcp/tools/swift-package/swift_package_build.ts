@@ -9,6 +9,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { createXcodebuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import type { StartedPipeline } from '../../../utils/xcodebuild-pipeline.ts';
@@ -72,24 +73,29 @@ export async function swift_package_buildLogic(
   pipeline.emitEvent(headerEvent);
   const started: StartedPipeline = { pipeline, startedAt: Date.now() };
 
-  try {
-    const result = await executor(['swift', ...swiftArgs], 'Swift Package Build', false, {
-      onStdout: (chunk: string) => pipeline.onStdout(chunk),
-      onStderr: (chunk: string) => pipeline.onStderr(chunk),
-    });
+  return withErrorHandling(
+    async () => {
+      const result = await executor(['swift', ...swiftArgs], 'Swift Package Build', false, {
+        onStdout: (chunk: string) => pipeline.onStdout(chunk),
+        onStderr: (chunk: string) => pipeline.onStderr(chunk),
+      });
 
-    if (!result.success) {
-      const errorMessage = result.error || result.output || 'Unknown error';
-      return toolResponse([statusLine('error', `Swift package build failed: ${errorMessage}`)]);
-    }
+      if (!result.success) {
+        const errorMessage = result.error || result.output || 'Unknown error';
+        return toolResponse([statusLine('error', `Swift package build failed: ${errorMessage}`)]);
+      }
 
-    const response: ToolResponse = { content: [], isError: false };
-    return createPendingXcodebuildResponse(started, response);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log('error', `Swift package build failed: ${message}`);
-    return toolResponse([statusLine('error', `Failed to execute swift build: ${message}`)]);
-  }
+      const response: ToolResponse = { content: [], isError: false };
+      return createPendingXcodebuildResponse(started, response);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to execute swift build: ${message}`,
+      logMessage: ({ message }) => `Swift package build failed: ${message}`,
+      mapError: ({ message }) =>
+        toolResponse([statusLine('error', `Failed to execute swift build: ${message}`)]),
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

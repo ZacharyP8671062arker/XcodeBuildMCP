@@ -5,6 +5,7 @@ import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const stopMacAppSchema = z.object({
@@ -30,33 +31,36 @@ export async function stop_mac_appLogic(
 
   log('info', `Stopping macOS app: ${target}`);
 
-  try {
-    let command: string[];
+  return withErrorHandling(
+    async () => {
+      let command: string[];
 
-    if (params.processId) {
-      command = ['kill', String(params.processId)];
-    } else {
-      command = ['pkill', '-f', params.appName!];
-    }
+      if (params.processId) {
+        command = ['kill', String(params.processId)];
+      } else {
+        command = ['pkill', '-f', params.appName!];
+      }
 
-    const result = await executor(command, 'Stop macOS App');
+      const result = await executor(command, 'Stop macOS App');
 
-    if (!result.success) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Stop macOS app operation failed: ${result.error ?? 'Unknown error'}`),
-      ]);
-    }
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine(
+            'error',
+            `Stop macOS app operation failed: ${result.error ?? 'Unknown error'}`,
+          ),
+        ]);
+      }
 
-    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error stopping macOS app: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Stop macOS app operation failed: ${errorMessage}`),
-    ]);
-  }
+      return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Stop macOS app operation failed: ${message}`,
+      logMessage: ({ message }) => `Error stopping macOS app: ${message}`,
+    },
+  );
 }
 
 export const schema = stopMacAppSchema.shape;

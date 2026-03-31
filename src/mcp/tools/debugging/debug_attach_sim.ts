@@ -2,6 +2,7 @@ import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { determineSimulatorUuid } from '../../../utils/simulator-utils.ts';
@@ -106,101 +107,107 @@ export async function debug_attach_simLogic(
     ]);
   }
 
-  try {
-    const session = await debuggerManager.createSession({
-      simulatorId,
-      pid,
-      waitFor: params.waitFor,
-    });
+  return withErrorHandling(
+    async () => {
+      const session = await debuggerManager.createSession({
+        simulatorId,
+        pid,
+        waitFor: params.waitFor,
+      });
 
-    const isCurrent = params.makeCurrent ?? true;
-    if (isCurrent) {
-      debuggerManager.setCurrentSession(session.id);
-    }
+      const isCurrent = params.makeCurrent ?? true;
+      if (isCurrent) {
+        debuggerManager.setCurrentSession(session.id);
+      }
 
-    const shouldContinue = params.continueOnAttach ?? true;
-    if (shouldContinue) {
-      try {
-        await debuggerManager.resumeSession(session.id);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (/not\s*stopped/i.test(message)) {
-          log('debug', 'Process already running after attach, no resume needed');
-        } else {
-          try {
-            await debuggerManager.detachSession(session.id);
-          } catch (detachError) {
-            const detachMessage =
-              detachError instanceof Error ? detachError.message : String(detachError);
-            log('warn', `Failed to detach debugger session after resume failure: ${detachMessage}`);
+      const shouldContinue = params.continueOnAttach ?? true;
+      if (shouldContinue) {
+        try {
+          await debuggerManager.resumeSession(session.id);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (/not\s*stopped/i.test(message)) {
+            log('debug', 'Process already running after attach, no resume needed');
+          } else {
+            try {
+              await debuggerManager.detachSession(session.id);
+            } catch (detachError) {
+              const detachMessage =
+                detachError instanceof Error ? detachError.message : String(detachError);
+              log(
+                'warn',
+                `Failed to detach debugger session after resume failure: ${detachMessage}`,
+              );
+            }
+            return toolResponse([
+              headerEvent,
+              statusLine('error', `Failed to resume debugger after attach: ${message}`),
+            ]);
           }
-          return toolResponse([
-            headerEvent,
-            statusLine('error', `Failed to resume debugger after attach: ${message}`),
-          ]);
+        }
+      } else {
+        try {
+          await debuggerManager.runCommand(session.id, 'process interrupt');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!/already stopped|not running/i.test(message)) {
+            try {
+              await debuggerManager.detachSession(session.id);
+            } catch (detachError) {
+              const detachMessage =
+                detachError instanceof Error ? detachError.message : String(detachError);
+              log(
+                'warn',
+                `Failed to detach debugger session after pause failure: ${detachMessage}`,
+              );
+            }
+            return toolResponse([
+              headerEvent,
+              statusLine('error', `Failed to pause debugger after attach: ${message}`),
+            ]);
+          }
         }
       }
-    } else {
-      try {
-        await debuggerManager.runCommand(session.id, 'process interrupt');
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (!/already stopped|not running/i.test(message)) {
-          try {
-            await debuggerManager.detachSession(session.id);
-          } catch (detachError) {
-            const detachMessage =
-              detachError instanceof Error ? detachError.message : String(detachError);
-            log('warn', `Failed to detach debugger session after pause failure: ${detachMessage}`);
-          }
-          return toolResponse([
-            headerEvent,
-            statusLine('error', `Failed to pause debugger after attach: ${message}`),
-          ]);
-        }
-      }
-    }
 
-    const backendLabel = session.backend === 'dap' ? 'DAP debugger' : 'LLDB';
-    const currentText = isCurrent
-      ? 'This session is now the current debug session.'
-      : 'This session is not set as the current session.';
+      const backendLabel = session.backend === 'dap' ? 'DAP debugger' : 'LLDB';
+      const currentText = isCurrent
+        ? 'This session is now the current debug session.'
+        : 'This session is not set as the current session.';
 
-    const execState = await debuggerManager.getExecutionState(session.id);
-    const isRunning = execState.status === 'running' || execState.status === 'unknown';
-    const resumeText = isRunning
-      ? 'Execution is running. App is responsive to UI interaction.'
-      : 'Execution is paused. Use debug_continue to resume before UI automation.';
+      const execState = await debuggerManager.getExecutionState(session.id);
+      const isRunning = execState.status === 'running' || execState.status === 'unknown';
+      const resumeText = isRunning
+        ? 'Execution is running. App is responsive to UI interaction.'
+        : 'Execution is paused. Use debug_continue to resume before UI automation.';
 
-    const events = [
-      headerEvent,
-      ...(simResult.warning ? [section('Warning', [simResult.warning])] : []),
-      statusLine(
-        'success',
-        `Attached ${backendLabel} to simulator process ${pid} (${simulatorId})`,
-      ),
-      detailTree([
-        { label: 'Debug session ID', value: session.id },
-        { label: 'Status', value: currentText },
-        { label: 'Execution', value: resumeText },
-      ]),
-    ];
+      const events = [
+        headerEvent,
+        ...(simResult.warning ? [section('Warning', [simResult.warning])] : []),
+        statusLine(
+          'success',
+          `Attached ${backendLabel} to simulator process ${pid} (${simulatorId})`,
+        ),
+        detailTree([
+          { label: 'Debug session ID', value: session.id },
+          { label: 'Status', value: currentText },
+          { label: 'Execution', value: resumeText },
+        ]),
+      ];
 
-    return toolResponse(events, {
-      nextStepParams: {
-        debug_breakpoint_add: { debugSessionId: session.id, file: '...', line: 123 },
-        debug_continue: { debugSessionId: session.id },
-        debug_stack: { debugSessionId: session.id },
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log('error', `Failed to attach LLDB: ${message}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to attach debugger: ${message}`),
-    ]);
-  }
+      return toolResponse(events, {
+        nextStepParams: {
+          debug_breakpoint_add: { debugSessionId: session.id, file: '...', line: 123 },
+          debug_continue: { debugSessionId: session.id },
+          debug_stack: { debugSessionId: session.id },
+        },
+      });
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to attach debugger: ${message}`,
+      logMessage: ({ message }) => `Failed to attach LLDB: ${message}`,
+    },
+  );
 }
 
 const publicSchemaObject = z.strictObject(

@@ -71,3 +71,10 @@ export class DependencyError extends ConfigurationError {
     Object.setPrototypeOf(this, DependencyError.prototype);
   }
 }
+
+/**
+ * Normalize an unknown thrown value to a string message.
+ */
+export function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

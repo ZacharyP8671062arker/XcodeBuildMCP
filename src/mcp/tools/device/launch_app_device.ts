@@ -19,6 +19,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { join } from 'path';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { formatDeviceId } from '../../../utils/device-name-resolver.ts';
@@ -61,74 +62,74 @@ export async function launch_app_deviceLogic(
     { label: 'Bundle ID', value: bundleId },
   ]);
 
-  try {
-    const tempJsonPath = join(fileSystem.tmpdir(), `launch-${Date.now()}.json`);
+  return withErrorHandling(
+    async () => {
+      const tempJsonPath = join(fileSystem.tmpdir(), `launch-${Date.now()}.json`);
 
-    const command = [
-      'xcrun',
-      'devicectl',
-      'device',
-      'process',
-      'launch',
-      '--device',
-      deviceId,
-      '--json-output',
-      tempJsonPath,
-      '--terminate-existing',
-    ];
+      const command = [
+        'xcrun',
+        'devicectl',
+        'device',
+        'process',
+        'launch',
+        '--device',
+        deviceId,
+        '--json-output',
+        tempJsonPath,
+        '--terminate-existing',
+      ];
 
-    if (params.env && Object.keys(params.env).length > 0) {
-      command.push('--environment-variables', JSON.stringify(params.env));
-    }
-
-    command.push(bundleId);
-
-    const result = await executor(command, 'Launch app on device', false);
-
-    if (!result.success) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Failed to launch app: ${result.error}`),
-      ]);
-    }
-
-    let processId: number | undefined;
-    try {
-      const jsonContent = await fileSystem.readFile(tempJsonPath, 'utf8');
-      const launchData = JSON.parse(jsonContent) as LaunchDataResponse;
-      const pid = launchData?.result?.process?.processIdentifier;
-      if (typeof pid === 'number') {
-        processId = pid;
+      if (params.env && Object.keys(params.env).length > 0) {
+        command.push('--environment-variables', JSON.stringify(params.env));
       }
-    } catch (error) {
-      log('warn', `Failed to parse launch JSON output: ${error}`);
-    } finally {
-      await fileSystem.rm(tempJsonPath, { force: true }).catch(() => {});
-    }
 
-    const events: PipelineEvent[] = [
-      headerEvent,
-      statusLine('success', 'App launched successfully.'),
-    ];
+      command.push(bundleId);
 
-    if (processId !== undefined) {
-      events.push(detailTree([{ label: 'Process ID', value: processId.toString() }]));
-    }
+      const result = await executor(command, 'Launch app on device', false);
 
-    return toolResponse(
-      events,
-      processId !== undefined
-        ? { nextStepParams: { stop_app_device: { deviceId, processId } } }
-        : undefined,
-    );
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error launching app on device: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to launch app on device: ${errorMessage}`),
-    ]);
-  }
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Failed to launch app: ${result.error}`),
+        ]);
+      }
+
+      let processId: number | undefined;
+      try {
+        const jsonContent = await fileSystem.readFile(tempJsonPath, 'utf8');
+        const launchData = JSON.parse(jsonContent) as LaunchDataResponse;
+        const pid = launchData?.result?.process?.processIdentifier;
+        if (typeof pid === 'number') {
+          processId = pid;
+        }
+      } catch (error) {
+        log('warn', `Failed to parse launch JSON output: ${error}`);
+      } finally {
+        await fileSystem.rm(tempJsonPath, { force: true }).catch(() => {});
+      }
+
+      const events: PipelineEvent[] = [
+        headerEvent,
+        statusLine('success', 'App launched successfully.'),
+      ];
+
+      if (processId !== undefined) {
+        events.push(detailTree([{ label: 'Process ID', value: processId.toString() }]));
+      }
+
+      return toolResponse(
+        events,
+        processId !== undefined
+          ? { nextStepParams: { stop_app_device: { deviceId, processId } } }
+          : undefined,
+      );
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to launch app on device: ${message}`,
+      logMessage: ({ message }) => `Error launching app on device: ${message}`,
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

@@ -26,6 +26,8 @@ import {
   extractAppPathFromBuildSettingsOutput,
   getBuildSettingsDestination,
 } from '../../../utils/app-path-resolver.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
+import { header } from '../../../utils/tool-event-builders.ts';
 
 // Unified schema: XOR between projectPath and workspacePath, sharing common options
 const baseOptions = {
@@ -78,81 +80,84 @@ export async function get_device_app_pathLogic(
 
   log('info', `Getting app path for scheme ${params.scheme} on platform ${platform}`);
 
-  try {
-    const command = ['xcodebuild', '-showBuildSettings'];
+  return withErrorHandling(
+    async () => {
+      const command = ['xcodebuild', '-showBuildSettings'];
 
-    const projectPath = params.projectPath
-      ? path.resolve(process.cwd(), params.projectPath)
-      : undefined;
-    const workspacePath = params.workspacePath
-      ? path.resolve(process.cwd(), params.workspacePath)
-      : undefined;
-
-    if (projectPath) {
-      command.push('-project', projectPath);
-    } else if (workspacePath) {
-      command.push('-workspace', workspacePath);
-    }
-
-    command.push('-scheme', params.scheme);
-    command.push('-configuration', configuration);
-    command.push('-destination', getBuildSettingsDestination(platform));
-
-    const workingDirectory = projectPath
-      ? path.dirname(projectPath)
-      : workspacePath
-        ? path.dirname(workspacePath)
+      const projectPath = params.projectPath
+        ? path.resolve(process.cwd(), params.projectPath)
+        : undefined;
+      const workspacePath = params.workspacePath
+        ? path.resolve(process.cwd(), params.workspacePath)
         : undefined;
 
-    const result = await executor(
-      command,
-      'Get App Path',
-      false,
-      workingDirectory ? { cwd: workingDirectory } : undefined,
-    );
+      if (projectPath) {
+        command.push('-project', projectPath);
+      } else if (workspacePath) {
+        command.push('-workspace', workspacePath);
+      }
 
-    if (!result.success) {
-      const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
+      command.push('-scheme', params.scheme);
+      command.push('-configuration', configuration);
+      command.push('-destination', getBuildSettingsDestination(platform));
+
+      const workingDirectory = projectPath
+        ? path.dirname(projectPath)
+        : workspacePath
+          ? path.dirname(workspacePath)
+          : undefined;
+
+      const result = await executor(
+        command,
+        'Get App Path',
+        false,
+        workingDirectory ? { cwd: workingDirectory } : undefined,
+      );
+
+      if (!result.success) {
+        const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `\n${preflightText}\n${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const appPath = extractAppPathFromBuildSettingsOutput(result.output);
+
       return {
         content: [
           {
             type: 'text',
-            text: `\n${preflightText}\n${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
+            text: `\n${preflightText}\n\u2705 Success\n  \u2514 App Path: ${appPath}`,
+          },
+        ],
+        nextStepParams: {
+          get_app_bundle_id: { appPath },
+          install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+          launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
+        },
+      };
+    },
+    {
+      header: header('Get App Path'),
+      errorMessage: ({ message }) => `Error retrieving app path: ${message}`,
+      logMessage: ({ message }) => `Error retrieving app path: ${message}`,
+      mapError: ({ message }) => ({
+        content: [
+          {
+            type: 'text' as const,
+            text: `\n${preflightText}\n${formatQueryError(message)}\n\n${formatQueryFailureSummary()}`,
           },
         ],
         isError: true,
-      };
-    }
-
-    const appPath = extractAppPathFromBuildSettingsOutput(result.output);
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `\n${preflightText}\n✅ Success\n  └ App Path: ${appPath}`,
-        },
-      ],
-      nextStepParams: {
-        get_app_bundle_id: { appPath },
-        install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
-      },
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error retrieving app path: ${errorMessage}`);
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `\n${preflightText}\n${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
-        },
-      ],
-      isError: true,
-    };
-  }
+      }),
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

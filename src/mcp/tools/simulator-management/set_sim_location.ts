@@ -8,6 +8,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const setSimulatorLocationSchema = z.object({
@@ -43,34 +44,32 @@ export async function set_sim_locationLogic(
 
   log('info', `Setting simulator ${params.simulatorId} location to ${coords}`);
 
-  try {
-    const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'set', coords];
-    const result = await executor(command, 'Set Simulator Location', false);
+  return withErrorHandling(
+    async () => {
+      const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'set', coords];
+      const result = await executor(command, 'Set Simulator Location', false);
 
-    if (!result.success) {
-      log(
-        'error',
-        `Failed to set simulator location: ${result.error} (simulator: ${params.simulatorId})`,
-      );
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Failed to set simulator location: ${result.error}`),
-      ]);
-    }
+      if (!result.success) {
+        log(
+          'error',
+          `Failed to set simulator location: ${result.error} (simulator: ${params.simulatorId})`,
+        );
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Failed to set simulator location: ${result.error}`),
+        ]);
+      }
 
-    log('info', `Set simulator ${params.simulatorId} location to ${coords}`);
-    return toolResponse([headerEvent, statusLine('success', 'Location set successfully')]);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log(
-      'error',
-      `Error during set simulator location for simulator ${params.simulatorId}: ${errorMessage}`,
-    );
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to set simulator location: ${errorMessage}`),
-    ]);
-  }
+      log('info', `Set simulator ${params.simulatorId} location to ${coords}`);
+      return toolResponse([headerEvent, statusLine('success', 'Location set successfully')]);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to set simulator location: ${message}`,
+      logMessage: ({ message }) =>
+        `Error during set simulator location for simulator ${params.simulatorId}: ${message}`,
+    },
+  );
 }
 
 const publicSchemaObject = z.strictObject(

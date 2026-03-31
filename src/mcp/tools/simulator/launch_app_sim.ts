@@ -9,6 +9,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { normalizeSimctlChildEnv } from '../../../utils/environment.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
@@ -89,46 +90,46 @@ export async function launch_app_simLogic(
     ]);
   }
 
-  try {
-    const command = ['xcrun', 'simctl', 'launch', simulatorId, params.bundleId];
-    if (params.args?.length) {
-      command.push(...params.args);
-    }
+  return withErrorHandling(
+    async () => {
+      const command = ['xcrun', 'simctl', 'launch', simulatorId, params.bundleId];
+      if (params.args?.length) {
+        command.push(...params.args);
+      }
 
-    const execOpts = params.env ? { env: normalizeSimctlChildEnv(params.env) } : undefined;
-    const result = await executor(command, 'Launch App in Simulator', false, execOpts);
+      const execOpts = params.env ? { env: normalizeSimctlChildEnv(params.env) } : undefined;
+      const result = await executor(command, 'Launch App in Simulator', false, execOpts);
 
-    if (!result.success) {
-      return toolResponse([
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Launch app in simulator operation failed: ${result.error}`),
+        ]);
+      }
+
+      const pidMatch = result.output?.match(/:\s*(\d+)\s*$/);
+      const events = [
         headerEvent,
-        statusLine('error', `Launch app in simulator operation failed: ${result.error}`),
-      ]);
-    }
+        statusLine('success', 'App launched successfully'),
+        ...(pidMatch ? [detailTree([{ label: 'Process ID', value: pidMatch[1] }])] : []),
+      ];
 
-    const pidMatch = result.output?.match(/:\s*(\d+)\s*$/);
-    const events = [
-      headerEvent,
-      statusLine('success', 'App launched successfully'),
-      ...(pidMatch ? [detailTree([{ label: 'Process ID', value: pidMatch[1] }])] : []),
-    ];
-
-    return toolResponse(events, {
-      nextStepParams: {
-        open_sim: {},
-        start_sim_log_cap: [
-          { simulatorId, bundleId: params.bundleId },
-          { simulatorId, bundleId: params.bundleId, captureConsole: true },
-        ],
-      },
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error during launch app in simulator operation: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Launch app in simulator operation failed: ${errorMessage}`),
-    ]);
-  }
+      return toolResponse(events, {
+        nextStepParams: {
+          open_sim: {},
+          start_sim_log_cap: [
+            { simulatorId, bundleId: params.bundleId },
+            { simulatorId, bundleId: params.bundleId, captureConsole: true },
+          ],
+        },
+      });
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Launch app in simulator operation failed: ${message}`,
+      logMessage: ({ message }) => `Error during launch app in simulator operation: ${message}`,
+    },
+  );
 }
 
 const publicSchemaObject = z.strictObject(

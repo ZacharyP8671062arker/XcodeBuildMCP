@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 import {
@@ -20,21 +21,21 @@ export async function debug_continueLogic(
 ): Promise<ToolResponse> {
   const headerEvent = header('Continue');
 
-  try {
-    const targetId = params.debugSessionId ?? ctx.debugger.getCurrentSessionId();
-    await ctx.debugger.resumeSession(targetId ?? undefined);
+  return withErrorHandling(
+    async () => {
+      const targetId = params.debugSessionId ?? ctx.debugger.getCurrentSessionId();
+      await ctx.debugger.resumeSession(targetId ?? undefined);
 
-    return toolResponse([
-      headerEvent,
-      statusLine('success', `Resumed debugger session${targetId ? ` ${targetId}` : ''}`),
-    ]);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to resume debugger: ${message}`),
-    ]);
-  }
+      return toolResponse([
+        headerEvent,
+        statusLine('success', `Resumed debugger session${targetId ? ` ${targetId}` : ''}`),
+      ]);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to resume debugger: ${message}`,
+    },
+  );
 }
 
 export const schema = debugContinueSchema.shape;

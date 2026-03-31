@@ -8,6 +8,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
@@ -47,32 +48,32 @@ export async function boot_simLogic(
 
   const headerEvent = header('Boot Simulator', [{ label: 'Simulator', value: params.simulatorId }]);
 
-  try {
-    const command = ['xcrun', 'simctl', 'boot', params.simulatorId];
-    const result = await executor(command, 'Boot Simulator', false);
+  return withErrorHandling(
+    async () => {
+      const command = ['xcrun', 'simctl', 'boot', params.simulatorId];
+      const result = await executor(command, 'Boot Simulator', false);
 
-    if (!result.success) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Boot simulator operation failed: ${result.error}`),
-      ]);
-    }
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Boot simulator operation failed: ${result.error}`),
+        ]);
+      }
 
-    return toolResponse([headerEvent, statusLine('success', 'Simulator booted successfully')], {
-      nextStepParams: {
-        open_sim: {},
-        install_app_sim: { simulatorId: params.simulatorId, appPath: 'PATH_TO_YOUR_APP' },
-        launch_app_sim: { simulatorId: params.simulatorId, bundleId: 'YOUR_APP_BUNDLE_ID' },
-      },
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error during boot simulator operation: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Boot simulator operation failed: ${errorMessage}`),
-    ]);
-  }
+      return toolResponse([headerEvent, statusLine('success', 'Simulator booted successfully')], {
+        nextStepParams: {
+          open_sim: {},
+          install_app_sim: { simulatorId: params.simulatorId, appPath: 'PATH_TO_YOUR_APP' },
+          launch_app_sim: { simulatorId: params.simulatorId, bundleId: 'YOUR_APP_BUNDLE_ID' },
+        },
+      });
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Boot simulator operation failed: ${message}`,
+      logMessage: ({ message }) => `Error during boot simulator operation: ${message}`,
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

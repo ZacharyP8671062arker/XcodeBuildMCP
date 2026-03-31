@@ -14,6 +14,8 @@ import {
   formatQueryFailureSummary,
 } from '../../../utils/xcodebuild-error-utils.ts';
 import { extractAppPathFromBuildSettingsOutput } from '../../../utils/app-path-resolver.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
+import { header } from '../../../utils/tool-event-builders.ts';
 
 const baseOptions = {
   scheme: z.string().describe('The scheme to use'),
@@ -70,98 +72,102 @@ export async function get_mac_app_pathLogic(
 
   log('info', `Getting app path for scheme ${params.scheme} on platform macOS`);
 
-  try {
-    const command = ['xcodebuild', '-showBuildSettings'];
+  return withErrorHandling(
+    async () => {
+      const command = ['xcodebuild', '-showBuildSettings'];
 
-    if (params.projectPath) {
-      command.push('-project', params.projectPath);
-    } else if (params.workspacePath) {
-      command.push('-workspace', params.workspacePath);
-    }
+      if (params.projectPath) {
+        command.push('-project', params.projectPath);
+      } else if (params.workspacePath) {
+        command.push('-workspace', params.workspacePath);
+      }
 
-    command.push('-scheme', params.scheme);
-    command.push('-configuration', configuration);
+      command.push('-scheme', params.scheme);
+      command.push('-configuration', configuration);
 
-    if (params.derivedDataPath) {
-      command.push('-derivedDataPath', params.derivedDataPath);
-    }
+      if (params.derivedDataPath) {
+        command.push('-derivedDataPath', params.derivedDataPath);
+      }
 
-    if (params.arch) {
-      const destinationString = `platform=macOS,arch=${params.arch}`;
-      command.push('-destination', destinationString);
-    }
+      if (params.arch) {
+        const destinationString = `platform=macOS,arch=${params.arch}`;
+        command.push('-destination', destinationString);
+      }
 
-    if (params.extraArgs) {
-      command.push(...params.extraArgs);
-    }
+      if (params.extraArgs) {
+        command.push(...params.extraArgs);
+      }
 
-    const result = await executor(command, 'Get App Path', false);
+      const result = await executor(command, 'Get App Path', false);
 
-    if (!result.success) {
-      const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
+      if (!result.success) {
+        const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `\n${preflightText}\n${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      if (!result.output) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `\n${preflightText}\n${formatQueryError('Failed to extract build settings output from the result.')}\n\n${formatQueryFailureSummary()}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      let appPath: string;
+      try {
+        appPath = extractAppPathFromBuildSettingsOutput(result.output);
+      } catch {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `\n${preflightText}\n${formatQueryError('Could not extract app path from build settings.')}\n\n${formatQueryFailureSummary()}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
       return {
         content: [
           {
             type: 'text',
-            text: `\n${preflightText}\n${formatQueryError(rawOutput)}\n\n${formatQueryFailureSummary()}`,
+            text: `\n${preflightText}\n✅ Success\n  └ App Path: ${appPath}`,
           },
         ],
-        isError: true,
-      };
-    }
-
-    if (!result.output) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `\n${preflightText}\n${formatQueryError('Failed to extract build settings output from the result.')}\n\n${formatQueryFailureSummary()}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-
-    let appPath: string;
-    try {
-      appPath = extractAppPathFromBuildSettingsOutput(result.output);
-    } catch {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `\n${preflightText}\n${formatQueryError('Could not extract app path from build settings.')}\n\n${formatQueryFailureSummary()}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `\n${preflightText}\n✅ Success\n  └ App Path: ${appPath}`,
+        nextStepParams: {
+          get_mac_bundle_id: { appPath },
+          launch_mac_app: { appPath },
         },
-      ],
-      nextStepParams: {
-        get_mac_bundle_id: { appPath },
-        launch_mac_app: { appPath },
-      },
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error retrieving app path: ${errorMessage}`);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `\n${preflightText}\n${formatQueryError(errorMessage)}\n\n${formatQueryFailureSummary()}`,
-        },
-      ],
-      isError: true,
-    };
-  }
+      };
+    },
+    {
+      header: header('Get App Path'),
+      errorMessage: ({ message }) => `Error retrieving app path: ${message}`,
+      logMessage: ({ message }) => `Error retrieving app path: ${message}`,
+      mapError: ({ message }) => ({
+        content: [
+          {
+            type: 'text' as const,
+            text: `\n${preflightText}\n${formatQueryError(message)}\n\n${formatQueryFailureSummary()}`,
+          },
+        ],
+        isError: true,
+      }),
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

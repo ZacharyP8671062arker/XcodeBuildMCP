@@ -15,6 +15,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { formatDeviceId } from '../../../utils/device-name-resolver.ts';
 
@@ -39,39 +40,39 @@ export async function stop_app_deviceLogic(
 
   log('info', `Stopping app with PID ${processId} on device ${deviceId}`);
 
-  try {
-    const result = await executor(
-      [
-        'xcrun',
-        'devicectl',
-        'device',
-        'process',
-        'terminate',
-        '--device',
-        deviceId,
-        '--pid',
-        processId.toString(),
-      ],
-      'Stop app on device',
-      false,
-    );
+  return withErrorHandling(
+    async () => {
+      const result = await executor(
+        [
+          'xcrun',
+          'devicectl',
+          'device',
+          'process',
+          'terminate',
+          '--device',
+          deviceId,
+          '--pid',
+          processId.toString(),
+        ],
+        'Stop app on device',
+        false,
+      );
 
-    if (!result.success) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Failed to stop app: ${result.error}`),
-      ]);
-    }
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Failed to stop app: ${result.error}`),
+        ]);
+      }
 
-    return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error stopping app on device: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to stop app on device: ${errorMessage}`),
-    ]);
-  }
+      return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to stop app on device: ${message}`,
+      logMessage: ({ message }) => `Error stopping app on device: ${message}`,
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

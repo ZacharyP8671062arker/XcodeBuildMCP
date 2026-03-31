@@ -9,6 +9,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
@@ -55,49 +56,52 @@ export async function showBuildSettingsLogic(
       : [{ label: 'Workspace', value: params.workspacePath! }]),
   ]);
 
-  try {
-    const command = ['xcodebuild', '-showBuildSettings'];
+  return withErrorHandling(
+    async () => {
+      const command = ['xcodebuild', '-showBuildSettings'];
 
-    if (hasProjectPath) {
-      command.push('-project', params.projectPath!);
-    } else {
-      command.push('-workspace', params.workspacePath!);
-    }
+      if (hasProjectPath) {
+        command.push('-project', params.projectPath!);
+      } else {
+        command.push('-workspace', params.workspacePath!);
+      }
 
-    command.push('-scheme', params.scheme);
+      command.push('-scheme', params.scheme);
 
-    const result = await executor(command, 'Show Build Settings', false);
+      const result = await executor(command, 'Show Build Settings', false);
 
-    if (!result.success) {
-      return toolResponse([headerEvent, statusLine('error', result.error || 'Unknown error')]);
-    }
+      if (!result.success) {
+        return toolResponse([headerEvent, statusLine('error', result.error || 'Unknown error')]);
+      }
 
-    const settingsOutput = stripXcodebuildPreamble(
-      result.output || 'Build settings retrieved successfully.',
-    );
+      const settingsOutput = stripXcodebuildPreamble(
+        result.output || 'Build settings retrieved successfully.',
+      );
 
-    const pathKey = hasProjectPath ? 'projectPath' : 'workspacePath';
-    const nextStepParams = {
-      build_macos: { [pathKey]: pathValue!, scheme: params.scheme },
-      build_sim: { [pathKey]: pathValue!, scheme: params.scheme, simulatorName: 'iPhone 17' },
-      list_schemes: { [pathKey]: pathValue! },
-    };
+      const pathKey = hasProjectPath ? 'projectPath' : 'workspacePath';
+      const nextStepParams = {
+        build_macos: { [pathKey]: pathValue!, scheme: params.scheme },
+        build_sim: { [pathKey]: pathValue!, scheme: params.scheme, simulatorName: 'iPhone 17' },
+        list_schemes: { [pathKey]: pathValue! },
+      };
 
-    const settingsLines = settingsOutput.split('\n').filter((l) => l.trim());
+      const settingsLines = settingsOutput.split('\n').filter((l) => l.trim());
 
-    return toolResponse(
-      [
-        headerEvent,
-        statusLine('success', 'Build settings retrieved'),
-        section('Settings', settingsLines),
-      ],
-      { nextStepParams },
-    );
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error showing build settings: ${errorMessage}`);
-    return toolResponse([headerEvent, statusLine('error', errorMessage)]);
-  }
+      return toolResponse(
+        [
+          headerEvent,
+          statusLine('success', 'Build settings retrieved'),
+          section('Settings', settingsLines),
+        ],
+        { nextStepParams },
+      );
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => message,
+      logMessage: ({ message }) => `Error showing build settings: ${message}`,
+    },
+  );
 }
 
 const publicSchemaObject = baseSchemaObject.omit({

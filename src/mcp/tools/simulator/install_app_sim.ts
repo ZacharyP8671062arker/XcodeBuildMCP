@@ -9,6 +9,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
@@ -63,48 +64,48 @@ export async function install_app_simLogic(
 
   log('info', `Starting xcrun simctl install request for simulator ${params.simulatorId}`);
 
-  try {
-    const command = ['xcrun', 'simctl', 'install', params.simulatorId, params.appPath];
-    const result = await executor(command, 'Install App in Simulator', false);
+  return withErrorHandling(
+    async () => {
+      const command = ['xcrun', 'simctl', 'install', params.simulatorId, params.appPath];
+      const result = await executor(command, 'Install App in Simulator', false);
 
-    if (!result.success) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Install app in simulator operation failed: ${result.error}`),
-      ]);
-    }
-
-    let bundleId = '';
-    try {
-      const bundleIdResult = await executor(
-        ['defaults', 'read', `${params.appPath}/Info`, 'CFBundleIdentifier'],
-        'Extract Bundle ID',
-        false,
-      );
-      if (bundleIdResult.success) {
-        bundleId = bundleIdResult.output.trim();
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Install app in simulator operation failed: ${result.error}`),
+        ]);
       }
-    } catch (error) {
-      log('warn', `Could not extract bundle ID from app: ${error}`);
-    }
 
-    return toolResponse([headerEvent, statusLine('success', 'App installed successfully')], {
-      nextStepParams: {
-        open_sim: {},
-        launch_app_sim: {
-          simulatorId: params.simulatorId,
-          bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
+      let bundleId = '';
+      try {
+        const bundleIdResult = await executor(
+          ['defaults', 'read', `${params.appPath}/Info`, 'CFBundleIdentifier'],
+          'Extract Bundle ID',
+          false,
+        );
+        if (bundleIdResult.success) {
+          bundleId = bundleIdResult.output.trim();
+        }
+      } catch (error) {
+        log('warn', `Could not extract bundle ID from app: ${error}`);
+      }
+
+      return toolResponse([headerEvent, statusLine('success', 'App installed successfully')], {
+        nextStepParams: {
+          open_sim: {},
+          launch_app_sim: {
+            simulatorId: params.simulatorId,
+            bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
+          },
         },
-      },
-    });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error during install app in simulator operation: ${errorMessage}`);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Install app in simulator operation failed: ${errorMessage}`),
-    ]);
-  }
+      });
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Install app in simulator operation failed: ${message}`,
+      logMessage: ({ message }) => `Error during install app in simulator operation: ${message}`,
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

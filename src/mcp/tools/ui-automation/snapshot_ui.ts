@@ -16,6 +16,7 @@ import { recordSnapshotUiCall } from './shared/snapshot-ui-state.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
 import type { AxeHelpers } from './shared/axe-command.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const snapshotUiSchema = z.object({
@@ -48,65 +49,66 @@ export async function snapshot_uiLogic(
 
   log('info', `${LOG_PREFIX}/${toolName}: Starting for ${simulatorId}`);
 
-  try {
-    const responseText = await executeAxeCommand(
-      commandArgs,
-      simulatorId,
-      'describe-ui',
-      executor,
-      axeHelpers,
-    );
+  return withErrorHandling(
+    async () => {
+      const responseText = await executeAxeCommand(
+        commandArgs,
+        simulatorId,
+        'describe-ui',
+        executor,
+        axeHelpers,
+      );
 
-    recordSnapshotUiCall(simulatorId);
+      recordSnapshotUiCall(simulatorId);
 
-    log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-    return toolResponse(
-      [
-        headerEvent,
-        statusLine('success', 'Accessibility hierarchy retrieved successfully.'),
-        section('Accessibility Hierarchy', ['```json', responseText, '```']),
-        section('Tips', [
-          '- Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)',
-          '- If a debugger is attached, ensure the app is running (not stopped on breakpoints)',
-          '- Screenshots are for visual verification only',
-        ]),
-        ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
-      ],
-      {
-        nextStepParams: {
-          snapshot_ui: { simulatorId },
-          tap: { simulatorId, x: 0, y: 0 },
-          screenshot: { simulatorId },
+      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+      return toolResponse(
+        [
+          headerEvent,
+          statusLine('success', 'Accessibility hierarchy retrieved successfully.'),
+          section('Accessibility Hierarchy', ['```json', responseText, '```']),
+          section('Tips', [
+            '- Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)',
+            '- If a debugger is attached, ensure the app is running (not stopped on breakpoints)',
+            '- Screenshots are for visual verification only',
+          ]),
+          ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
+        ],
+        {
+          nextStepParams: {
+            snapshot_ui: { simulatorId },
+            tap: { simulatorId, x: 0, y: 0 },
+            screenshot: { simulatorId },
+          },
         },
+      );
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `An unexpected error occurred: ${message}`,
+      logMessage: ({ error }) => `${LOG_PREFIX}/${toolName}: Failed - ${error}`,
+      mapError: ({ error, headerEvent: hdr }) => {
+        if (error instanceof DependencyError) {
+          return toolResponse([hdr, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
+        } else if (error instanceof AxeError) {
+          return toolResponse([
+            hdr,
+            statusLine('error', `Failed to get accessibility hierarchy: ${error.message}`),
+            ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
+          ]);
+        } else if (error instanceof SystemError) {
+          return toolResponse([
+            hdr,
+            statusLine('error', `System error executing axe: ${error.message}`),
+            ...(error.originalError?.stack
+              ? [section('Stack Trace', [error.originalError.stack])]
+              : []),
+          ]);
+        }
+        return undefined;
       },
-    );
-  } catch (error) {
-    log('error', `${LOG_PREFIX}/${toolName}: Failed - ${error}`);
-    if (error instanceof DependencyError) {
-      return toolResponse([headerEvent, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
-    } else if (error instanceof AxeError) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `Failed to get accessibility hierarchy: ${error.message}`),
-        ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
-      ]);
-    } else if (error instanceof SystemError) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `System error executing axe: ${error.message}`),
-        ...(error.originalError?.stack
-          ? [section('Stack Trace', [error.originalError.stack])]
-          : []),
-      ]);
-    }
-    return toolResponse([
-      headerEvent,
-      statusLine(
-        'error',
-        `An unexpected error occurred: ${error instanceof Error ? error.message : String(error)}`,
-      ),
-    ]);
-  }
+    },
+  );
 }
 
 const publicSchemaObject = z.strictObject(

@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
@@ -25,24 +26,24 @@ export async function debug_lldb_commandLogic(
 ): Promise<ToolResponse> {
   const headerEvent = header('LLDB Command', [{ label: 'Command', value: params.command }]);
 
-  try {
-    const output = await ctx.debugger.runCommand(params.debugSessionId, params.command, {
-      timeoutMs: params.timeoutMs,
-    });
-    const trimmed = output.trim();
+  return withErrorHandling(
+    async () => {
+      const output = await ctx.debugger.runCommand(params.debugSessionId, params.command, {
+        timeoutMs: params.timeoutMs,
+      });
+      const trimmed = output.trim();
 
-    return toolResponse([
-      headerEvent,
-      statusLine('success', 'Command executed'),
-      ...(trimmed ? [section('Output:', trimmed.split('\n'))] : []),
-    ]);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to run LLDB command: ${message}`),
-    ]);
-  }
+      return toolResponse([
+        headerEvent,
+        statusLine('success', 'Command executed'),
+        ...(trimmed ? [section('Output:', trimmed.split('\n'))] : []),
+      ]);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to run LLDB command: ${message}`,
+    },
+  );
 }
 
 export const schema = baseSchemaObject.shape;

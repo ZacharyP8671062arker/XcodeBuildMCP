@@ -9,6 +9,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
@@ -79,51 +80,54 @@ export async function listSchemesLogic(
       : [{ label: 'Workspace', value: pathValue! }],
   );
 
-  try {
-    const schemes = await listSchemes(params, executor);
+  return withErrorHandling(
+    async () => {
+      const schemes = await listSchemes(params, executor);
 
-    let nextStepParams: Record<string, Record<string, string | number | boolean>> | undefined;
+      let nextStepParams: Record<string, Record<string, string | number | boolean>> | undefined;
 
-    if (schemes.length > 0) {
-      const firstScheme = schemes[0];
+      if (schemes.length > 0) {
+        const firstScheme = schemes[0];
 
-      nextStepParams = {
-        build_macos: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
-        build_run_sim: {
-          [`${projectOrWorkspace}Path`]: pathValue!,
-          scheme: firstScheme,
-          simulatorName: 'iPhone 17',
-        },
-        build_sim: {
-          [`${projectOrWorkspace}Path`]: pathValue!,
-          scheme: firstScheme,
-          simulatorName: 'iPhone 17',
-        },
-        show_build_settings: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
-      };
-    }
+        nextStepParams = {
+          build_macos: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
+          build_run_sim: {
+            [`${projectOrWorkspace}Path`]: pathValue!,
+            scheme: firstScheme,
+            simulatorName: 'iPhone 17',
+          },
+          build_sim: {
+            [`${projectOrWorkspace}Path`]: pathValue!,
+            scheme: firstScheme,
+            simulatorName: 'iPhone 17',
+          },
+          show_build_settings: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
+        };
+      }
 
-    const schemeItems = schemes.length > 0 ? schemes : ['(none)'];
-    const schemeWord = schemes.length === 1 ? 'scheme' : 'schemes';
+      const schemeItems = schemes.length > 0 ? schemes : ['(none)'];
+      const schemeWord = schemes.length === 1 ? 'scheme' : 'schemes';
 
-    return toolResponse(
-      [
-        headerEvent,
-        statusLine('success', `Found ${schemes.length} ${schemeWord}`),
-        section('Schemes:', schemeItems),
-      ],
-      nextStepParams ? { nextStepParams } : undefined,
-    );
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    log('error', `Error listing schemes: ${errorMessage}`);
-
-    const rawError = errorMessage.startsWith('Failed to list schemes: ')
-      ? errorMessage.slice('Failed to list schemes: '.length)
-      : errorMessage;
-
-    return toolResponse([headerEvent, statusLine('error', rawError)]);
-  }
+      return toolResponse(
+        [
+          headerEvent,
+          statusLine('success', `Found ${schemes.length} ${schemeWord}`),
+          section('Schemes:', schemeItems),
+        ],
+        nextStepParams ? { nextStepParams } : undefined,
+      );
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => {
+        const rawError = message.startsWith('Failed to list schemes: ')
+          ? message.slice('Failed to list schemes: '.length)
+          : message;
+        return rawError;
+      },
+      logMessage: ({ message }) => `Error listing schemes: ${message}`,
+    },
+  );
 }
 
 export const schema = getSessionAwareToolSchemaShape({

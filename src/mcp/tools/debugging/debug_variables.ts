@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
+import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
 import {
@@ -21,21 +22,24 @@ export async function debug_variablesLogic(
 ): Promise<ToolResponse> {
   const headerEvent = header('Variables');
 
-  try {
-    const output = await ctx.debugger.getVariables(params.debugSessionId, {
-      frameIndex: params.frameIndex,
-    });
-    const trimmed = output.trim();
+  return withErrorHandling(
+    async () => {
+      const output = await ctx.debugger.getVariables(params.debugSessionId, {
+        frameIndex: params.frameIndex,
+      });
+      const trimmed = output.trim();
 
-    return toolResponse([
-      headerEvent,
-      statusLine('success', 'Variables retrieved'),
-      ...(trimmed ? [section('Values:', trimmed.split('\n'))] : []),
-    ]);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return toolResponse([headerEvent, statusLine('error', `Failed to get variables: ${message}`)]);
-  }
+      return toolResponse([
+        headerEvent,
+        statusLine('success', 'Variables retrieved'),
+        ...(trimmed ? [section('Values:', trimmed.split('\n'))] : []),
+      ]);
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }) => `Failed to get variables: ${message}`,
+    },
+  );
 }
 
 export const schema = debugVariablesSchema.shape;

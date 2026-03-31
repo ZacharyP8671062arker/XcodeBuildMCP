@@ -633,11 +633,10 @@ export async function createDapBackend(opts?: {
   const executor = opts?.executor ?? getDefaultCommandExecutor();
   const spawner = opts?.spawner ?? getDefaultInteractiveSpawner();
   const requestTimeoutMs = opts?.requestTimeoutMs ?? config.dapRequestTimeoutMs;
-  const backend = new DapBackend({
+  return new DapBackend({
     executor,
     spawner,
     requestTimeoutMs,
     logEvents: config.dapLogEvents,
   });
-  return backend;
 }

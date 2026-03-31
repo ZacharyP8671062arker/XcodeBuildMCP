@@ -61,6 +61,25 @@ const cleanSchema = z.preprocess(
 
 export type CleanParams = z.infer<typeof cleanSchema>;
 
+const PLATFORM_MAP: Record<string, XcodePlatform> = {
+  macOS: XcodePlatform.macOS,
+  iOS: XcodePlatform.iOS,
+  'iOS Simulator': XcodePlatform.iOSSimulator,
+  watchOS: XcodePlatform.watchOS,
+  'watchOS Simulator': XcodePlatform.watchOSSimulator,
+  tvOS: XcodePlatform.tvOS,
+  'tvOS Simulator': XcodePlatform.tvOSSimulator,
+  visionOS: XcodePlatform.visionOS,
+  'visionOS Simulator': XcodePlatform.visionOSSimulator,
+};
+
+const SIMULATOR_TO_DEVICE_PLATFORM: Partial<Record<XcodePlatform, XcodePlatform>> = {
+  [XcodePlatform.iOSSimulator]: XcodePlatform.iOS,
+  [XcodePlatform.watchOSSimulator]: XcodePlatform.watchOS,
+  [XcodePlatform.tvOSSimulator]: XcodePlatform.tvOS,
+  [XcodePlatform.visionOSSimulator]: XcodePlatform.visionOS,
+};
+
 export async function cleanLogic(
   params: CleanParams,
   executor: CommandExecutor,
@@ -76,19 +95,7 @@ export async function cleanLogic(
 
   const targetPlatform = params.platform ?? 'iOS';
 
-  const platformMap = {
-    macOS: XcodePlatform.macOS,
-    iOS: XcodePlatform.iOS,
-    'iOS Simulator': XcodePlatform.iOSSimulator,
-    watchOS: XcodePlatform.watchOS,
-    'watchOS Simulator': XcodePlatform.watchOSSimulator,
-    tvOS: XcodePlatform.tvOS,
-    'tvOS Simulator': XcodePlatform.tvOSSimulator,
-    visionOS: XcodePlatform.visionOS,
-    'visionOS Simulator': XcodePlatform.visionOSSimulator,
-  };
-
-  const platformEnum = platformMap[targetPlatform];
+  const platformEnum = PLATFORM_MAP[targetPlatform];
   if (!platformEnum) {
     return toolResponse([
       headerEvent,
@@ -96,14 +103,7 @@ export async function cleanLogic(
     ]);
   }
 
-  const cleanPlatformMap: Partial<Record<XcodePlatform, XcodePlatform>> = {
-    [XcodePlatform.iOSSimulator]: XcodePlatform.iOS,
-    [XcodePlatform.watchOSSimulator]: XcodePlatform.watchOS,
-    [XcodePlatform.tvOSSimulator]: XcodePlatform.tvOS,
-    [XcodePlatform.visionOSSimulator]: XcodePlatform.visionOS,
-  };
-
-  const cleanPlatform = cleanPlatformMap[platformEnum] ?? platformEnum;
+  const cleanPlatform = SIMULATOR_TO_DEVICE_PLATFORM[platformEnum] ?? platformEnum;
   const scheme = params.scheme ?? '';
   const configuration = params.configuration ?? 'Debug';
 

@@ -2,8 +2,6 @@ import { log } from './logger.ts';
 import { XcodePlatform, constructDestinationString } from './xcode.ts';
 import type { CommandExecutor, CommandExecOptions } from './command.ts';
 import type { ToolResponse, SharedBuildParams, PlatformBuildOptions } from '../types/common.ts';
-import { toolResponse } from './tool-response.ts';
-import { header, statusLine } from './tool-event-builders.ts';
 import {
   isXcodemakeEnabled,
   isXcodemakeAvailable,
@@ -12,7 +10,6 @@ import {
   doesMakefileExist,
   doesMakeLogFileExist,
 } from './xcodemake.ts';
-import { sessionStore } from './session-store.ts';
 import path from 'path';
 import os from 'node:os';
 import type { XcodebuildPipeline } from './xcodebuild-pipeline.ts';
@@ -29,20 +26,6 @@ function getDefaultSwiftPackageCachePath(): string {
   return path.join(os.homedir(), 'Library', 'Caches', 'org.swift.swiftpm');
 }
 
-type DiagnosticLine = { type: 'warning' | 'error'; content: string };
-
-function grepWarningsAndErrors(text: string): DiagnosticLine[] {
-  return text.split('\n').flatMap<DiagnosticLine>((content) => {
-    if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)warning:\s/i.test(content)) {
-      return [{ type: 'warning', content }];
-    }
-    if (/(?:^(?:[\w-]+:\s+)?|:\d+:\s+)(?:fatal )?error:\s/i.test(content)) {
-      return [{ type: 'error', content }];
-    }
-    return [];
-  });
-}
-
 export async function executeXcodeBuildCommand(
   params: SharedBuildParams,
   platformOptions: PlatformBuildOptions,
@@ -52,17 +35,10 @@ export async function executeXcodeBuildCommand(
   execOpts?: CommandExecOptions,
   pipeline?: XcodebuildPipeline,
 ): Promise<ToolResponse> {
-  const buildMessages: { type: 'text'; text: string }[] = [];
-
   function addBuildMessage(message: string, level: 'info' | 'success' = 'info'): void {
-    if (pipeline) {
-      pipeline.emitEvent(
-        createNoticeEvent('BUILD', message.replace(/^[^\p{L}\p{N}]+/u, '').trim(), level),
-      );
-      return;
-    }
-
-    buildMessages.push({ type: 'text', text: message });
+    pipeline?.emitEvent(
+      createNoticeEvent('BUILD', message.replace(/^[^\p{L}\p{N}]+/u, '').trim(), level),
+    );
   }
 
   log('info', `Starting ${platformOptions.logPrefix} ${buildAction} for scheme ${params.scheme}`);
@@ -143,16 +119,7 @@ export async function executeXcodeBuildCommand(
         );
       } else {
         const errorMsg = `For ${platformOptions.platform} platform, either simulatorId or simulatorName must be provided`;
-        if (pipeline) {
-          return { content: [{ type: 'text', text: errorMsg }], isError: true };
-        }
-        return toolResponse([
-          header(`${platformOptions.logPrefix} ${buildAction}`, [
-            { label: 'Scheme', value: params.scheme },
-            { label: 'Platform', value: String(platformOptions.platform) },
-          ]),
-          statusLine('error', errorMsg),
-        ]);
+        return { content: [{ type: 'text', text: errorMsg }], isError: true };
       }
     } else if (platformOptions.platform === XcodePlatform.macOS) {
       destinationString = constructDestinationString(
@@ -178,16 +145,7 @@ export async function executeXcodeBuildCommand(
       }
     } else {
       const errorMsg = `Unsupported platform: ${platformOptions.platform}`;
-      if (pipeline) {
-        return { content: [{ type: 'text', text: errorMsg }], isError: true };
-      }
-      return toolResponse([
-        header(`${platformOptions.logPrefix} ${buildAction}`, [
-          { label: 'Scheme', value: params.scheme },
-          { label: 'Platform', value: String(platformOptions.platform) },
-        ]),
-        statusLine('error', errorMsg),
-      ]);
+      return { content: [{ type: 'text', text: errorMsg }], isError: true };
     }
 
     command.push('-destination', destinationString);
@@ -248,29 +206,6 @@ export async function executeXcodeBuildCommand(
       });
     }
 
-    let warningOrErrorLines: { type: 'warning' | 'error'; content: string }[] = [];
-    if (!pipeline) {
-      warningOrErrorLines = grepWarningsAndErrors(result.output);
-      const suppressWarnings = sessionStore.get('suppressWarnings');
-      for (const { type, content } of warningOrErrorLines) {
-        if (type === 'warning' && suppressWarnings) {
-          continue;
-        }
-        buildMessages.push({
-          type: 'text',
-          text: type === 'warning' ? `⚠️ Warning: ${content}` : `❌ Error: ${content}`,
-        });
-      }
-    }
-
-    if (!pipeline && result.error) {
-      for (const content of result.error.split('\n')) {
-        if (content.trim()) {
-          buildMessages.push({ type: 'text', text: `❌ [stderr] ${content}` });
-        }
-      }
-    }
-
     if (!result.success) {
       const isMcpError = result.exitCode === 64;
 
@@ -279,90 +214,31 @@ export async function executeXcodeBuildCommand(
         `${platformOptions.logPrefix} ${buildAction} failed: ${result.error}`,
         { sentry: isMcpError },
       );
+
       const failureMsg = `${platformOptions.logPrefix} ${buildAction} failed for scheme ${params.scheme}.`;
+      const content: { type: 'text'; text: string }[] = [{ type: 'text', text: failureMsg }];
 
-      if (pipeline) {
-        const content: { type: 'text'; text: string }[] = [{ type: 'text', text: failureMsg }];
-
-        if (warningOrErrorLines.length === 0 && useXcodemake) {
-          content.push({
-            type: 'text',
-            text: 'Incremental build using xcodemake failed, suggest using preferXcodebuild option to try build again using slower xcodebuild command.',
-          });
-        }
-
-        return { content, isError: true };
-      }
-
-      const errorResponse = toolResponse([
-        header(`${platformOptions.logPrefix} ${buildAction}`, [
-          { label: 'Scheme', value: params.scheme },
-          { label: 'Platform', value: String(platformOptions.platform) },
-          { label: 'Configuration', value: params.configuration },
-        ]),
-        statusLine('error', failureMsg),
-      ]);
-
-      if (buildMessages.length > 0 && errorResponse.content) {
-        errorResponse.content.unshift(...buildMessages);
-      }
-
-      if (warningOrErrorLines.length === 0 && useXcodemake) {
-        errorResponse.content.push({
+      if (useXcodemake) {
+        content.push({
           type: 'text',
-          text: `💡 Incremental build using xcodemake failed, suggest using preferXcodebuild option to try build again using slower xcodebuild command.`,
+          text: 'Incremental build using xcodemake failed, suggest using preferXcodebuild option to try build again using slower xcodebuild command.',
         });
       }
 
-      return errorResponse;
+      return { content, isError: true };
     }
 
-    log('info', `✅ ${platformOptions.logPrefix} ${buildAction} succeeded.`);
+    log('info', `${platformOptions.logPrefix} ${buildAction} succeeded.`);
 
-    let additionalInfo = '';
-
-    if (useXcodemake) {
-      additionalInfo += `xcodemake: Using faster incremental builds with xcodemake.
-Future builds will use the generated Makefile for improved performance.
-
-`;
-    }
-
-    if (!pipeline && buildAction === 'build') {
-      if (platformOptions.platform === XcodePlatform.macOS) {
-        additionalInfo = `Next Steps:
-1. Get app path: get_mac_app_path({ scheme: '${params.scheme}' })
-2. Get bundle ID: get_mac_bundle_id({ appPath: 'PATH_FROM_STEP_1' })
-3. Launch: launch_mac_app({ appPath: 'PATH_FROM_STEP_1' })`;
-      } else if (platformOptions.platform === XcodePlatform.iOS) {
-        additionalInfo = `Next Steps:
-1. Get app path: get_device_app_path({ scheme: '${params.scheme}' })
-2. Get bundle ID: get_app_bundle_id({ appPath: 'PATH_FROM_STEP_1' })
-3. Launch: launch_app_device({ bundleId: 'BUNDLE_ID_FROM_STEP_2' })`;
-      } else if (isSimulatorPlatform) {
-        const simIdParam = platformOptions.simulatorId ? 'simulatorId' : 'simulatorName';
-        const simIdValue = platformOptions.simulatorId ?? platformOptions.simulatorName;
-
-        additionalInfo = `Next Steps:
-1. Get app path: get_sim_app_path({ ${simIdParam}: '${simIdValue}', scheme: '${params.scheme}', platform: 'iOS Simulator' })
-2. Get bundle ID: get_app_bundle_id({ appPath: 'PATH_FROM_STEP_1' })
-3. Launch: launch_app_sim({ ${simIdParam}: '${simIdValue}', bundleId: 'BUNDLE_ID_FROM_STEP_2' })
-   Or with logs: launch_app_logs_sim({ ${simIdParam}: '${simIdValue}', bundleId: 'BUNDLE_ID_FROM_STEP_2' })`;
-      }
-    }
-
-    const successText = pipeline
-      ? `${platformOptions.logPrefix} ${buildAction} succeeded for scheme ${params.scheme}.`
-      : `✅ ${platformOptions.logPrefix} ${buildAction} succeeded for scheme ${params.scheme}.`;
-
+    const successText = `${platformOptions.logPrefix} ${buildAction} succeeded for scheme ${params.scheme}.`;
     const successResponse: ToolResponse = {
-      content: [...buildMessages, { type: 'text', text: successText }],
+      content: [{ type: 'text', text: successText }],
     };
 
-    if (additionalInfo) {
+    if (useXcodemake) {
       successResponse.content.push({
         type: 'text',
-        text: additionalInfo,
+        text: `xcodemake: Using faster incremental builds with xcodemake.\nFuture builds will use the generated Makefile for improved performance.`,
       });
     }
 
@@ -380,15 +256,6 @@ Future builds will use the generated Makefile for improved performance.
     });
 
     const errorMsg = `Error during ${platformOptions.logPrefix} ${buildAction}: ${errorMessage}`;
-    if (pipeline) {
-      return { content: [{ type: 'text', text: errorMsg }], isError: true };
-    }
-    return toolResponse([
-      header(`${platformOptions.logPrefix} ${buildAction}`, [
-        { label: 'Scheme', value: params.scheme },
-        { label: 'Platform', value: String(platformOptions.platform) },
-      ]),
-      statusLine('error', errorMsg),
-    ]);
+    return { content: [{ type: 'text', text: errorMsg }], isError: true };
   }
 }

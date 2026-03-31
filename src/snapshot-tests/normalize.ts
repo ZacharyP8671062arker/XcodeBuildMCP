@@ -45,6 +45,7 @@ const CODEX_WORKTREE_NODE_MODULES_REGEX =
   /<HOME>\/\.codex\/worktrees\/[^/:]+\/node_modules\/\.bin/g;
 const ACQUIRED_USAGE_ASSERTION_TIME_REGEX =
   /(^\s*)\d{2}:\d{2}:\d{2}( {2}Acquired usage assertion\.)$/gm;
+const BUILD_SETTINGS_PATH_REGEX = /^( {6}PATH = ).+$/gm;
 const TRAILING_WHITESPACE_REGEX = /[ \t]+$/gm;
 
 function sortLinesInBlock(text: string, marker: RegExp): string {
@@ -124,6 +125,7 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(TEST_SUMMARY_COUNTS_REGEX, '(<TEST_COUNTS>, ');
 
   normalized = normalized.replace(TARGET_DEVICE_IDENTIFIER_REGEX, '$1<UUID>');
+  normalized = normalized.replace(BUILD_SETTINGS_PATH_REGEX, '$1<PATH>');
   normalized = normalized.replace(CODEX_ARG0_PATH_REGEX, '<HOME>/.codex/tmp/arg0/codex-arg0<ARG0>');
   normalized = normalized.replace(ACQUIRED_USAGE_ASSERTION_TIME_REGEX, '$1<TIME>$2');
   normalized = normalized.replace(

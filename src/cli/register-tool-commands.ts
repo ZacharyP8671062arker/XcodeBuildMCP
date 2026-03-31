@@ -54,6 +54,18 @@ function formatMissingRequiredError(missingFlags: string[]): string {
   return `Missing required arguments: ${missingFlags.join(', ')}`;
 }
 
+function setEnvScoped(key: string, value: string): () => void {
+  const previous = process.env[key];
+  process.env[key] = value;
+  return () => {
+    if (previous === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = previous;
+    }
+  };
+}
+
 /**
  * Register all tool commands from the catalog with yargs, grouped by workflow.
  */
@@ -278,16 +290,11 @@ function registerToolSubcommand(
         return;
       }
 
-      const previousCliOutputFormat = process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
-      process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = outputFormat;
-
-      const previousVerbose = process.env.XCODEBUILDMCP_VERBOSE;
-      if (outputFormat === 'raw') {
-        process.env.XCODEBUILDMCP_VERBOSE = '1';
-      }
+      const restoreCliOutputFormat = setEnvScoped('XCODEBUILDMCP_CLI_OUTPUT_FORMAT', outputFormat);
+      const restoreVerbose =
+        outputFormat === 'raw' ? setEnvScoped('XCODEBUILDMCP_VERBOSE', '1') : undefined;
 
       try {
-        // Invoke the tool
         const response = await invoker.invokeDirect(tool, args, {
           runtime: 'cli',
           cliExposedWorkflowIds,
@@ -298,17 +305,8 @@ function registerToolSubcommand(
 
         printToolResponse(response, { format: outputFormat, style: outputStyle });
       } finally {
-        if (previousCliOutputFormat === undefined) {
-          delete process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
-        } else {
-          process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = previousCliOutputFormat;
-        }
-
-        if (previousVerbose === undefined) {
-          delete process.env.XCODEBUILDMCP_VERBOSE;
-        } else {
-          process.env.XCODEBUILDMCP_VERBOSE = previousVerbose;
-        }
+        restoreCliOutputFormat();
+        restoreVerbose?.();
       }
     },
   );

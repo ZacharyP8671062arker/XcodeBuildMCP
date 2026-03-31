@@ -7,6 +7,19 @@ import path from 'node:path';
 import { createMockExecutor } from '../../test-utils/mock-executors.ts';
 import { executeXcodeBuildCommand } from '../build-utils.ts';
 import { XcodePlatform } from '../xcode.ts';
+import type { XcodebuildPipeline } from '../xcodebuild-pipeline.ts';
+
+function createMockPipeline(): XcodebuildPipeline {
+  return {
+    onStdout: vi.fn(),
+    onStderr: vi.fn(),
+    emitEvent: vi.fn(),
+    finalize: vi.fn().mockReturnValue({ state: {}, mcpContent: [], events: [] }),
+    highestStageRank: vi.fn().mockReturnValue(0),
+    xcresultPath: null,
+    logPath: '/mock/log/path',
+  } as unknown as XcodebuildPipeline;
+}
 
 describe('build-utils Sentry Classification', () => {
   afterEach(() => {
@@ -38,11 +51,12 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('❌ [stderr] xcodebuild: error: invalid option');
-      expect(result.content[1].text).toContain('Test Build build failed for scheme TestScheme');
+      expect(result.content[0].text).toContain('Test Build build failed for scheme TestScheme');
     });
   });
 
@@ -60,11 +74,12 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      expect(result.content[0].text).toContain('❌ [stderr] Scheme TestScheme was not found');
-      expect(result.content[1].text).toContain('Test Build build failed for scheme TestScheme');
+      expect(result.content[0].text).toContain('Test Build build failed for scheme TestScheme');
     });
 
     it('should not trigger Sentry logging for exit code 66 (file not found)', async () => {
@@ -80,13 +95,12 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      const stderrItem = result.content.find(
-        (c) => c.type === 'text' && c.text.includes('[stderr]'),
-      );
-      expect(stderrItem?.text).toContain('❌ [stderr] project.xcodeproj cannot be opened');
+      expect(result.content[0].text).toContain('Test Build build failed for scheme TestScheme');
     });
 
     it('should not trigger Sentry logging for exit code 70 (destination error)', async () => {
@@ -102,13 +116,12 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      const stderrItem = result.content.find(
-        (c) => c.type === 'text' && c.text.includes('[stderr]'),
-      );
-      expect(stderrItem?.text).toContain('❌ [stderr] Unable to find a destination matching');
+      expect(result.content[0].text).toContain('Test Build build failed for scheme TestScheme');
     });
 
     it('should not trigger Sentry logging for exit code 1 (general build failure)', async () => {
@@ -124,13 +137,12 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      const stderrItem = result.content.find(
-        (c) => c.type === 'text' && c.text.includes('[stderr]'),
-      );
-      expect(stderrItem?.text).toContain('❌ [stderr] Build failed with errors');
+      expect(result.content[0].text).toContain('Test Build build failed for scheme TestScheme');
     });
   });
 
@@ -151,13 +163,14 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      const errorItem = result.content.find(
-        (c) => c.type === 'text' && c.text.includes('Error during'),
+      expect(result.content[0].text).toContain(
+        'Error during Test Build build: spawn xcodebuild ENOENT',
       );
-      expect(errorItem?.text).toContain('Error during Test Build build: spawn xcodebuild ENOENT');
     });
 
     it('should not trigger Sentry logging for EACCES spawn error', async () => {
@@ -176,13 +189,14 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      const errorItem = result.content.find(
-        (c) => c.type === 'text' && c.text.includes('Error during'),
+      expect(result.content[0].text).toContain(
+        'Error during Test Build build: spawn xcodebuild EACCES',
       );
-      expect(errorItem?.text).toContain('Error during Test Build build: spawn xcodebuild EACCES');
     });
 
     it('should not trigger Sentry logging for EPERM spawn error', async () => {
@@ -201,13 +215,14 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      const errorItem = result.content.find(
-        (c) => c.type === 'text' && c.text.includes('Error during'),
+      expect(result.content[0].text).toContain(
+        'Error during Test Build build: spawn xcodebuild EPERM',
       );
-      expect(errorItem?.text).toContain('Error during Test Build build: spawn xcodebuild EPERM');
     });
 
     it('should trigger Sentry logging for non-spawn exceptions', async () => {
@@ -225,13 +240,14 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      const errorItem = result.content.find(
-        (c) => c.type === 'text' && c.text.includes('Error during'),
+      expect(result.content[0].text).toContain(
+        'Error during Test Build build: Unexpected internal error',
       );
-      expect(errorItem?.text).toContain('Error during Test Build build: Unexpected internal error');
     });
   });
 
@@ -249,12 +265,12 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBeFalsy();
-      expect(result.content[0].text).toContain(
-        '✅ Test Build build succeeded for scheme TestScheme',
-      );
+      expect(result.content[0].text).toContain('Test Build build succeeded for scheme TestScheme');
     });
   });
 
@@ -272,13 +288,12 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(result.isError).toBe(true);
-      const stderrItem = result.content.find(
-        (c) => c.type === 'text' && c.text.includes('[stderr]'),
-      );
-      expect(stderrItem?.text).toContain('❌ [stderr] Some error without exit code');
+      expect(result.content[0].text).toContain('Test Build build failed for scheme TestScheme');
     });
   });
 
@@ -310,6 +325,8 @@ describe('build-utils Sentry Classification', () => {
         false,
         'test',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(capturedCommand).toBeDefined();
@@ -328,13 +345,13 @@ describe('build-utils Sentry Classification', () => {
 
   describe('Working Directory (cwd) Handling', () => {
     it('should pass project directory as cwd for workspace builds', async () => {
-      let capturedOptions: any;
+      let capturedOptions: Record<string, unknown> | undefined;
       const mockExecutor = createMockExecutor({
         success: true,
         output: 'BUILD SUCCEEDED',
         exitCode: 0,
         onExecute: (_command, _logPrefix, _useShell, opts) => {
-          capturedOptions = opts;
+          capturedOptions = opts as Record<string, unknown>;
         },
       });
 
@@ -348,20 +365,22 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(capturedOptions).toBeDefined();
-      expect(capturedOptions.cwd).toBe('/path/to/project');
+      expect(capturedOptions?.cwd).toBe('/path/to/project');
     });
 
     it('should pass project directory as cwd for project builds', async () => {
-      let capturedOptions: any;
+      let capturedOptions: Record<string, unknown> | undefined;
       const mockExecutor = createMockExecutor({
         success: true,
         output: 'BUILD SUCCEEDED',
         exitCode: 0,
         onExecute: (_command, _logPrefix, _useShell, opts) => {
-          capturedOptions = opts;
+          capturedOptions = opts as Record<string, unknown>;
         },
       });
 
@@ -375,20 +394,22 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(capturedOptions).toBeDefined();
-      expect(capturedOptions.cwd).toBe('/path/to/project');
+      expect(capturedOptions?.cwd).toBe('/path/to/project');
     });
 
     it('should merge cwd with existing execOpts', async () => {
-      let capturedOptions: any;
+      let capturedOptions: Record<string, unknown> | undefined;
       const mockExecutor = createMockExecutor({
         success: true,
         output: 'BUILD SUCCEEDED',
         exitCode: 0,
         onExecute: (_command, _logPrefix, _useShell, opts) => {
-          capturedOptions = opts;
+          capturedOptions = opts as Record<string, unknown>;
         },
       });
 
@@ -403,11 +424,12 @@ describe('build-utils Sentry Classification', () => {
         'build',
         mockExecutor,
         { env: { CUSTOM_VAR: 'value' } },
+        createMockPipeline(),
       );
 
       expect(capturedOptions).toBeDefined();
-      expect(capturedOptions.cwd).toBe('/path/to/project');
-      expect(capturedOptions.env).toEqual({ CUSTOM_VAR: 'value' });
+      expect(capturedOptions?.cwd).toBe('/path/to/project');
+      expect(capturedOptions?.env).toEqual({ CUSTOM_VAR: 'value' });
     });
 
     it('should resolve relative project and derived data paths before execution', async () => {
@@ -444,6 +466,8 @@ describe('build-utils Sentry Classification', () => {
         false,
         'build',
         mockExecutor,
+        undefined,
+        createMockPipeline(),
       );
 
       expect(capturedCommand).toBeDefined();

@@ -313,12 +313,14 @@ export async function startDeviceLogCapture(
 
     const handleOutput = (chunk: unknown): void => {
       if (!logStream || logStream.destroyed) return;
-      const text =
-        typeof chunk === 'string'
-          ? chunk
-          : chunk instanceof Buffer
-            ? chunk.toString('utf8')
-            : String(chunk ?? '');
+      let text: string;
+      if (typeof chunk === 'string') {
+        text = chunk;
+      } else if (chunk instanceof Buffer) {
+        text = chunk.toString('utf8');
+      } else {
+        text = String(chunk ?? '');
+      }
       if (text.length > 0) {
         appendBufferedOutput(text);
         const extracted = extractFailureMessage(bufferedOutput);

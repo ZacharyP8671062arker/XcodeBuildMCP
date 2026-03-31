@@ -350,13 +350,11 @@ export function formatGroupedCompilerErrors(
     lines.push('');
   }
 
-  while (lines.at(-1) === '') {
+  while (lines.length > 0 && lines.at(-1) === '') {
     lines.pop();
   }
 
-  lines.push('');
-
-  return lines.join('\n');
+  return lines.join('\n') + '\n';
 }
 
 const BUILD_STAGE_LABEL: Record<Exclude<BuildStageEvent['stage'], 'COMPLETED'>, string> = {

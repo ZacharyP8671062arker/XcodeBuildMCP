@@ -19,33 +19,21 @@ function isAvailableState(state: string): boolean {
   return state === 'Available' || state === 'Available (WiFi)' || state === 'Connected';
 }
 
+const PLATFORM_KEYWORDS: Array<{ keywords: string[]; label: string }> = [
+  { keywords: ['iphone', 'ios'], label: 'iOS' },
+  { keywords: ['ipad'], label: 'iPadOS' },
+  { keywords: ['watch'], label: 'watchOS' },
+  { keywords: ['appletv', 'tvos', 'apple tv'], label: 'tvOS' },
+  { keywords: ['xros', 'vision'], label: 'visionOS' },
+  { keywords: ['mac'], label: 'macOS' },
+];
+
 function getPlatformLabel(platformIdentifier?: string): string {
   const platformId = platformIdentifier?.toLowerCase() ?? '';
-
-  if (platformId.includes('iphone') || platformId.includes('ios')) {
-    return 'iOS';
-  }
-  if (platformId.includes('ipad')) {
-    return 'iPadOS';
-  }
-  if (platformId.includes('watch')) {
-    return 'watchOS';
-  }
-  if (
-    platformId.includes('appletv') ||
-    platformId.includes('tvos') ||
-    platformId.includes('apple tv')
-  ) {
-    return 'tvOS';
-  }
-  if (platformId.includes('xros') || platformId.includes('vision')) {
-    return 'visionOS';
-  }
-  if (platformId.includes('mac')) {
-    return 'macOS';
-  }
-
-  return 'Unknown';
+  const match = PLATFORM_KEYWORDS.find((entry) =>
+    entry.keywords.some((keyword) => platformId.includes(keyword)),
+  );
+  return match?.label ?? 'Unknown';
 }
 
 function getPlatformOrder(platform: string): number {
@@ -297,9 +285,7 @@ export async function list_devicesLogic(
       ]);
     }
 
-    const uniqueDevices = devices.filter(
-      (device, index, self) => index === self.findIndex((d) => d.identifier === device.identifier),
-    );
+    const uniqueDevices = [...new Map(devices.map((d) => [d.identifier, d])).values()];
 
     const events: PipelineEvent[] = [headerEvent];
 
@@ -342,7 +328,7 @@ export async function list_devicesLogic(
         ],
         nextSteps: [],
       };
-    } else if (uniqueDevices.length > 0) {
+    } else {
       events.push(
         statusLine('warning', 'No devices are currently available for testing.'),
         section('Troubleshooting', [

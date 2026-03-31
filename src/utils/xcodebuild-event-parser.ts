@@ -213,6 +213,41 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
     pendingFailureDiagnostics.delete(key);
   }
 
+  function emitTestProgress(): void {
+    if (operation !== 'TEST') {
+      return;
+    }
+    onEvent({
+      type: 'test-progress',
+      timestamp: now(),
+      operation: 'TEST',
+      completed: completedCount,
+      failed: failedCount,
+      skipped: skippedCount,
+    });
+  }
+
+  function recordTestCaseResult(testCase: {
+    status: string;
+    suiteName?: string;
+    testName?: string;
+    durationText?: string;
+  }): void {
+    completedCount += 1;
+    if (testCase.status === 'failed') {
+      failedCount += 1;
+      applyFailureDuration(
+        testCase.suiteName,
+        testCase.testName,
+        parseDurationMs(testCase.durationText),
+      );
+    }
+    if (testCase.status === 'skipped') {
+      skippedCount += 1;
+    }
+    emitTestProgress();
+  }
+
   function flushPendingError(): void {
     if (!pendingError) {
       return;
@@ -255,32 +290,7 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
 
     const testCase = parseTestCaseLine(line);
     if (testCase) {
-      completedCount += 1;
-      if (testCase.status === 'failed') {
-        failedCount += 1;
-      }
-      if (testCase.status === 'skipped') {
-        skippedCount += 1;
-      }
-
-      if (testCase.status === 'failed') {
-        applyFailureDuration(
-          testCase.suiteName,
-          testCase.testName,
-          parseDurationMs(testCase.durationText),
-        );
-      }
-
-      if (operation === 'TEST') {
-        onEvent({
-          type: 'test-progress',
-          timestamp: now(),
-          operation: 'TEST',
-          completed: completedCount,
-          failed: failedCount,
-          skipped: skippedCount,
-        });
-      }
+      recordTestCaseResult(testCase);
       return;
     }
 
@@ -288,17 +298,7 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
     if (totals) {
       completedCount = totals.executed;
       failedCount = totals.failed;
-
-      if (operation === 'TEST') {
-        onEvent({
-          type: 'test-progress',
-          timestamp: now(),
-          operation: 'TEST',
-          completed: completedCount,
-          failed: failedCount,
-          skipped: skippedCount,
-        });
-      }
+      emitTestProgress();
       return;
     }
 
@@ -308,31 +308,9 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       return;
     }
 
-    // xcodebuild Swift Testing: Test case 'Suite/test()' passed on 'device' (0.000 seconds)
     const xcodebuildST = parseXcodebuildSwiftTestingLine(line);
     if (xcodebuildST) {
-      completedCount += 1;
-      if (xcodebuildST.status === 'failed') {
-        failedCount += 1;
-        applyFailureDuration(
-          xcodebuildST.suiteName,
-          xcodebuildST.testName,
-          parseDurationMs(xcodebuildST.durationText),
-        );
-      }
-      if (xcodebuildST.status === 'skipped') {
-        skippedCount += 1;
-      }
-      if (operation === 'TEST') {
-        onEvent({
-          type: 'test-progress',
-          timestamp: now(),
-          operation: 'TEST',
-          completed: completedCount,
-          failed: failedCount,
-          skipped: skippedCount,
-        });
-      }
+      recordTestCaseResult(xcodebuildST);
       return;
     }
 
@@ -343,49 +321,17 @@ export function createXcodebuildEventParser(options: EventParserOptions): Xcodeb
       return;
     }
 
-    // Swift Testing result: ✔/✘ Test "Name" passed/failed after X seconds
     const stResult = parseSwiftTestingResultLine(line);
     if (stResult) {
-      completedCount += 1;
-      if (stResult.status === 'failed') {
-        failedCount += 1;
-        applyFailureDuration(
-          stResult.suiteName,
-          stResult.testName,
-          parseDurationMs(stResult.durationText),
-        );
-      }
-      if (stResult.status === 'skipped') {
-        skippedCount += 1;
-      }
-      if (operation === 'TEST') {
-        onEvent({
-          type: 'test-progress',
-          timestamp: now(),
-          operation: 'TEST',
-          completed: completedCount,
-          failed: failedCount,
-          skipped: skippedCount,
-        });
-      }
+      recordTestCaseResult(stResult);
       return;
     }
 
-    // Swift Testing run summary: ✔/✘ Test run with N tests...
     const stSummary = parseSwiftTestingRunSummary(line);
     if (stSummary) {
       completedCount = stSummary.executed;
       failedCount = stSummary.failed;
-      if (operation === 'TEST') {
-        onEvent({
-          type: 'test-progress',
-          timestamp: now(),
-          operation: 'TEST',
-          completed: completedCount,
-          failed: failedCount,
-          skipped: skippedCount,
-        });
-      }
+      emitTestProgress();
       return;
     }
 

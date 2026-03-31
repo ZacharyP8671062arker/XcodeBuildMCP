@@ -271,7 +271,9 @@ export async function discover_projsLogic(
   ];
 
   const cwd = process.cwd();
-  const toRelative = (p: string) => path.relative(cwd, p) || p;
+  function toRelative(p: string): string {
+    return path.relative(cwd, p) || p;
+  }
 
   if (results.projects.length > 0) {
     events.push(section('Projects:', results.projects.map(toRelative)));

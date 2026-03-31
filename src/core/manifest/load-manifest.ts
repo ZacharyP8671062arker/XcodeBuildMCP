@@ -9,13 +9,15 @@ import { parse as parseYaml } from 'yaml';
 import {
   toolManifestEntrySchema,
   workflowManifestEntrySchema,
+  resourceManifestEntrySchema,
   type ToolManifestEntry,
   type WorkflowManifestEntry,
+  type ResourceManifestEntry,
   type ResolvedManifest,
 } from './schema.ts';
 import { getManifestsDir, getPackageRoot } from '../resource-root.ts';
 
-export type { ResolvedManifest, ToolManifestEntry, WorkflowManifestEntry };
+export type { ResolvedManifest, ToolManifestEntry, WorkflowManifestEntry, ResourceManifestEntry };
 import { isValidPredicate } from '../../visibility/predicate-registry.ts';
 export { getManifestsDir, getPackageRoot } from '../resource-root.ts';
 
@@ -159,7 +161,47 @@ export function loadManifest(): ResolvedManifest {
     }
   }
 
-  return { tools, workflows };
+  const resourcesDir = path.join(manifestsDir, 'resources');
+  const resources = new Map<string, ResourceManifestEntry>();
+
+  const resourceFiles = loadYamlFiles(resourcesDir);
+  for (const raw of resourceFiles) {
+    const sourceFile = (raw as { _sourceFile?: string })._sourceFile;
+    const result = resourceManifestEntrySchema.safeParse(raw);
+    if (!result.success) {
+      throw new ManifestValidationError(
+        `Invalid resource manifest: ${result.error.message}`,
+        sourceFile,
+      );
+    }
+
+    const resource = result.data;
+
+    if (resources.has(resource.id)) {
+      throw new ManifestValidationError(`Duplicate resource ID '${resource.id}'`, sourceFile);
+    }
+
+    const existingUri = [...resources.values()].find((r) => r.uri === resource.uri);
+    if (existingUri) {
+      throw new ManifestValidationError(
+        `Duplicate resource URI '${resource.uri}' used by resources '${existingUri.id}' and '${resource.id}'`,
+        sourceFile,
+      );
+    }
+
+    for (const pred of resource.predicates) {
+      if (!isValidPredicate(pred)) {
+        throw new ManifestValidationError(
+          `Unknown predicate '${pred}' in resource '${resource.id}'`,
+          sourceFile,
+        );
+      }
+    }
+
+    resources.set(resource.id, resource);
+  }
+
+  return { tools, workflows, resources };
 }
 
 /**

@@ -1,29 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
-import doctorResource, { doctorResourceLogic } from '../doctor.ts';
+import { doctorResourceLogic } from '../doctor.ts';
 import { createMockExecutor } from '../../../test-utils/mock-executors.ts';
 
 describe('doctor resource', () => {
-  describe('Export Field Validation', () => {
-    it('should export correct uri', () => {
-      expect(doctorResource.uri).toBe('xcodebuildmcp://doctor');
-    });
-
-    it('should export correct description', () => {
-      expect(doctorResource.description).toBe(
-        'Comprehensive development environment diagnostic information and configuration status',
-      );
-    });
-
-    it('should export correct mimeType', () => {
-      expect(doctorResource.mimeType).toBe('text/plain');
-    });
-
-    it('should export handler function', () => {
-      expect(typeof doctorResource.handler).toBe('function');
-    });
-  });
-
   describe('Handler Functionality', () => {
     it('should handle successful environment data retrieval', async () => {
       const mockExecutor = createMockExecutor({

@@ -60,13 +60,6 @@ export async function doctorResourceLogic(
   }
 }
 
-export default {
-  uri: 'xcodebuildmcp://doctor',
-  name: 'doctor',
-  description:
-    'Comprehensive development environment diagnostic information and configuration status',
-  mimeType: 'text/plain',
-  async handler(): Promise<{ contents: Array<{ text: string }> }> {
-    return doctorResourceLogic();
-  },
-};
+export async function handler(_uri: URL): Promise<{ contents: Array<{ text: string }> }> {
+  return doctorResourceLogic();
+}

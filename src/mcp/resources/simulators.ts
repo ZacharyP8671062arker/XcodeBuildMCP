@@ -46,12 +46,6 @@ export async function simulatorsResourceLogic(
   }
 }
 
-export default {
-  uri: 'xcodebuildmcp://simulators',
-  name: 'simulators',
-  description: 'Available iOS simulators with their UUIDs and states',
-  mimeType: 'text/plain',
-  async handler(): Promise<{ contents: Array<{ text: string }> }> {
-    return simulatorsResourceLogic();
-  },
-};
+export async function handler(_uri: URL): Promise<{ contents: Array<{ text: string }> }> {
+  return simulatorsResourceLogic();
+}

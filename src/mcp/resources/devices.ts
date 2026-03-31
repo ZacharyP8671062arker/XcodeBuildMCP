@@ -46,12 +46,6 @@ export async function devicesResourceLogic(
   }
 }
 
-export default {
-  uri: 'xcodebuildmcp://devices',
-  name: 'devices',
-  description: 'Connected physical Apple devices with their UUIDs, names, and connection status',
-  mimeType: 'text/plain',
-  async handler(): Promise<{ contents: Array<{ text: string }> }> {
-    return devicesResourceLogic();
-  },
-};
+export async function handler(_uri: URL): Promise<{ contents: Array<{ text: string }> }> {
+  return devicesResourceLogic();
+}

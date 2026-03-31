@@ -1,33 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import * as z from 'zod';
+import { describe, it, expect } from 'vitest';
 
-import simulatorsResource, { simulatorsResourceLogic } from '../simulators.ts';
+import { simulatorsResourceLogic } from '../simulators.ts';
 import {
   createMockCommandResponse,
   createMockExecutor,
 } from '../../../test-utils/mock-executors.ts';
 
 describe('simulators resource', () => {
-  describe('Export Field Validation', () => {
-    it('should export correct uri', () => {
-      expect(simulatorsResource.uri).toBe('xcodebuildmcp://simulators');
-    });
-
-    it('should export correct description', () => {
-      expect(simulatorsResource.description).toBe(
-        'Available iOS simulators with their UUIDs and states',
-      );
-    });
-
-    it('should export correct mimeType', () => {
-      expect(simulatorsResource.mimeType).toBe('text/plain');
-    });
-
-    it('should export handler function', () => {
-      expect(typeof simulatorsResource.handler).toBe('function');
-    });
-  });
-
   describe('Handler Functionality', () => {
     it('should handle successful simulator data retrieval', async () => {
       const mockExecutor = createMockExecutor({
@@ -75,7 +54,6 @@ describe('simulators resource', () => {
     iPhone 15 (test-uuid-123) (Shutdown)`;
 
       const mockExecutor = async (command: string[]) => {
-        // JSON command returns invalid JSON
         if (command.includes('--json')) {
           return createMockCommandResponse({
             success: true,
@@ -84,7 +62,6 @@ describe('simulators resource', () => {
           });
         }
 
-        // Text command returns valid text output
         return createMockCommandResponse({
           success: true,
           output: mockTextOutput,

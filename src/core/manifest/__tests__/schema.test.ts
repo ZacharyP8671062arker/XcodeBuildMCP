@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   toolManifestEntrySchema,
   workflowManifestEntrySchema,
+  resourceManifestEntrySchema,
   getEffectiveCliName,
 } from '../schema.ts';
 
@@ -36,5 +37,43 @@ describe('schema', () => {
     expect(workflowResult.data.predicates).toEqual([]);
     expect(workflowResult.data.tools).toEqual(['build_sim']);
     expect(getEffectiveCliName(toolResult.data)).toBe('build-sim');
+  });
+
+  it('parses a resource manifest entry with defaults', () => {
+    const input = {
+      id: 'simulators',
+      module: 'mcp/resources/simulators',
+      name: 'simulators',
+      uri: 'xcodebuildmcp://simulators',
+      description: 'Available iOS simulators',
+      mimeType: 'text/plain',
+    };
+
+    const result = resourceManifestEntrySchema.safeParse(input);
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error('Expected resource manifest input to parse');
+
+    expect(result.data.availability).toEqual({ mcp: true });
+    expect(result.data.predicates).toEqual([]);
+  });
+
+  it('parses a resource manifest entry with predicates', () => {
+    const input = {
+      id: 'xcode-ide-state',
+      module: 'mcp/resources/xcode-ide-state',
+      name: 'xcode-ide-state',
+      uri: 'xcodebuildmcp://xcode-ide-state',
+      description: 'Xcode IDE state',
+      mimeType: 'application/json',
+      predicates: ['runningUnderXcodeAgent'],
+    };
+
+    const result = resourceManifestEntrySchema.safeParse(input);
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error('Expected resource manifest input to parse');
+
+    expect(result.data.predicates).toEqual(['runningUnderXcodeAgent']);
   });
 });

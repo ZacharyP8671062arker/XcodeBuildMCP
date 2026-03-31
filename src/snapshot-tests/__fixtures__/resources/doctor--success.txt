@@ -1,0 +1,161 @@
+
+⚙️ XcodeBuildMCP Doctor
+
+   Generated: <TIMESTAMP>
+   Server Version: 2.3.0
+   Output Mode: Redacted (default)
+
+  ├ platform: darwin
+  ├ release: 25.3.0
+  ├ arch: arm64
+  ├ cpus: 12 x Apple M4 Pro
+  ├ memory: 24 GB
+  ├ hostname: <redacted>
+  ├ username: <redacted>
+  ├ homedir: /Users/<redacted>
+  └ tmpdir: /var/folders/_t/2njffz894t57qpp76v1sw__h0000gn/T
+
+Node.js Information
+  version: v22.21.1
+  execPath: /Users/<redacted>/.nvm/versions/node/v22.21.1/bin/node
+  pid: <PID>
+  ppid: <PID>
+  platform: darwin
+  arch: arm64
+  cwd: /Users/<redacted>/.codex/worktrees/43f4/<redacted>
+  argv: /Users/<redacted>/.nvm/versions/node/v22.21.1/bin/node /opt/homebrew/lib/node_modules/vitest/node_modules/tinypool/dist/entry/process.js
+
+Process Tree
+  Running under Xcode: No
+   <PID> (ppid <PID>): <PROCESS>
+   <PID> (ppid <PID>): <PROCESS>
+   <PID> (ppid <PID>): <PROCESS>
+   <PID> (ppid <PID>): <PROCESS>
+   <PID> (ppid <PID>): <PROCESS>
+   <PID> (ppid <PID>): <PROCESS>
+
+Xcode Information
+  version: Xcode 26.4 - Build version 17E192
+  path: /Applications/Xcode-26.4.0.app/Contents/Developer
+  selectedXcode: /Applications/Xcode-26.4.0.app/Contents/Developer/usr/bin/xcodebuild
+  xcrunVersion: xcrun version 72.
+
+Dependencies
+  axe: 0.0.0-staging.11
+  mise: 2025.6.1 macos-arm64 (2025-06-09)
+
+Environment Variables
+  INCREMENTAL_BUILDS_ENABLED: (not set)
+  DEVELOPER_DIR: (not set)
+  HOME: /Users/<redacted>
+  USER: <redacted>
+  TMPDIR: /var/folders/_t/2njffz894t57qpp76v1sw__h0000gn/T/
+  NODE_ENV: test
+  SENTRY_DISABLED: (not set)
+  AXE_PATH: (not set)
+  XBMCP_LAUNCH_JSON_WAIT_MS: (not set)
+  XCODEBUILDMCP_DEBUGGER_BACKEND: (not set)
+  XCODEBUILDMCP_UI_DEBUGGER_GUARD_MODE: (not set)
+  XCODEBUILDMCP_SILENCE_LOGS: true
+
+PATH
+  /Users/<redacted>/bin
+  /Users/<redacted>/.local/share/sentry-devenv/bin
+  /Users/<redacted>/.antigravity/antigravity/bin
+  /Users/<redacted>/.local/bin
+  /Users/<redacted>/.opencode/bin
+  /Users/<redacted>/.codeium/windsurf/bin
+  /opt/homebrew/bin
+  /Users/<redacted>/perl5/bin
+  /Users/<redacted>/.nvm/versions/node/v22.21.1/bin
+  /Users/<redacted>/Developer/xcodemake
+  /Users/<redacted>/.npm-global/bin
+  /Users/<redacted>/.rbenv/shims
+  /Users/<redacted>/.dotfiles/bin
+  /usr/local/bin
+  /usr/local/sbin
+  /Users/<redacted>/.oh-my-zsh/bin
+  /opt/homebrew/sbin
+  /System/Cryptexes/App/usr/bin
+  /usr/bin
+  /bin
+  /usr/sbin
+  /sbin
+  /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin
+  /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin
+  /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin
+  /opt/pmk/env/global/bin
+  /Library/Apple/usr/bin
+  /usr/local/MacGPG2/bin
+  /Users/<redacted>/.cargo/bin
+  /Users/<redacted>/.lmstudio/bin
+  /Users/<redacted>/go/bin
+
+UI Automation (axe)
+  Available: Yes
+  UI Automation Supported: Yes
+  Simulator Video Capture Supported (AXe >= 1.1.0): No
+  UI-Debugger Guard Mode: error
+
+Incremental Builds
+  Enabled: No
+  xcodemake Binary Available: Yes
+  Makefile exists (cwd): (not checked: incremental builds disabled)
+
+Mise Integration
+  Running under mise: No
+  Mise available: Yes
+
+Debugger Backend (DAP)
+  lldb-dap available: Yes
+  Selected backend: dap
+
+Manifest Tool Inventory
+  Total Unique Tools: 82
+  Workflow Count: 16
+  coverage: 2 tools
+  debugging: 8 tools
+  device: 17 tools
+  doctor: 1 tools
+  logging: 4 tools
+  macos: 13 tools
+  project-discovery: 5 tools
+  project-scaffolding: 2 tools
+  session-management: 5 tools
+  simulator-management: 8 tools
+  simulator: 23 tools
+  swift-package: 8 tools
+  ui-automation: 11 tools
+  utilities: 1 tools
+  workflow-discovery: 1 tools
+  xcode-ide: 5 tools
+
+Runtime Tool Registration
+  Enabled Workflows: 0
+  Registered Tools: 0
+  Note: Runtime registry unavailable.
+
+Xcode IDE Bridge (mcpbridge)
+  Workflow enabled: No
+  mcpbridge path: /Applications/Xcode-26.4.0.app/Contents/Developer/usr/bin/mcpbridge
+  Xcode running: (unknown)
+  Connected: No
+  Bridge PID: (none)
+  Proxied tools: 0
+  Last error: (none)
+  Note: Bridge debug tools (status/sync/disconnect) are only registered when debug: true
+
+Tool Availability Summary
+  Build Tools: Available
+  UI Automation Tools: Available
+  Incremental Build Support: Available but Disabled
+
+Sentry
+  Sentry enabled: Yes
+
+Troubleshooting Tips
+  If UI automation tools are not available, install axe: brew tap cameroncooke/axe && brew install axe
+  If incremental build support is not available, install xcodemake (https://github.com/cameroncooke/xcodemake) and ensure it is executable and available in your PATH
+  To enable xcodemake, set environment variable: export INCREMENTAL_BUILDS_ENABLED=1
+  For mise integration, follow instructions in the README.md file
+✅ Doctor diagnostics complete

@@ -8,7 +8,7 @@ import type {
 import { createCliProgressReporter } from '../cli-progress-reporter.ts';
 import { formatCliTextLine } from '../terminal-output.ts';
 import { deriveDiagnosticBaseDir } from './index.ts';
-import type { XcodebuildRenderer } from './index.ts';
+import type { PipelineRenderer } from './index.ts';
 import {
   formatHeaderEvent,
   formatBuildStageEvent,
@@ -33,7 +33,7 @@ function formatCliTextBlock(text: string): string {
     .join('\n');
 }
 
-export function createCliTextRenderer(options: { interactive: boolean }): XcodebuildRenderer {
+export function createCliTextRenderer(options: { interactive: boolean }): PipelineRenderer {
   const { interactive } = options;
   const reporter = createCliProgressReporter();
   const groupedCompilerErrors: CompilerErrorEvent[] = [];

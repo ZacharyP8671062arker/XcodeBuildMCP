@@ -8,7 +8,7 @@ import { createXcodebuildEventParser } from './xcodebuild-event-parser.ts';
 import { createXcodebuildRunState } from './xcodebuild-run-state.ts';
 import type { XcodebuildRunState } from './xcodebuild-run-state.ts';
 import { resolveRenderers } from './renderers/index.ts';
-import type { XcodebuildRenderer } from './renderers/index.ts';
+import type { PipelineRenderer } from './renderers/index.ts';
 import { displayPath } from './build-preflight.ts';
 import { formatDeviceId } from './device-name-resolver.ts';
 import { createLogCapture, createParserDebugCapture } from './xcodebuild-log-capture.ts';

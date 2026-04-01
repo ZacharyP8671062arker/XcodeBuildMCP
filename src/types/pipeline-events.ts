@@ -137,9 +137,10 @@ export interface TestFailureEvent extends BaseEvent {
   durationMs?: number;
 }
 
-// --- Union type ---
+// --- Union types ---
 
-export type PipelineEvent =
+/** Generic UI/output events usable by any tool */
+export type CommonPipelineEvent =
   | HeaderEvent
   | StatusLineEvent
   | SummaryEvent
@@ -147,13 +148,18 @@ export type PipelineEvent =
   | DetailTreeEvent
   | TableEvent
   | FileRefEvent
-  | NextStepsEvent
+  | NextStepsEvent;
+
+/** Build/test-specific events (xcodebuild, swift build/test/run) */
+export type BuildTestPipelineEvent =
   | BuildStageEvent
   | CompilerWarningEvent
   | CompilerErrorEvent
   | TestDiscoveryEvent
   | TestProgressEvent
   | TestFailureEvent;
+
+export type PipelineEvent = CommonPipelineEvent | BuildTestPipelineEvent;
 
 // --- Build-run notice types (used by xcodebuild pipeline internals) ---
 

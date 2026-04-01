@@ -7,7 +7,7 @@ import type {
 import type { ToolResponseContent } from '../../types/common.ts';
 import { sessionStore } from '../session-store.ts';
 import { deriveDiagnosticBaseDir } from './index.ts';
-import type { XcodebuildRenderer } from './index.ts';
+import type { PipelineRenderer } from './index.ts';
 import {
   formatHeaderEvent,
   formatBuildStageEvent,
@@ -24,7 +24,7 @@ import {
   formatNextStepsEvent,
 } from './event-formatting.ts';
 
-export function createMcpRenderer(): XcodebuildRenderer & {
+export function createMcpRenderer(): PipelineRenderer & {
   getContent(): ToolResponseContent[];
 } {
   const contentParts: string[] = [];

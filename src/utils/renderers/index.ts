@@ -4,7 +4,7 @@ import { createMcpRenderer } from './mcp-renderer.ts';
 import { createCliTextRenderer } from './cli-text-renderer.ts';
 import { createCliJsonlRenderer } from './cli-jsonl-renderer.ts';
 
-export interface XcodebuildRenderer {
+export interface PipelineRenderer {
   onEvent(event: PipelineEvent): void;
   finalize(): void;
 }
@@ -19,11 +19,11 @@ export function deriveDiagnosticBaseDir(event: HeaderEvent): string | null {
 }
 
 export function resolveRenderers(): {
-  renderers: XcodebuildRenderer[];
+  renderers: PipelineRenderer[];
   mcpRenderer: ReturnType<typeof createMcpRenderer>;
 } {
   const mcpRenderer = createMcpRenderer();
-  const renderers: XcodebuildRenderer[] = [mcpRenderer];
+  const renderers: PipelineRenderer[] = [mcpRenderer];
 
   const runtime = process.env.XCODEBUILDMCP_RUNTIME;
   const outputFormat = process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;

@@ -9,7 +9,7 @@ import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
-import path from 'node:path';
+import { launchMacApp } from '../../../utils/macos-steps.ts';
 
 const launchMacAppSchema = z.object({
   appPath: z.string(),
@@ -34,48 +34,21 @@ export async function launch_mac_appLogic(
 
   return withErrorHandling(
     async () => {
-      const command = ['open', params.appPath];
+      const result = await launchMacApp(params.appPath, executor, { args: params.args });
 
-      if (params.args?.length) {
-        command.push('--args', ...params.args);
-      }
-
-      await executor(command, 'Launch macOS App');
-
-      const appName = path.basename(params.appPath, '.app');
-      let bundleId: string | undefined;
-      try {
-        const plistResult = await executor(
-          ['/bin/sh', '-c', `defaults read "${params.appPath}/Contents/Info" CFBundleIdentifier`],
-          'Extract Bundle ID',
-          false,
-        );
-        if (plistResult.success && plistResult.output) {
-          bundleId = plistResult.output.trim();
-        }
-      } catch {
-        // non-fatal
-      }
-
-      let processId: number | undefined;
-      try {
-        const pgrepResult = await executor(['pgrep', '-x', appName], 'Get Process ID', false);
-        if (pgrepResult.success && pgrepResult.output) {
-          const pid = parseInt(pgrepResult.output.trim().split('\n')[0], 10);
-          if (!isNaN(pid)) {
-            processId = pid;
-          }
-        }
-      } catch {
-        // non-fatal
+      if (!result.success) {
+        return toolResponse([
+          headerEvent,
+          statusLine('error', `Launch macOS app operation failed: ${result.error}`),
+        ]);
       }
 
       const details: Array<{ label: string; value: string }> = [];
-      if (bundleId) {
-        details.push({ label: 'Bundle ID', value: bundleId });
+      if (result.bundleId) {
+        details.push({ label: 'Bundle ID', value: result.bundleId });
       }
-      if (processId !== undefined) {
-        details.push({ label: 'Process ID', value: String(processId) });
+      if (result.processId !== undefined) {
+        details.push({ label: 'Process ID', value: String(result.processId) });
       }
 
       const events: PipelineEvent[] = [

@@ -18,6 +18,7 @@ import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { formatDeviceId } from '../../../utils/device-name-resolver.ts';
+import { installAppOnDevice } from '../../../utils/device-steps.ts';
 
 const installAppDeviceSchema = z.object({
   deviceId: z
@@ -45,16 +46,12 @@ export async function install_app_deviceLogic(
 
   return withErrorHandling(
     async () => {
-      const result = await executor(
-        ['xcrun', 'devicectl', 'device', 'install', 'app', '--device', deviceId, appPath],
-        'Install app on device',
-        false,
-      );
+      const installResult = await installAppOnDevice(deviceId, appPath, executor);
 
-      if (!result.success) {
+      if (!installResult.success) {
         return toolResponse([
           headerEvent,
-          statusLine('error', `Failed to install app: ${result.error}`),
+          statusLine('error', `Failed to install app: ${installResult.error}`),
         ]);
       }
 

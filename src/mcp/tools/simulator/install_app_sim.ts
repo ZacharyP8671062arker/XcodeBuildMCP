@@ -11,6 +11,7 @@ import {
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { installAppOnSimulator } from '../../../utils/simulator-steps.ts';
 
 const baseSchemaObject = z.object({
   simulatorId: z
@@ -66,13 +67,16 @@ export async function install_app_simLogic(
 
   return withErrorHandling(
     async () => {
-      const command = ['xcrun', 'simctl', 'install', params.simulatorId, params.appPath];
-      const result = await executor(command, 'Install App in Simulator', false);
+      const installResult = await installAppOnSimulator(
+        params.simulatorId,
+        params.appPath,
+        executor,
+      );
 
-      if (!result.success) {
+      if (!installResult.success) {
         return toolResponse([
           headerEvent,
-          statusLine('error', `Install app in simulator operation failed: ${result.error}`),
+          statusLine('error', `Install app in simulator operation failed: ${installResult.error}`),
         ]);
       }
 

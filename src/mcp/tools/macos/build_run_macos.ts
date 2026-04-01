@@ -21,7 +21,7 @@ import {
   emitPipelineNotice,
 } from '../../../utils/xcodebuild-output.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
-import path from 'node:path';
+import { launchMacApp } from '../../../utils/macos-steps.ts';
 
 const baseSchemaObject = z.object({
   projectPath: z.string().optional().describe('Path to the .xcodeproj file'),
@@ -147,14 +147,17 @@ export async function buildRunMacOSLogic(
         data: { step: 'launch-app', status: 'started', appPath },
       });
 
-      const launchResult = await executor(['open', appPath], 'Launch macOS App', false);
+      const macLaunchResult = await launchMacApp(appPath, executor);
 
-      if (!launchResult.success) {
-        log('error', `Build succeeded, but failed to launch app ${appPath}: ${launchResult.error}`);
+      if (!macLaunchResult.success) {
+        log(
+          'error',
+          `Build succeeded, but failed to launch app ${appPath}: ${macLaunchResult.error}`,
+        );
         emitPipelineError(
           started,
           'BUILD',
-          `Failed to launch app ${appPath}: ${launchResult.error}`,
+          `Failed to launch app ${appPath}: ${macLaunchResult.error}`,
         );
         return createPendingXcodebuildResponse(started, {
           content: [],
@@ -168,33 +171,8 @@ export async function buildRunMacOSLogic(
         data: { step: 'launch-app', status: 'succeeded', appPath },
       });
 
-      let bundleId: string | undefined;
-      try {
-        const plistResult = await executor(
-          ['/bin/sh', '-c', `defaults read "${appPath}/Contents/Info" CFBundleIdentifier`],
-          'Extract Bundle ID',
-          false,
-        );
-        if (plistResult.success && plistResult.output) {
-          bundleId = plistResult.output.trim();
-        }
-      } catch {
-        // non-fatal
-      }
-
-      const appName = path.basename(appPath, '.app');
-      let processId: number | undefined;
-      try {
-        const pgrepResult = await executor(['pgrep', '-x', appName], 'Get Process ID', false);
-        if (pgrepResult.success && pgrepResult.output) {
-          const pid = parseInt(pgrepResult.output.trim().split('\n')[0], 10);
-          if (!isNaN(pid)) {
-            processId = pid;
-          }
-        }
-      } catch {
-        // non-fatal
-      }
+      const bundleId = macLaunchResult.bundleId;
+      const processId = macLaunchResult.processId;
 
       return createPendingXcodebuildResponse(
         started,

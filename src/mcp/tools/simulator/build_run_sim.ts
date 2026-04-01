@@ -35,6 +35,11 @@ import {
 } from '../../../utils/xcodebuild-output.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { extractBundleIdFromAppPath } from '../../../utils/bundle-id.ts';
+import {
+  findSimulatorById,
+  installAppOnSimulator,
+  launchSimulatorApp,
+} from '../../../utils/simulator-steps.ts';
 
 const baseOptions = {
   scheme: z.string().describe('The scheme to use (Required)'),
@@ -306,48 +311,17 @@ export async function build_run_simLogic(
 
       try {
         log('info', `Checking simulator state for UUID: ${simulatorId}`);
-        const simulatorListResult = await executor(
-          ['xcrun', 'simctl', 'list', 'devices', 'available', '--json'],
-          'List Simulators',
+        const { simulator: targetSimulator, error: findError } = await findSimulatorById(
+          simulatorId,
+          executor,
         );
-        if (!simulatorListResult.success) {
-          throw new Error(simulatorListResult.error ?? 'Failed to list simulators');
-        }
-
-        const simulatorsData = JSON.parse(simulatorListResult.output) as {
-          devices: Record<string, unknown[]>;
-        };
-        let targetSimulator: { udid: string; name: string; state: string } | null = null;
-
-        for (const runtime in simulatorsData.devices) {
-          const devices = simulatorsData.devices[runtime];
-          if (Array.isArray(devices)) {
-            for (const device of devices) {
-              if (
-                typeof device === 'object' &&
-                device !== null &&
-                'udid' in device &&
-                'name' in device &&
-                'state' in device &&
-                typeof device.udid === 'string' &&
-                typeof device.name === 'string' &&
-                typeof device.state === 'string' &&
-                device.udid === simulatorId
-              ) {
-                targetSimulator = {
-                  udid: device.udid,
-                  name: device.name,
-                  state: device.state,
-                };
-                break;
-              }
-            }
-            if (targetSimulator) break;
-          }
-        }
 
         if (!targetSimulator) {
-          emitPipelineError(started, 'BUILD', `Failed to find simulator with UUID: ${simulatorId}`);
+          emitPipelineError(
+            started,
+            'BUILD',
+            findError ?? `Failed to find simulator with UUID: ${simulatorId}`,
+          );
           return createPendingXcodebuildResponse(started, {
             content: [],
             isError: true,
@@ -399,17 +373,9 @@ export async function build_run_simLogic(
         data: { step: 'install-app', status: 'started' },
       });
 
-      try {
-        log('info', `Installing app at path: ${appBundlePath} to simulator: ${simulatorId}`);
-        const installResult = await executor(
-          ['xcrun', 'simctl', 'install', simulatorId, appBundlePath],
-          'Install App',
-        );
-        if (!installResult.success) {
-          throw new Error(installResult.error ?? 'Failed to install app');
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+      const installResult = await installAppOnSimulator(simulatorId, appBundlePath, executor);
+      if (!installResult.success) {
+        const errorMessage = installResult.error ?? 'Failed to install app';
         log('error', `Failed to install app: ${errorMessage}`);
         emitPipelineError(started, 'BUILD', `Failed to install app on simulator: ${errorMessage}`);
         return createPendingXcodebuildResponse(started, {
@@ -448,23 +414,9 @@ export async function build_run_simLogic(
         data: { step: 'launch-app', status: 'started', appPath: appBundlePath },
       });
 
-      let processId: number | undefined;
-      try {
-        log('info', `Launching app with bundle ID: ${bundleId} on simulator: ${simulatorId}`);
-        const launchResult = await executor(
-          ['xcrun', 'simctl', 'launch', simulatorId, bundleId],
-          'Launch App',
-        );
-        if (!launchResult.success) {
-          throw new Error(launchResult.error ?? 'Failed to launch app');
-        }
-        const pidMatch = launchResult.output?.match(/:\s*(\d+)\s*$/);
-        if (pidMatch) {
-          processId = parseInt(pidMatch[1], 10);
-          log('info', `Launched with PID: ${processId}`);
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+      const launchResult = await launchSimulatorApp(simulatorId, bundleId, executor);
+      if (!launchResult.success) {
+        const errorMessage = launchResult.error ?? 'Failed to launch app';
         log('error', `Failed to launch app: ${errorMessage}`);
         emitPipelineError(
           started,
@@ -475,6 +427,11 @@ export async function build_run_simLogic(
           content: [],
           isError: true,
         });
+      }
+
+      const processId = launchResult.processId;
+      if (processId !== undefined) {
+        log('info', `Launched with PID: ${processId}`);
       }
 
       log('info', `${platformName} simulator build & run succeeded.`);

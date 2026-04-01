@@ -7,10 +7,10 @@ import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
-import { normalizeSimctlChildEnv } from '../../../utils/environment.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
+import { launchSimulatorApp } from '../../../utils/simulator-steps.ts';
 
 const baseSchemaObject = z.object({
   simulatorId: z
@@ -92,26 +92,24 @@ export async function launch_app_simLogic(
 
   return withErrorHandling(
     async () => {
-      const command = ['xcrun', 'simctl', 'launch', simulatorId, params.bundleId];
-      if (params.args?.length) {
-        command.push(...params.args);
-      }
+      const launchResult = await launchSimulatorApp(simulatorId, params.bundleId, executor, {
+        args: params.args,
+        env: params.env,
+      });
 
-      const execOpts = params.env ? { env: normalizeSimctlChildEnv(params.env) } : undefined;
-      const result = await executor(command, 'Launch App in Simulator', false, execOpts);
-
-      if (!result.success) {
+      if (!launchResult.success) {
         return toolResponse([
           headerEvent,
-          statusLine('error', `Launch app in simulator operation failed: ${result.error}`),
+          statusLine('error', `Launch app in simulator operation failed: ${launchResult.error}`),
         ]);
       }
 
-      const pidMatch = result.output?.match(/:\s*(\d+)\s*$/);
       const events = [
         headerEvent,
         statusLine('success', 'App launched successfully'),
-        ...(pidMatch ? [detailTree([{ label: 'Process ID', value: pidMatch[1] }])] : []),
+        ...(launchResult.processId !== undefined
+          ? [detailTree([{ label: 'Process ID', value: String(launchResult.processId) }])]
+          : []),
       ];
 
       return toolResponse(events, {

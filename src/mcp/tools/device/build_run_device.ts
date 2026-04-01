@@ -4,7 +4,6 @@
  * Builds, installs, and launches an app on a physical Apple device.
  */
 
-import { join } from 'node:path';
 import * as z from 'zod';
 import type { ToolResponse, SharedBuildParams, NextStepParamsMap } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
@@ -33,6 +32,7 @@ import {
 } from '../../../utils/xcodebuild-output.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { resolveDeviceName } from '../../../utils/device-name-resolver.ts';
+import { installAppOnDevice, launchAppOnDevice } from '../../../utils/device-steps.ts';
 
 const baseSchemaObject = z.object({
   projectPath: z.string().optional().describe('Path to the .xcodeproj file'),
@@ -204,17 +204,9 @@ export async function build_run_deviceLogic(
         data: { step: 'install-app', status: 'started' },
       });
 
-      try {
-        const installResult = await executor(
-          ['xcrun', 'devicectl', 'device', 'install', 'app', '--device', params.deviceId, appPath],
-          'Install app on device',
-          false,
-        );
-        if (!installResult.success) {
-          throw new Error(installResult.error ?? 'Failed to install app');
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+      const installResult = await installAppOnDevice(params.deviceId, appPath, executor);
+      if (!installResult.success) {
+        const errorMessage = installResult.error ?? 'Failed to install app';
         return bailWithError(
           started,
           `Failed to install app on device: ${errorMessage}`,
@@ -233,55 +225,23 @@ export async function build_run_deviceLogic(
         data: { step: 'launch-app', status: 'started', appPath },
       });
 
-      let processId: number | undefined;
-      try {
-        const tempJsonPath = join(fileSystemExecutor.tmpdir(), `launch-${Date.now()}.json`);
-        const command = [
-          'xcrun',
-          'devicectl',
-          'device',
-          'process',
-          'launch',
-          '--device',
-          params.deviceId,
-          '--json-output',
-          tempJsonPath,
-          '--terminate-existing',
-        ];
-
-        if (params.env && Object.keys(params.env).length > 0) {
-          command.push('--environment-variables', JSON.stringify(params.env));
-        }
-
-        command.push(bundleId);
-
-        const launchResult = await executor(command, 'Launch app on device', false);
-        if (!launchResult.success) {
-          throw new Error(launchResult.error ?? 'Failed to launch app');
-        }
-
-        try {
-          const jsonContent = await fileSystemExecutor.readFile(tempJsonPath, 'utf8');
-          const parsedData = JSON.parse(jsonContent) as {
-            result?: { process?: { processIdentifier?: unknown } };
-          };
-          const pid = parsedData?.result?.process?.processIdentifier;
-          if (typeof pid === 'number') {
-            processId = pid;
-          }
-        } catch {
-          log('warn', 'Failed to parse launch JSON output for process ID');
-        } finally {
-          await fileSystemExecutor.rm(tempJsonPath, { force: true }).catch(() => {});
-        }
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
+      const launchResult = await launchAppOnDevice(
+        params.deviceId,
+        bundleId,
+        executor,
+        fileSystemExecutor,
+        { env: params.env },
+      );
+      if (!launchResult.success) {
+        const errorMessage = launchResult.error ?? 'Failed to launch app';
         return bailWithError(
           started,
           `Failed to launch app on device: ${errorMessage}`,
           `Failed to launch app on device: ${errorMessage}`,
         );
       }
+
+      const processId = launchResult.processId;
 
       log('info', `Device build and run succeeded for scheme ${params.scheme}.`);
 

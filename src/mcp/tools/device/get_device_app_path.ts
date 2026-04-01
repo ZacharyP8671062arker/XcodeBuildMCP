@@ -5,7 +5,6 @@
  * Accepts mutually exclusive `projectPath` or `workspacePath`.
  */
 
-import path from 'node:path';
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
@@ -18,10 +17,7 @@ import {
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { mapDevicePlatform } from './build-settings.ts';
 import { extractQueryErrorMessages } from '../../../utils/xcodebuild-error-utils.ts';
-import {
-  extractAppPathFromBuildSettingsOutput,
-  getBuildSettingsDestination,
-} from '../../../utils/app-path-resolver.ts';
+import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
@@ -96,44 +92,22 @@ export async function get_device_app_pathLogic(
 
   return withErrorHandling(
     async () => {
-      const command = ['xcodebuild', '-showBuildSettings'];
-
-      const projectPath = params.projectPath
-        ? path.resolve(process.cwd(), params.projectPath)
-        : undefined;
-      const workspacePath = params.workspacePath
-        ? path.resolve(process.cwd(), params.workspacePath)
-        : undefined;
-
-      if (projectPath) {
-        command.push('-project', projectPath);
-      } else if (workspacePath) {
-        command.push('-workspace', workspacePath);
+      let appPath: string;
+      try {
+        appPath = await resolveAppPathFromBuildSettings(
+          {
+            projectPath: params.projectPath,
+            workspacePath: params.workspacePath,
+            scheme: params.scheme,
+            configuration,
+            platform,
+          },
+          executor,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return toolResponse(buildErrorEvents(message));
       }
-
-      command.push('-scheme', params.scheme);
-      command.push('-configuration', configuration);
-      command.push('-destination', getBuildSettingsDestination(platform));
-
-      const workingDirectory = projectPath
-        ? path.dirname(projectPath)
-        : workspacePath
-          ? path.dirname(workspacePath)
-          : undefined;
-
-      const result = await executor(
-        command,
-        'Get App Path',
-        false,
-        workingDirectory ? { cwd: workingDirectory } : undefined,
-      );
-
-      if (!result.success) {
-        const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
-        return toolResponse(buildErrorEvents(rawOutput));
-      }
-
-      const appPath = extractAppPathFromBuildSettingsOutput(result.output);
 
       return toolResponse(
         [

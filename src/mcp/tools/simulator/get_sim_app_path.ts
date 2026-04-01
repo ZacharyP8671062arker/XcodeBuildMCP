@@ -18,7 +18,7 @@ import {
   getSessionAwareToolSchemaShape,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { extractAppPathFromBuildSettingsOutput } from '../../../utils/app-path-resolver.ts';
+import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { extractQueryErrorMessages } from '../../../utils/xcodebuild-error-utils.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
@@ -135,45 +135,26 @@ export async function get_sim_app_pathLogic(
 
   return withErrorHandling(
     async () => {
-      const command = ['xcodebuild', '-showBuildSettings'];
-
-      if (params.workspacePath) {
-        command.push('-workspace', params.workspacePath);
-      } else if (params.projectPath) {
-        command.push('-project', params.projectPath);
-      }
-
-      command.push('-scheme', params.scheme);
-      command.push('-configuration', configuration);
-
-      const destinationString = params.simulatorId
+      const destination = params.simulatorId
         ? constructDestinationString(params.platform, undefined, params.simulatorId)
         : constructDestinationString(params.platform, params.simulatorName, undefined, useLatestOS);
 
-      command.push('-destination', destinationString);
-
-      const result = await executor(command, 'Get App Path', false);
-
-      if (!result.success) {
-        const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
-        return toolResponse(buildErrorEvents(rawOutput));
-      }
-
-      if (!result.output) {
-        return toolResponse(
-          buildErrorEvents('Failed to extract build settings output from the result.'),
-        );
-      }
-
       let appPath: string;
       try {
-        appPath = extractAppPathFromBuildSettingsOutput(result.output);
-      } catch {
-        return toolResponse(
-          buildErrorEvents(
-            'Failed to extract app path from build settings. Make sure the app has been built first.',
-          ),
+        appPath = await resolveAppPathFromBuildSettings(
+          {
+            projectPath: params.projectPath,
+            workspacePath: params.workspacePath,
+            scheme: params.scheme,
+            configuration,
+            platform: params.platform,
+            destination,
+          },
+          executor,
         );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return toolResponse(buildErrorEvents(message));
       }
 
       const durationMs = Date.now() - startedAt;

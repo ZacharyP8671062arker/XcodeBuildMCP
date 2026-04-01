@@ -1,5 +1,6 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
+import { XcodePlatform } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -9,7 +10,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { extractQueryErrorMessages } from '../../../utils/xcodebuild-error-utils.ts';
-import { extractAppPathFromBuildSettingsOutput } from '../../../utils/app-path-resolver.ts';
+import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
@@ -90,48 +91,26 @@ export async function get_mac_app_pathLogic(
 
   return withErrorHandling(
     async () => {
-      const command = ['xcodebuild', '-showBuildSettings'];
-
-      if (params.projectPath) {
-        command.push('-project', params.projectPath);
-      } else if (params.workspacePath) {
-        command.push('-workspace', params.workspacePath);
-      }
-
-      command.push('-scheme', params.scheme);
-      command.push('-configuration', configuration);
-
-      if (params.derivedDataPath) {
-        command.push('-derivedDataPath', params.derivedDataPath);
-      }
-
-      if (params.arch) {
-        const destinationString = `platform=macOS,arch=${params.arch}`;
-        command.push('-destination', destinationString);
-      }
-
-      if (params.extraArgs) {
-        command.push(...params.extraArgs);
-      }
-
-      const result = await executor(command, 'Get App Path', false);
-
-      if (!result.success) {
-        const rawOutput = [result.error, result.output].filter(Boolean).join('\n');
-        return toolResponse(buildErrorEvents(rawOutput));
-      }
-
-      if (!result.output) {
-        return toolResponse(
-          buildErrorEvents('Failed to extract build settings output from the result.'),
-        );
-      }
+      const destination = params.arch ? `platform=macOS,arch=${params.arch}` : undefined;
 
       let appPath: string;
       try {
-        appPath = extractAppPathFromBuildSettingsOutput(result.output);
-      } catch {
-        return toolResponse(buildErrorEvents('Could not extract app path from build settings.'));
+        appPath = await resolveAppPathFromBuildSettings(
+          {
+            projectPath: params.projectPath,
+            workspacePath: params.workspacePath,
+            scheme: params.scheme,
+            configuration,
+            platform: XcodePlatform.macOS,
+            destination,
+            derivedDataPath: params.derivedDataPath,
+            extraArgs: params.extraArgs,
+          },
+          executor,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return toolResponse(buildErrorEvents(message));
       }
 
       return toolResponse(

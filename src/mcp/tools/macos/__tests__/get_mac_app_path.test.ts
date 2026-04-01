@@ -122,9 +122,12 @@ describe('get_mac_app_path plugin', () => {
           'MyScheme',
           '-configuration',
           'Debug',
+          '-destination',
+          'generic/platform=macOS',
         ],
         'Get App Path',
         false,
+        { cwd: '/path/to' },
       ]);
     });
 
@@ -159,9 +162,12 @@ describe('get_mac_app_path plugin', () => {
           'MyScheme',
           '-configuration',
           'Debug',
+          '-destination',
+          'generic/platform=macOS',
         ],
         'Get App Path',
         false,
+        { cwd: '/path/to' },
       ]);
     });
 
@@ -203,6 +209,7 @@ describe('get_mac_app_path plugin', () => {
         ],
         'Get App Path',
         false,
+        { cwd: '/path/to' },
       ]);
     });
 
@@ -244,6 +251,7 @@ describe('get_mac_app_path plugin', () => {
         ],
         'Get App Path',
         false,
+        { cwd: '/path/to' },
       ]);
     });
 
@@ -281,12 +289,15 @@ describe('get_mac_app_path plugin', () => {
           'MyScheme',
           '-configuration',
           'Release',
+          '-destination',
+          'generic/platform=macOS',
           '-derivedDataPath',
           '/path/to/derived',
           '--verbose',
         ],
         'Get App Path',
         false,
+        { cwd: '/path/to' },
       ]);
     });
 
@@ -327,6 +338,7 @@ describe('get_mac_app_path plugin', () => {
         ],
         'Get App Path',
         false,
+        { cwd: '/path/to' },
       ]);
     });
   });

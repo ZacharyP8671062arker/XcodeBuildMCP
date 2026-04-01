@@ -17,21 +17,16 @@
 
 Node.js Information
   version: v22.21.1
-  execPath: /Users/<redacted>/.nvm/versions/node/v22.21.1/bin/node
+  execPath: <EXEC_PATH>
   pid: <PID>
   ppid: <PID>
   platform: darwin
   arch: arm64
   cwd: /Users/<redacted>/.codex/worktrees/43f4/<redacted>
-  argv: /Users/<redacted>/.nvm/versions/node/v22.21.1/bin/node /opt/homebrew/lib/node_modules/vitest/node_modules/tinypool/dist/entry/process.js
+  argv: <ARGV>
 
 Process Tree
   Running under Xcode: No
-   <PID> (ppid <PID>): <PROCESS>
-   <PID> (ppid <PID>): <PROCESS>
-   <PID> (ppid <PID>): <PROCESS>
-   <PID> (ppid <PID>): <PROCESS>
-   <PID> (ppid <PID>): <PROCESS>
    <PID> (ppid <PID>): <PROCESS>
 
 Xcode Information
@@ -59,6 +54,7 @@ Environment Variables
   XCODEBUILDMCP_SILENCE_LOGS: true
 
 PATH
+  /Users/<redacted>/.bin
   /Users/<redacted>/bin
   /Users/<redacted>/.local/share/sentry-devenv/bin
   /Users/<redacted>/.antigravity/antigravity/bin
@@ -67,7 +63,7 @@ PATH
   /Users/<redacted>/.codeium/windsurf/bin
   /opt/homebrew/bin
   /Users/<redacted>/perl5/bin
-  /Users/<redacted>/.nvm/versions/node/v22.21.1/bin
+  /Users/<redacted>/.nvm/versions/node/<NODE_VERSION>/bin
   /Users/<redacted>/Developer/xcodemake
   /Users/<redacted>/.npm-global/bin
   /Users/<redacted>/.rbenv/shims

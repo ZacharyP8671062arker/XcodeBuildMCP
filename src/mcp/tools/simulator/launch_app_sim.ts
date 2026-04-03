@@ -14,6 +14,7 @@ import {
   launchSimulatorAppWithLogging,
   type LaunchWithLoggingResult,
 } from '../../../utils/simulator-steps.ts';
+import { displayPath } from '../../../utils/build-preflight.ts';
 
 const baseSchemaObject = z.object({
   simulatorId: z
@@ -115,10 +116,10 @@ export async function launch_app_simLogic(
         detailItems.push({ label: 'Process ID', value: String(launchResult.processId) });
       }
       if (launchResult.logFilePath) {
-        detailItems.push({ label: 'Runtime Logs', value: launchResult.logFilePath });
+        detailItems.push({ label: 'Runtime Logs', value: displayPath(launchResult.logFilePath) });
       }
       if (launchResult.osLogPath) {
-        detailItems.push({ label: 'OSLog', value: launchResult.osLogPath });
+        detailItems.push({ label: 'OSLog', value: displayPath(launchResult.osLogPath) });
       }
 
       const events = [

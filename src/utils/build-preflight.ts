@@ -1,4 +1,5 @@
 import path from 'node:path';
+import os from 'node:os';
 import { resolveEffectiveDerivedDataPath } from './derived-data-path.ts';
 
 export interface ToolPreflightParams {
@@ -31,10 +32,19 @@ export interface ToolPreflightParams {
 export function displayPath(filePath: string): string {
   const cwd = process.cwd();
   const relative = path.relative(cwd, filePath);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    return filePath;
+  if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+    return relative;
   }
-  return relative;
+
+  const home = os.homedir();
+  if (filePath === home) {
+    return '~';
+  }
+  if (filePath.startsWith(home + '/')) {
+    return '~/' + filePath.slice(home.length + 1);
+  }
+
+  return filePath;
 }
 
 const OPERATION_EMOJI: Record<ToolPreflightParams['operation'], string> = {

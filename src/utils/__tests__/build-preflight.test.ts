@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { formatToolPreflight } from '../build-preflight.ts';
+import { displayPath, formatToolPreflight } from '../build-preflight.ts';
 import { DERIVED_DATA_DIR } from '../log-paths.ts';
+
+const DISPLAY_DERIVED_DATA = displayPath(DERIVED_DATA_DIR);
 
 describe('formatToolPreflight', () => {
   it('formats simulator build with workspace and simulator name', () => {
@@ -22,7 +24,7 @@ describe('formatToolPreflight', () => {
         '   Configuration: Debug',
         '   Platform: iOS Simulator',
         '   Simulator: iPhone 17',
-        `   Derived Data: ${DERIVED_DATA_DIR}`,
+        `   Derived Data: ${DISPLAY_DERIVED_DATA}`,
         '',
       ].join('\n'),
     );
@@ -47,7 +49,7 @@ describe('formatToolPreflight', () => {
         '   Configuration: Release',
         '   Platform: iOS Simulator',
         '   Simulator: ABC-123-DEF',
-        `   Derived Data: ${DERIVED_DATA_DIR}`,
+        `   Derived Data: ${DISPLAY_DERIVED_DATA}`,
         '',
       ].join('\n'),
     );
@@ -72,7 +74,7 @@ describe('formatToolPreflight', () => {
         '   Configuration: Debug',
         '   Platform: iOS',
         '   Device: DEVICE-UDID-123',
-        `   Derived Data: ${DERIVED_DATA_DIR}`,
+        `   Derived Data: ${DISPLAY_DERIVED_DATA}`,
         '',
       ].join('\n'),
     );
@@ -98,7 +100,7 @@ describe('formatToolPreflight', () => {
         '   Configuration: Debug',
         '   Platform: iOS',
         "   Device: Cameron's iPhone (DEVICE-UDID-123)",
-        `   Derived Data: ${DERIVED_DATA_DIR}`,
+        `   Derived Data: ${DISPLAY_DERIVED_DATA}`,
         '',
       ].join('\n'),
     );
@@ -121,7 +123,7 @@ describe('formatToolPreflight', () => {
         '   Project: /path/to/MacApp.xcodeproj',
         '   Configuration: Debug',
         '   Platform: macOS',
-        `   Derived Data: ${DERIVED_DATA_DIR}`,
+        `   Derived Data: ${DISPLAY_DERIVED_DATA}`,
         '',
       ].join('\n'),
     );
@@ -145,7 +147,7 @@ describe('formatToolPreflight', () => {
         '   Workspace: /path/to/workspace.xcworkspace',
         '   Configuration: Debug',
         '   Platform: macOS',
-        `   Derived Data: ${DERIVED_DATA_DIR}`,
+        `   Derived Data: ${DISPLAY_DERIVED_DATA}`,
         '   Architecture: arm64',
         '',
       ].join('\n'),
@@ -169,7 +171,7 @@ describe('formatToolPreflight', () => {
         '   Project: /path/to/MyApp.xcodeproj',
         '   Configuration: Debug',
         '   Platform: iOS',
-        `   Derived Data: ${DERIVED_DATA_DIR}`,
+        `   Derived Data: ${DISPLAY_DERIVED_DATA}`,
         '',
       ].join('\n'),
     );
@@ -190,7 +192,7 @@ describe('formatToolPreflight', () => {
         '   Scheme: MyApp',
         '   Configuration: Debug',
         '   Platform: macOS',
-        `   Derived Data: ${DERIVED_DATA_DIR}`,
+        `   Derived Data: ${DISPLAY_DERIVED_DATA}`,
         '',
       ].join('\n'),
     );
@@ -215,7 +217,7 @@ describe('formatToolPreflight', () => {
         '   Configuration: Debug',
         '   Platform: iOS Simulator',
         '   Simulator: iPhone 17',
-        `   Derived Data: ${DERIVED_DATA_DIR}`,
+        `   Derived Data: ${DISPLAY_DERIVED_DATA}`,
         '',
       ].join('\n'),
     );

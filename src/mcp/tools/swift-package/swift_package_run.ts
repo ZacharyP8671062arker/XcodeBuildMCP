@@ -19,6 +19,7 @@ import {
   createBuildRunResultEvents,
   createPendingXcodebuildResponse,
 } from '../../../utils/xcodebuild-output.ts';
+import { displayPath } from '../../../utils/build-preflight.ts';
 
 const baseSchemaObject = z.object({
   packagePath: z.string(),
@@ -234,7 +235,7 @@ export async function swift_package_runLogic(
       const tailEvents = [
         ...buildRunEvents,
         ...(result.success && !executablePath
-          ? [detailTree([{ label: 'Build Logs', value: pipeline.logPath }])]
+          ? [detailTree([{ label: 'Build Logs', value: displayPath(pipeline.logPath) }])]
           : []),
         ...(capturedOutput ? [section('Output', [capturedOutput])] : []),
       ];

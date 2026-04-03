@@ -8,6 +8,7 @@ import type {
   XcodebuildOperation,
 } from '../types/pipeline-events.ts';
 import type { StartedPipeline } from './xcodebuild-pipeline.ts';
+import { displayPath } from './build-preflight.ts';
 
 interface PipelineOutputMetaExtras {
   [key: string]: unknown;
@@ -134,15 +135,15 @@ export function createBuildRunResultEvents(data: BuildRunResultNoticeData): Pipe
   }
 
   if (data.buildLogPath) {
-    items.push({ label: 'Build Logs', value: data.buildLogPath });
+    items.push({ label: 'Build Logs', value: displayPath(data.buildLogPath) });
   }
 
   if (data.runtimeLogPath) {
-    items.push({ label: 'Runtime Logs', value: data.runtimeLogPath });
+    items.push({ label: 'Runtime Logs', value: displayPath(data.runtimeLogPath) });
   }
 
   if (data.osLogPath) {
-    items.push({ label: 'OSLog', value: data.osLogPath });
+    items.push({ label: 'OSLog', value: displayPath(data.osLogPath) });
   }
 
   if (data.launchState !== 'requested') {

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { expectPendingBuildResponse } from '../../../../test-utils/test-helpers.ts';
@@ -196,6 +197,8 @@ describe('build_macos plugin', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=macOS',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
     });
@@ -286,6 +289,8 @@ describe('build_macos plugin', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=macOS,arch=arm64',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
     });
@@ -312,6 +317,8 @@ describe('build_macos plugin', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=macOS',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
     });
@@ -338,6 +345,8 @@ describe('build_macos plugin', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=macOS',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
     });

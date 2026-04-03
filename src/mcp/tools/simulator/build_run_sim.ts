@@ -38,7 +38,8 @@ import { extractBundleIdFromAppPath } from '../../../utils/bundle-id.ts';
 import {
   findSimulatorById,
   installAppOnSimulator,
-  launchSimulatorApp,
+  launchSimulatorAppWithLogging,
+  type LaunchWithLoggingResult,
 } from '../../../utils/simulator-steps.ts';
 
 const baseOptions = {
@@ -96,9 +97,12 @@ const buildRunSimulatorSchema = z.preprocess(
 
 export type BuildRunSimulatorParams = z.infer<typeof buildRunSimulatorSchema>;
 
+export type SimulatorLauncher = typeof launchSimulatorAppWithLogging;
+
 export async function build_run_simLogic(
   params: BuildRunSimulatorParams,
   executor: CommandExecutor,
+  launcher: SimulatorLauncher = launchSimulatorAppWithLogging,
 ): Promise<ToolResponse> {
   const projectType = params.projectPath ? 'project' : 'workspace';
   const filePath = params.projectPath ?? params.workspacePath;
@@ -414,7 +418,7 @@ export async function build_run_simLogic(
         data: { step: 'launch-app', status: 'started', appPath: appBundlePath },
       });
 
-      const launchResult = await launchSimulatorApp(simulatorId, bundleId, executor);
+      const launchResult: LaunchWithLoggingResult = await launcher(simulatorId, bundleId);
       if (!launchResult.success) {
         const errorMessage = launchResult.error ?? 'Failed to launch app';
         log('error', `Failed to launch app: ${errorMessage}`);
@@ -442,12 +446,7 @@ export async function build_run_simLogic(
           content: [],
           isError: false,
           nextStepParams: {
-            start_sim_log_cap: [
-              { simulatorId, bundleId },
-              { simulatorId, bundleId, captureConsole: true },
-            ],
             stop_app_sim: { simulatorId, bundleId },
-            launch_app_logs_sim: { simulatorId, bundleId },
           },
         },
         {
@@ -460,6 +459,8 @@ export async function build_run_simLogic(
             launchState: 'requested',
             processId,
             buildLogPath: started.pipeline.logPath,
+            runtimeLogPath: launchResult.logFilePath,
+            osLogPath: launchResult.osLogPath,
           }),
           includeBuildLogFileRef: false,
         },

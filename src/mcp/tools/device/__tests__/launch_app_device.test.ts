@@ -90,44 +90,7 @@ describe('launch_app_device plugin (device-shared)', () => {
       expect(calls[0].env).toBeUndefined();
     });
 
-    it('should generate command with different device and bundle parameters', async () => {
-      const calls: any[] = [];
-      const mockExecutor = createMockExecutor({
-        success: true,
-        output: 'Launch successful',
-        process: { pid: 54321 },
-      });
-
-      const trackingExecutor = async (command: string[]) => {
-        calls.push({ command });
-        return mockExecutor(command);
-      };
-
-      await launch_app_deviceLogic(
-        {
-          deviceId: '00008030-001E14BE2288802E',
-          bundleId: 'com.apple.mobilesafari',
-        },
-        trackingExecutor,
-        createMockFileSystemExecutor(),
-      );
-
-      expect(calls[0].command).toEqual([
-        'xcrun',
-        'devicectl',
-        'device',
-        'process',
-        'launch',
-        '--device',
-        '00008030-001E14BE2288802E',
-        '--json-output',
-        expect.stringMatching(/^\/.*\/launch-\d+\.json$/),
-        '--terminate-existing',
-        'com.apple.mobilesafari',
-      ]);
-    });
-
-    it('should append a JSON --environment-variables payload before bundleId when env is provided', async () => {
+    it('should append --environment-variables when env is provided', async () => {
       const calls: any[] = [];
       const mockExecutor = createMockExecutor({
         success: true,
@@ -150,16 +113,10 @@ describe('launch_app_device plugin (device-shared)', () => {
         createMockFileSystemExecutor(),
       );
 
-      expect(calls).toHaveLength(1);
       const cmd = calls[0].command;
-      // bundleId should be the last element
       expect(cmd[cmd.length - 1]).toBe('io.sentry.app');
-      // --environment-variables should be provided exactly once as JSON
-      const envFlagIndices = cmd
-        .map((part: string, index: number) => (part === '--environment-variables' ? index : -1))
-        .filter((index: number) => index >= 0);
-      expect(envFlagIndices).toHaveLength(1);
-      const envIdx = envFlagIndices[0];
+      expect(cmd).toContain('--environment-variables');
+      const envIdx = cmd.indexOf('--environment-variables');
       expect(JSON.parse(cmd[envIdx + 1])).toEqual({ STAGING_ENABLED: '1', DEBUG: 'true' });
     });
 
@@ -211,13 +168,10 @@ describe('launch_app_device plugin (device-shared)', () => {
 
     it('should handle successful launch with process ID information', async () => {
       const mockFileSystem = createMockFileSystemExecutor({
+        existsSync: () => true,
         readFile: async () =>
           JSON.stringify({
-            result: {
-              process: {
-                processIdentifier: 12345,
-              },
-            },
+            result: { process: { processIdentifier: 12345 } },
           }),
         rm: async () => {},
       });

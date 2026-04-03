@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import { createMockExecutor, mockProcess } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
@@ -127,6 +128,8 @@ describe('build_run_macos', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=macOS',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
       expect(executorCalls[0].description).toBe('macOS Build');
@@ -209,6 +212,8 @@ describe('build_run_macos', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=macOS',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
 
@@ -432,6 +437,8 @@ describe('build_run_macos', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=macOS',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
       expect(executorCalls[0].description).toBe('macOS Build');

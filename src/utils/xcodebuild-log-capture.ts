@@ -1,8 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
-
-const LOG_DIR = path.join(os.tmpdir(), 'xcodebuildmcp', 'logs');
+import { LOG_DIR } from './log-paths.ts';
 
 function ensureLogDir(): void {
   fs.mkdirSync(LOG_DIR, { recursive: true });
@@ -10,7 +8,7 @@ function ensureLogDir(): void {
 
 function generateLogFileName(toolName: string): string {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  return `${toolName}_${timestamp}.log`;
+  return `${toolName}_${timestamp}_pid${process.pid}.log`;
 }
 
 export interface LogCapture {

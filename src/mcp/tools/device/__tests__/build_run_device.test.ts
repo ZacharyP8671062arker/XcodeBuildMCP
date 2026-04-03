@@ -210,7 +210,6 @@ describe('build_run_device tool', () => {
 
       expectPendingBuildRunResponse(result, false);
       expect(result.nextStepParams).toMatchObject({
-        start_device_log_cap: { deviceId: 'DEVICE-UDID', bundleId: 'io.sentry.MyApp' },
         stop_app_device: { deviceId: 'DEVICE-UDID', processId: 1234 },
       });
       expect(result._meta?.pendingXcodebuild).toEqual(
@@ -264,9 +263,6 @@ describe('build_run_device tool', () => {
       );
 
       expectPendingBuildRunResponse(result, false);
-      expect(result.nextStepParams).toMatchObject({
-        start_device_log_cap: { deviceId: 'DEVICE-UDID', bundleId: 'io.sentry.MyApp' },
-      });
       expect(result.nextStepParams?.stop_app_device).toBeUndefined();
 
       const tailEvents = (
@@ -279,7 +275,6 @@ describe('build_run_device tool', () => {
       const detailTree = tailEvents[1];
       expect(detailTree.type).toBe('detail-tree');
       expect(detailTree.items?.some((item) => item.label === 'Process ID')).toBe(false);
-      expect(detailTree.items?.some((item) => item.label === 'Build Logs')).toBe(false);
     });
 
     it('uses generic destination for build-settings lookup', async () => {

@@ -191,6 +191,8 @@ export interface BuildRunResultNoticeData {
   appId?: string;
   processId?: number;
   buildLogPath?: string;
+  runtimeLogPath?: string;
+  osLogPath?: string;
 }
 
 export type NoticeCode = 'build-run-step' | 'build-run-result';

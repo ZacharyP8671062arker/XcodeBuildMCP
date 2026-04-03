@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import {
   createMockCommandResponse,
@@ -124,6 +125,8 @@ describe('get_mac_app_path plugin', () => {
           'Debug',
           '-destination',
           'generic/platform=macOS',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
         ],
         'Get App Path',
         false,
@@ -164,6 +167,8 @@ describe('get_mac_app_path plugin', () => {
           'Debug',
           '-destination',
           'generic/platform=macOS',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
         ],
         'Get App Path',
         false,
@@ -206,6 +211,8 @@ describe('get_mac_app_path plugin', () => {
           'Release',
           '-destination',
           'platform=macOS,arch=arm64',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
         ],
         'Get App Path',
         false,
@@ -248,6 +255,8 @@ describe('get_mac_app_path plugin', () => {
           'Debug',
           '-destination',
           'platform=macOS,arch=x86_64',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
         ],
         'Get App Path',
         false,
@@ -335,6 +344,8 @@ describe('get_mac_app_path plugin', () => {
           'Debug',
           '-destination',
           'platform=macOS,arch=arm64',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
         ],
         'Get App Path',
         false,

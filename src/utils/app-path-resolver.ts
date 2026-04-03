@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { XcodePlatform } from '../types/common.ts';
 import type { CommandExecutor } from './command.ts';
+import { resolveEffectiveDerivedDataPath } from './derived-data-path.ts';
 
 function resolvePathFromCwd(pathValue?: string): string | undefined {
   if (!pathValue) {
@@ -58,7 +59,7 @@ export async function resolveAppPathFromBuildSettings(
 
   const workspacePath = resolvePathFromCwd(params.workspacePath);
   const projectPath = resolvePathFromCwd(params.projectPath);
-  const derivedDataPath = resolvePathFromCwd(params.derivedDataPath);
+  const derivedDataPath = resolveEffectiveDerivedDataPath(params.derivedDataPath);
 
   let projectDir: string | undefined;
 
@@ -77,9 +78,7 @@ export async function resolveAppPathFromBuildSettings(
     params.destination ?? getBuildSettingsDestination(params.platform, params.deviceId);
   command.push('-destination', destination);
 
-  if (derivedDataPath) {
-    command.push('-derivedDataPath', derivedDataPath);
-  }
+  command.push('-derivedDataPath', derivedDataPath);
 
   if (params.extraArgs && params.extraArgs.length > 0) {
     command.push(...params.extraArgs);

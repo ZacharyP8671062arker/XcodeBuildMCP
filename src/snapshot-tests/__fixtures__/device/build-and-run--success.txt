@@ -17,8 +17,8 @@
 ✅ Build & Run complete
   ├ App Path: <HOME>/Library/Developer/Xcode/DerivedData/CalculatorApp-<HASH>/Build/Products/Debug-iphoneos/CalculatorApp.app
   ├ Bundle ID: io.sentry.calculatorapp
-  └ Process ID: <PID>
+  ├ Process ID: <PID>
+  └ Build Logs: <HOME>/Library/Developer/XcodeBuildMCP/logs/build_run_device_<TIMESTAMP>_pid<PID>.log
 
 Next steps:
-1. Capture device logs: xcodebuildmcp device start-device-log-capture --device-id "<UUID>" --bundle-id "io.sentry.calculatorapp"
-2. Stop app on device: xcodebuildmcp device stop --device-id "<UUID>" --process-id "<PID>"
+1. Stop app on device: xcodebuildmcp device stop --device-id "<UUID>" --process-id "<PID>"

@@ -10,6 +10,7 @@ import type { XcodebuildRunState } from './xcodebuild-run-state.ts';
 import { resolveRenderers } from './renderers/index.ts';
 import type { PipelineRenderer } from './renderers/index.ts';
 import { displayPath } from './build-preflight.ts';
+import { resolveEffectiveDerivedDataPath } from './derived-data-path.ts';
 import { formatDeviceId } from './device-name-resolver.ts';
 import { createLogCapture, createParserDebugCapture } from './xcodebuild-log-capture.ts';
 import { log as appLog } from './logging/index.ts';
@@ -114,12 +115,13 @@ function buildHeaderParams(
     simulatorId: 'Simulator',
     deviceId: 'Device',
     arch: 'Architecture',
+    derivedDataPath: 'Derived Data',
     xcresultPath: 'xcresult',
     file: 'File',
     targetFilter: 'Target Filter',
   };
 
-  const pathKeys = new Set(['workspacePath', 'projectPath', 'xcresultPath']);
+  const pathKeys = new Set(['workspacePath', 'projectPath', 'derivedDataPath', 'xcresultPath']);
 
   for (const [key, label] of Object.entries(keyLabelMap)) {
     const value = params[key];
@@ -140,6 +142,11 @@ function buildHeaderParams(
       }
       result.push({ label, value: displayValue });
     }
+  }
+
+  // Always show Derived Data even if not explicitly provided
+  if (!result.some((r) => r.label === 'Derived Data')) {
+    result.push({ label: 'Derived Data', value: displayPath(resolveEffectiveDerivedDataPath()) });
   }
 
   return result;

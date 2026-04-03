@@ -12,6 +12,7 @@ import {
 } from './xcodemake.ts';
 import path from 'path';
 import os from 'node:os';
+import { resolveEffectiveDerivedDataPath } from './derived-data-path.ts';
 import type { XcodebuildPipeline } from './xcodebuild-pipeline.ts';
 import { createNoticeEvent } from './xcodebuild-output.ts';
 
@@ -78,9 +79,7 @@ export async function executeXcodeBuildCommand(
       ? resolvePathFromCwd(params.workspacePath)
       : undefined;
     const projectPath = params.projectPath ? resolvePathFromCwd(params.projectPath) : undefined;
-    const derivedDataPath = params.derivedDataPath
-      ? resolvePathFromCwd(params.derivedDataPath)
-      : undefined;
+    const derivedDataPath = resolveEffectiveDerivedDataPath(params.derivedDataPath);
 
     let projectDir = '';
     if (workspacePath) {
@@ -162,9 +161,7 @@ export async function executeXcodeBuildCommand(
       );
     }
 
-    if (derivedDataPath) {
-      command.push('-derivedDataPath', derivedDataPath);
-    }
+    command.push('-derivedDataPath', derivedDataPath);
 
     if (params.extraArgs && params.extraArgs.length > 0) {
       command.push(...params.extraArgs);

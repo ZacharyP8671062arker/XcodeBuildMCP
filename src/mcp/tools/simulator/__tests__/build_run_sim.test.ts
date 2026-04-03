@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import {
   createMockExecutor,
@@ -7,7 +8,18 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { schema, handler, build_run_simLogic } from '../build_run_sim.ts';
+import { schema, handler, build_run_simLogic, type SimulatorLauncher } from '../build_run_sim.ts';
+import type { LaunchWithLoggingResult } from '../../../../utils/simulator-steps.ts';
+
+const mockLauncher: SimulatorLauncher = async (
+  _uuid,
+  _bundleId,
+  _opts?,
+): Promise<LaunchWithLoggingResult> => ({
+  success: true,
+  processId: 99999,
+  logFilePath: '/tmp/mock-logs/test.log',
+});
 
 function expectPendingBuildRunResponse(
   result: Awaited<ReturnType<typeof build_run_simLogic>>,
@@ -193,6 +205,8 @@ describe('build_run_sim tool', () => {
                     state: 'Booted',
                     isAvailable: true,
                   },
+                  '-derivedDataPath',
+                  DERIVED_DATA_DIR,
                 ],
               },
             }),
@@ -221,6 +235,7 @@ describe('build_run_sim tool', () => {
           simulatorName: 'iPhone 17',
         },
         mockExecutor,
+        mockLauncher,
       );
 
       expectPendingBuildRunResponse(result, false);
@@ -276,6 +291,8 @@ describe('build_run_sim tool', () => {
                     state: 'Booted',
                     isAvailable: true,
                   },
+                  '-derivedDataPath',
+                  DERIVED_DATA_DIR,
                 ],
               },
             }),
@@ -381,6 +398,8 @@ describe('build_run_sim tool', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=iOS Simulator,name=iPhone 17,OS=latest',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
       expect(callHistory[1].logPrefix).toBe('iOS Simulator Build');
@@ -436,6 +455,8 @@ describe('build_run_sim tool', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=iOS Simulator,name=iPhone 17,OS=latest',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
       expect(callHistory[1].logPrefix).toBe('iOS Simulator Build');
@@ -499,6 +520,8 @@ describe('build_run_sim tool', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=iOS Simulator,name=iPhone 17',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
       expect(callHistory[1].logPrefix).toBe('iOS Simulator Build');
@@ -513,6 +536,8 @@ describe('build_run_sim tool', () => {
         'Release',
         '-destination',
         'platform=iOS Simulator,name=iPhone 17',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
       ]);
       expect(callHistory[2].logPrefix).toBe('Get App Path');
     });
@@ -542,6 +567,8 @@ describe('build_run_sim tool', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
       expect(callHistory[1].logPrefix).toBe('iOS Simulator Build');
@@ -572,6 +599,8 @@ describe('build_run_sim tool', () => {
         '-skipMacroValidation',
         '-destination',
         'platform=tvOS Simulator,name=Apple TV 4K,OS=latest',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
       expect(callHistory[1].logPrefix).toBe('tvOS Simulator Build');

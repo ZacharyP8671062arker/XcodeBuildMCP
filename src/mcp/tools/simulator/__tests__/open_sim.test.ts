@@ -48,11 +48,6 @@ describe('open_sim tool', () => {
       expect(result.isError).toBeFalsy();
       expect(result.nextStepParams).toEqual({
         boot_sim: { simulatorId: 'UUID_FROM_LIST_SIMS' },
-        start_sim_log_cap: [
-          { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
-          { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID', captureConsole: true },
-        ],
-        launch_app_logs_sim: { simulatorId: 'UUID', bundleId: 'YOUR_APP_BUNDLE_ID' },
       });
     });
 

@@ -6,3 +6,6 @@
 
 ✅ App launched successfully.
   └ Process ID: <PID>
+
+Next steps:
+1. Stop the app: xcodebuildmcp device stop --device-id "<UUID>" --process-id "<PID>"

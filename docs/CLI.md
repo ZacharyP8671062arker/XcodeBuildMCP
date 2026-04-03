@@ -105,18 +105,6 @@ MCP uses the same human-readable formatting semantics, but buffers the rendered 
 
 `--output json` is still streamed JSONL events, not the human-readable section format.
 
-### Log Capture Workflow
-
-```bash
-# Start log capture
-xcodebuildmcp logging start-simulator-log-capture --simulator-id <UDID> --bundle-id io.sentry.MyApp
-
-> Log capture started successfully. Session ID: 51e2142a-1a99-442a-af01-0586540043df.
-
-# Stop and retrieve logs
-xcodebuildmcp logging stop-simulator-log-capture --session-id <SESSION_ID>
-```
-
 ### Testing
 
 ```bash

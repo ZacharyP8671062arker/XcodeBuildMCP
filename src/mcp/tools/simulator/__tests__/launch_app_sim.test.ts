@@ -2,7 +2,17 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { schema, handler, launch_app_simLogic } from '../launch_app_sim.ts';
+import { schema, handler, launch_app_simLogic, type SimulatorLauncher } from '../launch_app_sim.ts';
+import type { LaunchWithLoggingResult } from '../../../../utils/simulator-steps.ts';
+
+function createMockLauncher(overrides?: Partial<LaunchWithLoggingResult>): SimulatorLauncher {
+  return async (_uuid, _bundleId, _opts?) => ({
+    success: true,
+    processId: 12345,
+    logFilePath: '/tmp/mock-logs/test.log',
+    ...overrides,
+  });
+}
 
 describe('launch_app_sim tool', () => {
   beforeEach(() => {
@@ -70,31 +80,20 @@ describe('launch_app_sim tool', () => {
 
   describe('Logic Behavior (Literal Returns)', () => {
     it('should launch app successfully with simulatorId', async () => {
-      let callCount = 0;
-      const sequencedExecutor = async (command: string[]) => {
-        callCount++;
-        if (callCount === 1) {
-          return {
-            success: true,
-            output: '/path/to/app/container',
-            error: '',
-            process: {} as any,
-          };
-        }
-        return {
-          success: true,
-          output: 'App launched successfully',
-          error: '',
-          process: {} as any,
-        };
-      };
+      const installCheckExecutor = async () => ({
+        success: true,
+        output: '/path/to/app/container',
+        error: '',
+        process: {} as any,
+      });
 
       const result = await launch_app_simLogic(
         {
           simulatorId: 'test-uuid-123',
           bundleId: 'io.sentry.testapp',
         },
-        sequencedExecutor,
+        installCheckExecutor,
+        createMockLauncher(),
       );
 
       const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
@@ -103,74 +102,48 @@ describe('launch_app_sim tool', () => {
       expect(text).toContain('test-uuid-123');
       expect(result.nextStepParams).toEqual({
         open_sim: {},
-        start_sim_log_cap: [
-          { simulatorId: 'test-uuid-123', bundleId: 'io.sentry.testapp' },
-          {
-            simulatorId: 'test-uuid-123',
-            bundleId: 'io.sentry.testapp',
-            captureConsole: true,
-          },
-        ],
+        stop_app_sim: { simulatorId: 'test-uuid-123', bundleId: 'io.sentry.testapp' },
       });
     });
 
-    it('should append additional arguments when provided', async () => {
-      let callCount = 0;
-      const commands: string[][] = [];
-
-      const sequencedExecutor = async (command: string[]) => {
-        callCount++;
-        commands.push(command);
-        if (callCount === 1) {
-          return {
-            success: true,
-            output: '/path/to/app/container',
-            error: '',
-            process: {} as any,
-          };
-        }
-        return {
-          success: true,
-          output: 'App launched successfully',
-          error: '',
-          process: {} as any,
-        };
+    it('should pass args and env through to launcher', async () => {
+      let capturedArgs: string[] | undefined;
+      let capturedEnv: Record<string, string> | undefined;
+      const trackingLauncher: SimulatorLauncher = async (_uuid, _bundleId, opts?) => {
+        capturedArgs = opts?.args;
+        capturedEnv = opts?.env;
+        return { success: true, processId: 12345, logFilePath: '/tmp/test.log' };
       };
+
+      const installCheckExecutor = async () => ({
+        success: true,
+        output: '/path/to/app/container',
+        error: '',
+        process: {} as any,
+      });
 
       await launch_app_simLogic(
         {
           simulatorId: 'test-uuid-123',
           bundleId: 'io.sentry.testapp',
           args: ['--debug', '--verbose'],
+          env: { STAGING_ENABLED: '1' },
         },
-        sequencedExecutor,
+        installCheckExecutor,
+        trackingLauncher,
       );
 
-      expect(commands).toEqual([
-        ['xcrun', 'simctl', 'get_app_container', 'test-uuid-123', 'io.sentry.testapp', 'app'],
-        ['xcrun', 'simctl', 'launch', 'test-uuid-123', 'io.sentry.testapp', '--debug', '--verbose'],
-      ]);
+      expect(capturedArgs).toEqual(['--debug', '--verbose']);
+      expect(capturedEnv).toEqual({ STAGING_ENABLED: '1' });
     });
 
     it('should display friendly name when simulatorName is provided alongside resolved simulatorId', async () => {
-      let callCount = 0;
-      const sequencedExecutor = async (command: string[]) => {
-        callCount++;
-        if (callCount === 1) {
-          return {
-            success: true,
-            output: '/path/to/app/container',
-            error: '',
-            process: {} as any,
-          };
-        }
-        return {
-          success: true,
-          output: 'App launched successfully',
-          error: '',
-          process: {} as any,
-        };
-      };
+      const installCheckExecutor = async () => ({
+        success: true,
+        output: '/path/to/app/container',
+        error: '',
+        process: {} as any,
+      });
 
       const result = await launch_app_simLogic(
         {
@@ -178,7 +151,8 @@ describe('launch_app_sim tool', () => {
           simulatorName: 'iPhone 17',
           bundleId: 'io.sentry.testapp',
         },
-        sequencedExecutor,
+        installCheckExecutor,
+        createMockLauncher(),
       );
 
       const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
@@ -187,14 +161,7 @@ describe('launch_app_sim tool', () => {
       expect(text).toContain('"iPhone 17" (resolved-uuid)');
       expect(result.nextStepParams).toEqual({
         open_sim: {},
-        start_sim_log_cap: [
-          { simulatorId: 'resolved-uuid', bundleId: 'io.sentry.testapp' },
-          {
-            simulatorId: 'resolved-uuid',
-            bundleId: 'io.sentry.testapp',
-            captureConsole: true,
-          },
-        ],
+        stop_app_sim: { simulatorId: 'resolved-uuid', bundleId: 'io.sentry.testapp' },
       });
     });
 
@@ -258,31 +225,20 @@ describe('launch_app_sim tool', () => {
     });
 
     it('should handle launch failure', async () => {
-      let callCount = 0;
-      const mockExecutor = async (command: string[]) => {
-        callCount++;
-        if (callCount === 1) {
-          return {
-            success: true,
-            output: '/path/to/app/container',
-            error: '',
-            process: {} as any,
-          };
-        }
-        return {
-          success: false,
-          output: '',
-          error: 'Launch failed',
-          process: {} as any,
-        };
-      };
+      const installCheckExecutor = async () => ({
+        success: true,
+        output: '/path/to/app/container',
+        error: '',
+        process: {} as any,
+      });
 
       const result = await launch_app_simLogic(
         {
           simulatorId: 'test-uuid-123',
           bundleId: 'io.sentry.testapp',
         },
-        mockExecutor,
+        installCheckExecutor,
+        createMockLauncher({ success: false, error: 'Launch failed' }),
       );
 
       const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
@@ -291,90 +247,30 @@ describe('launch_app_sim tool', () => {
       expect(result.isError).toBe(true);
     });
 
-    it('should pass env vars with SIMCTL_CHILD_ prefix to executor opts', async () => {
-      let callCount = 0;
-      const capturedOpts: (Record<string, unknown> | undefined)[] = [];
-
-      const sequencedExecutor = async (
-        command: string[],
-        _logPrefix?: string,
-        _useShell?: boolean,
-        opts?: { env?: Record<string, string> },
-      ) => {
-        callCount++;
-        capturedOpts.push(opts);
-        if (callCount === 1) {
-          return {
-            success: true,
-            output: '/path/to/app/container',
-            error: '',
-            process: {} as any,
-          };
-        }
-        return {
-          success: true,
-          output: 'App launched successfully',
-          error: '',
-          process: {} as any,
-        };
+    it('should not pass env when env is undefined', async () => {
+      let capturedEnv: Record<string, string> | undefined;
+      const trackingLauncher: SimulatorLauncher = async (_uuid, _bundleId, opts?) => {
+        capturedEnv = opts?.env;
+        return { success: true, processId: 12345, logFilePath: '/tmp/test.log' };
       };
 
-      await launch_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          bundleId: 'io.sentry.testapp',
-          env: { STAGING_ENABLED: '1', DEBUG: 'true' },
-        },
-        sequencedExecutor,
-      );
-
-      // First call is get_app_container (no env), second is launch (with env)
-      expect(capturedOpts[1]).toEqual({
-        env: {
-          SIMCTL_CHILD_STAGING_ENABLED: '1',
-          SIMCTL_CHILD_DEBUG: 'true',
-        },
+      const installCheckExecutor = async () => ({
+        success: true,
+        output: '/path/to/app/container',
+        error: '',
+        process: {} as any,
       });
-    });
-
-    it('should not pass env opts when env is undefined', async () => {
-      let callCount = 0;
-      const capturedOpts: (Record<string, unknown> | undefined)[] = [];
-
-      const sequencedExecutor = async (
-        command: string[],
-        _logPrefix?: string,
-        _useShell?: boolean,
-        opts?: { env?: Record<string, string> },
-      ) => {
-        callCount++;
-        capturedOpts.push(opts);
-        if (callCount === 1) {
-          return {
-            success: true,
-            output: '/path/to/app/container',
-            error: '',
-            process: {} as any,
-          };
-        }
-        return {
-          success: true,
-          output: 'App launched successfully',
-          error: '',
-          process: {} as any,
-        };
-      };
 
       await launch_app_simLogic(
         {
           simulatorId: 'test-uuid-123',
           bundleId: 'io.sentry.testapp',
         },
-        sequencedExecutor,
+        installCheckExecutor,
+        trackingLauncher,
       );
 
-      // Launch call opts should be undefined when no env provided
-      expect(capturedOpts[1]).toBeUndefined();
+      expect(capturedEnv).toBeUndefined();
     });
   });
 });

@@ -1,6 +1,10 @@
+import * as path from 'node:path';
+import * as fs from 'node:fs';
+import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { log } from './logging/index.ts';
 import type { CommandExecutor } from './CommandExecutor.ts';
 import { normalizeSimctlChildEnv } from './environment.ts';
+import { LOG_DIR } from './log-paths.ts';
 
 export interface StepResult {
   success: boolean;
@@ -106,4 +110,179 @@ export async function launchSimulatorApp(
   const pidMatch = result.output?.match(/:\s*(\d+)\s*$/);
   const processId = pidMatch ? parseInt(pidMatch[1], 10) : undefined;
   return { success: true, processId };
+}
+
+const PID_POLL_TIMEOUT_MS = 2000;
+const PID_POLL_INTERVAL_MS = 100;
+
+export type ProcessSpawner = (
+  command: string,
+  args: string[],
+  options: SpawnOptions,
+) => ChildProcess;
+
+export interface LaunchWithLoggingResult {
+  success: boolean;
+  processId?: number;
+  logFilePath?: string;
+  osLogPath?: string;
+  error?: string;
+}
+
+/**
+ * Launch an app on a simulator with implicit runtime logging.
+ * Uses `simctl launch --console-pty` to both launch the app and stream its
+ * stdout/stderr directly to a log file via OS-level fd inheritance.
+ * The process is fully detached — no Node.js streams or lifecycle management.
+ */
+export async function launchSimulatorAppWithLogging(
+  simulatorUuid: string,
+  bundleId: string,
+  options?: {
+    args?: string[];
+    env?: Record<string, string>;
+  },
+  deps?: {
+    spawner?: ProcessSpawner;
+  },
+): Promise<LaunchWithLoggingResult> {
+  const spawner = deps?.spawner ?? spawn;
+
+  const logsDir = LOG_DIR;
+  const ts = new Date().toISOString().replace(/:/g, '-').replace('.', '-').slice(0, -1) + 'Z';
+  const logFileName = `${bundleId}_${ts}_pid${process.pid}.log`;
+  const logFilePath = path.join(logsDir, logFileName);
+
+  let fd: number | undefined;
+  try {
+    fs.mkdirSync(logsDir, { recursive: true });
+    fd = fs.openSync(logFilePath, 'w');
+
+    const args = [
+      'simctl',
+      'launch',
+      '--console-pty',
+      '--terminate-running-process',
+      simulatorUuid,
+      bundleId,
+    ];
+    if (options?.args?.length) {
+      args.push(...options.args);
+    }
+
+    const spawnOpts: SpawnOptions = {
+      stdio: ['ignore', fd, fd],
+      detached: true,
+    };
+    if (options?.env && Object.keys(options.env).length > 0) {
+      spawnOpts.env = { ...process.env, ...normalizeSimctlChildEnv(options.env) };
+    }
+
+    const child = spawner('xcrun', args, spawnOpts);
+    child.unref();
+    fs.closeSync(fd);
+    fd = undefined;
+
+    // Brief wait then check for immediate crash
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    if (child.exitCode !== null && child.exitCode !== 0) {
+      const logContent = readLogFileSafe(logFilePath);
+      return {
+        success: false,
+        logFilePath,
+        error: logContent || `Launch failed (exit code: ${child.exitCode})`,
+      };
+    }
+
+    // Poll log file for PID (first line is "bundleId: pid")
+    const processId = await pollForPid(logFilePath);
+
+    // Start OSLog stream as a separate detached process writing to its own file
+    const osLogPath = startOsLogStream(simulatorUuid, bundleId, logsDir, spawner);
+
+    log('info', `Simulator app launched with logging: ${logFilePath}`);
+    return { success: true, processId, logFilePath, osLogPath };
+  } catch (error) {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* already closed */
+      }
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    log('error', `Failed to launch simulator app with logging: ${message}`);
+    return { success: false, logFilePath, error: message };
+  }
+}
+
+async function pollForPid(logFilePath: string): Promise<number | undefined> {
+  const start = Date.now();
+  while (Date.now() - start < PID_POLL_TIMEOUT_MS) {
+    const content = readLogFileSafe(logFilePath);
+    if (content) {
+      const firstLine = content.split('\n')[0] ?? '';
+      const pidMatch = firstLine.match(/:\s*(\d+)/);
+      if (pidMatch) {
+        return parseInt(pidMatch[1], 10);
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, PID_POLL_INTERVAL_MS));
+  }
+  return undefined;
+}
+
+function readLogFileSafe(filePath: string): string {
+  try {
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return '';
+  }
+}
+
+function startOsLogStream(
+  simulatorUuid: string,
+  bundleId: string,
+  logsDir: string,
+  spawner: ProcessSpawner,
+): string | undefined {
+  const ts = new Date().toISOString().replace(/:/g, '-').replace('.', '-').slice(0, -1) + 'Z';
+  const osLogFilePath = path.join(logsDir, `${bundleId}_oslog_${ts}_pid${process.pid}.log`);
+
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(osLogFilePath, 'w');
+
+    const child = spawner(
+      'xcrun',
+      [
+        'simctl',
+        'spawn',
+        simulatorUuid,
+        'log',
+        'stream',
+        '--level=debug',
+        '--predicate',
+        `subsystem == "${bundleId}"`,
+      ],
+      {
+        stdio: ['ignore', fd, fd],
+        detached: true,
+      },
+    );
+    child.unref();
+    fs.closeSync(fd);
+    return osLogFilePath;
+  } catch (error) {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* already closed */
+      }
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    log('warn', `Failed to start OSLog stream: ${message}`);
+    return undefined;
+  }
 }

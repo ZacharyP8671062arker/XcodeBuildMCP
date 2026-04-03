@@ -245,12 +245,7 @@ export async function build_run_deviceLogic(
 
       log('info', `Device build and run succeeded for scheme ${params.scheme}.`);
 
-      const nextStepParams: NextStepParamsMap = {
-        start_device_log_cap: {
-          deviceId: params.deviceId,
-          bundleId,
-        },
-      };
+      const nextStepParams: NextStepParamsMap = {};
 
       if (processId !== undefined) {
         nextStepParams.stop_app_device = {
@@ -275,6 +270,7 @@ export async function build_run_deviceLogic(
             bundleId,
             processId,
             launchState: 'requested',
+            buildLogPath: started.pipeline.logPath,
           }),
           includeBuildLogFileRef: false,
         },

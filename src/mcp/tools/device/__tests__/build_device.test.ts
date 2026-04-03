@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { expectPendingBuildResponse } from '../../../../test-utils/test-helpers.ts';
@@ -152,6 +153,8 @@ describe('build_device plugin', () => {
         '-skipMacroValidation',
         '-destination',
         'generic/platform=iOS',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
       expect(spy.commandCalls[0].logPrefix).toBe('iOS Device Build');
@@ -180,6 +183,8 @@ describe('build_device plugin', () => {
         '-skipMacroValidation',
         '-destination',
         'generic/platform=iOS',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
         'build',
       ]);
       expect(spy.commandCalls[0].logPrefix).toBe('iOS Device Build');

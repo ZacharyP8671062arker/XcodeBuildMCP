@@ -192,17 +192,6 @@ describe('simulator workflow', () => {
     }, 120_000);
   });
 
-  describe('launch-app-with-logs', () => {
-    it('success', async () => {
-      const { text, isError } = await harness.invoke('simulator', 'launch-app-with-logs', {
-        simulatorId: simulatorUdid,
-        bundleId: 'io.sentry.calculatorapp',
-      });
-      expect(isError).toBe(false);
-      expectMatchesFixture(text, __filename, 'launch-app-with-logs--success');
-    }, 120_000);
-  });
-
   describe('screenshot', () => {
     it('success', async () => {
       const { text, isError } = await harness.invoke('simulator', 'screenshot', {

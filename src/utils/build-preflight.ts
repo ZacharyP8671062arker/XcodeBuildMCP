@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { resolveEffectiveDerivedDataPath } from './derived-data-path.ts';
 
 export interface ToolPreflightParams {
   operation:
@@ -20,6 +21,7 @@ export interface ToolPreflightParams {
   simulatorId?: string;
   deviceId?: string;
   deviceName?: string;
+  derivedDataPath?: string;
   arch?: string;
   xcresultPath?: string;
   file?: string;
@@ -80,6 +82,10 @@ export function formatToolPreflight(params: ToolPreflightParams): string {
       : params.deviceId;
     lines.push(`   Device: ${deviceLabel}`);
   }
+
+  lines.push(
+    `   Derived Data: ${displayPath(resolveEffectiveDerivedDataPath(params.derivedDataPath))}`,
+  );
 
   if (params.arch) {
     lines.push(`   Architecture: ${params.arch}`);

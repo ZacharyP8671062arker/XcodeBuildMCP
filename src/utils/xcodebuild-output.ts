@@ -137,6 +137,14 @@ export function createBuildRunResultEvents(data: BuildRunResultNoticeData): Pipe
     items.push({ label: 'Build Logs', value: data.buildLogPath });
   }
 
+  if (data.runtimeLogPath) {
+    items.push({ label: 'Runtime Logs', value: data.runtimeLogPath });
+  }
+
+  if (data.osLogPath) {
+    items.push({ label: 'OSLog', value: data.osLogPath });
+  }
+
   if (data.launchState !== 'requested') {
     items.push({ label: 'Launch', value: 'Running' });
   }

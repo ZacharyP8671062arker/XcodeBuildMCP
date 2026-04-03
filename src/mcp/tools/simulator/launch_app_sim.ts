@@ -10,7 +10,10 @@ import {
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
-import { launchSimulatorApp } from '../../../utils/simulator-steps.ts';
+import {
+  launchSimulatorAppWithLogging,
+  type LaunchWithLoggingResult,
+} from '../../../utils/simulator-steps.ts';
 
 const baseSchemaObject = z.object({
   simulatorId: z
@@ -45,9 +48,12 @@ const internalSchemaObject = z.object({
 
 export type LaunchAppSimParams = z.infer<typeof internalSchemaObject>;
 
+export type SimulatorLauncher = typeof launchSimulatorAppWithLogging;
+
 export async function launch_app_simLogic(
   params: LaunchAppSimParams,
   executor: CommandExecutor,
+  launcher: SimulatorLauncher = launchSimulatorAppWithLogging,
 ): Promise<ToolResponse> {
   const simulatorId = params.simulatorId;
   const simulatorDisplayName = params.simulatorName
@@ -92,7 +98,7 @@ export async function launch_app_simLogic(
 
   return withErrorHandling(
     async () => {
-      const launchResult = await launchSimulatorApp(simulatorId, params.bundleId, executor, {
+      const launchResult: LaunchWithLoggingResult = await launcher(simulatorId, params.bundleId, {
         args: params.args,
         env: params.env,
       });
@@ -104,21 +110,27 @@ export async function launch_app_simLogic(
         ]);
       }
 
+      const detailItems: Array<{ label: string; value: string }> = [];
+      if (launchResult.processId !== undefined) {
+        detailItems.push({ label: 'Process ID', value: String(launchResult.processId) });
+      }
+      if (launchResult.logFilePath) {
+        detailItems.push({ label: 'Runtime Logs', value: launchResult.logFilePath });
+      }
+      if (launchResult.osLogPath) {
+        detailItems.push({ label: 'OSLog', value: launchResult.osLogPath });
+      }
+
       const events = [
         headerEvent,
         statusLine('success', 'App launched successfully'),
-        ...(launchResult.processId !== undefined
-          ? [detailTree([{ label: 'Process ID', value: String(launchResult.processId) }])]
-          : []),
+        ...(detailItems.length > 0 ? [detailTree(detailItems)] : []),
       ];
 
       return toolResponse(events, {
         nextStepParams: {
           open_sim: {},
-          start_sim_log_cap: [
-            { simulatorId, bundleId: params.bundleId },
-            { simulatorId, bundleId: params.bundleId, captureConsole: true },
-          ],
+          stop_app_sim: { simulatorId, bundleId: params.bundleId },
         },
       });
     },

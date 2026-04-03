@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import { ChildProcess } from 'child_process';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
@@ -151,6 +152,8 @@ describe('get_sim_app_path tool', () => {
         'Debug',
         '-destination',
         'platform=iOS Simulator,name=iPhone 17,OS=latest',
+        '-derivedDataPath',
+        DERIVED_DATA_DIR,
       ]);
 
       expect(result.isError).toBeFalsy();

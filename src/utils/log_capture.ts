@@ -9,6 +9,7 @@ import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from './comma
 import { normalizeSimctlChildEnv } from './environment.ts';
 import type { FileSystemExecutor } from './FileSystemExecutor.ts';
 import { acquireDaemonActivity } from '../daemon/activity-registry.ts';
+import { LOG_DIR as APP_LOG_DIR } from './log-paths.ts';
 
 /**
  * Log file retention policy:
@@ -16,8 +17,6 @@ import { acquireDaemonActivity } from '../daemon/activity-registry.ts';
  * - Cleanup runs on every new log capture start
  */
 const LOG_RETENTION_DAYS = 3;
-const LOG_SUBDIR = 'xcodemcp';
-const LOG_DIR = 'logs';
 
 export interface LogSession {
   processes: ChildProcess[];
@@ -89,8 +88,8 @@ export async function startLogCapture(
   } = params;
   const logSessionId = uuidv4();
   const ts = new Date().toISOString().replace(/:/g, '-').replace('.', '-').slice(0, -1) + 'Z';
-  const logFileName = `${bundleId}_${ts}.log`;
-  const logsDir = path.join(fileSystem.tmpdir(), LOG_SUBDIR, LOG_DIR);
+  const logFileName = `${bundleId}_${ts}_pid${process.pid}.log`;
+  const logsDir = APP_LOG_DIR;
   const logFilePath = path.join(logsDir, logFileName);
 
   let logStream: Writable | null = null;
@@ -205,6 +204,9 @@ export async function startLogCapture(
       process.on('close', (code) => {
         log('info', `A log capture process for session ${logSessionId} exited with code ${code}.`);
       });
+      process.unref?.();
+      (process.stdout as any)?.unref?.();
+      (process.stderr as any)?.unref?.();
     }
 
     const releaseActivity = acquireDaemonActivity('logging.simulator');
@@ -357,7 +359,7 @@ export async function stopAllLogCaptures(timeoutMs = 1000): Promise<{
  * Runs quietly; errors are logged but do not throw.
  */
 async function cleanOldLogs(fileSystem: FileSystemExecutor): Promise<void> {
-  const logsDir = path.join(fileSystem.tmpdir(), LOG_SUBDIR, LOG_DIR);
+  const logsDir = APP_LOG_DIR;
   let files: unknown[];
   try {
     files = await fileSystem.readdir(logsDir);

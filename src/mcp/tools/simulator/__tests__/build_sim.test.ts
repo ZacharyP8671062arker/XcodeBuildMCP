@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import {
   createMockExecutor,
@@ -203,6 +204,8 @@ describe('build_sim tool', () => {
           '-skipMacroValidation',
           '-destination',
           'platform=iOS Simulator,name=iPhone 17,OS=latest',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
           'build',
         ],
         'iOS Simulator Build',
@@ -234,6 +237,8 @@ describe('build_sim tool', () => {
           '-skipMacroValidation',
           '-destination',
           'platform=iOS Simulator,name=iPhone 17,OS=latest',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
           'build',
         ],
         'iOS Simulator Build',
@@ -303,6 +308,8 @@ describe('build_sim tool', () => {
           '-skipMacroValidation',
           '-destination',
           'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
           'build',
         ],
         'iOS Simulator Build',
@@ -335,6 +342,8 @@ describe('build_sim tool', () => {
           '-skipMacroValidation',
           '-destination',
           'platform=iOS Simulator,name=iPhone 17,OS=latest',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
           'build',
         ],
         'iOS Simulator Build',
@@ -366,6 +375,8 @@ describe('build_sim tool', () => {
           '-skipMacroValidation',
           '-destination',
           'platform=watchOS Simulator,name=Apple Watch Ultra 2,OS=latest',
+          '-derivedDataPath',
+          DERIVED_DATA_DIR,
           'build',
         ],
         'watchOS Simulator Build',

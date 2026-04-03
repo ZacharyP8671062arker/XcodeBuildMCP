@@ -1,7 +1,0 @@
-📊 Coverage Report
-
-  xcresult: <TMPDIR>/invalid.xcresult
-
-❌ Failed to get coverage report: Failed to load result bundle.
-
-Hint: Run tests with coverage enabled (e.g., xcodebuild test -enableCodeCoverage YES).

@@ -1,8 +1,0 @@
-🧪 Swift Package Test
-
-  Package: example_projects/SwiftPackage
-
-Failures (1):
-  ✗ IntentionalFailureTests.testShouldFail — #expect failed
-
-❌ Tests failed. (1 failure, <DURATION>)

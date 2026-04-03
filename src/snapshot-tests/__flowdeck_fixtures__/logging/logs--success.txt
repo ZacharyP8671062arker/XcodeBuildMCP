@@ -1,7 +1,0 @@
-[38;2;220;80;80m✗[0m Multiple apps (2) found matching 'io.sentry.calculatorapp'.
-
-Be more specific by using the short ID (e.g., abc123)
-instead of the bundle ID.
-
-To see app IDs:
-  flowdeck apps

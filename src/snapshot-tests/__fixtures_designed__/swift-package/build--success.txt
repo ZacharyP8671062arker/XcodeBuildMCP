@@ -1,5 +1,0 @@
-📦 Swift Package Build
-
-  Package: example_projects/SwiftPackage
-
-✅ Build succeeded. (<DURATION>)

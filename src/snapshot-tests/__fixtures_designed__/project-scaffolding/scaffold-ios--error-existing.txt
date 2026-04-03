@@ -1,5 +1,0 @@
-🏗️ Scaffold iOS Project
-
-  Path: <TMPDIR>/ios-existing
-
-❌ Xcode project files already exist in <TMPDIR>/ios-existing.

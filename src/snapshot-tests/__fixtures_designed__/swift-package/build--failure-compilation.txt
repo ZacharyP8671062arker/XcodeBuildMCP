@@ -1,8 +1,0 @@
-📦 Swift Package Build
-
-  Package: example_projects/SwiftPackage
-
-Errors (1):
-  ✗ Sources/CompileError.swift:3: Cannot convert value of type 'String' to specified type 'Int'
-
-❌ Build failed. (<DURATION>)

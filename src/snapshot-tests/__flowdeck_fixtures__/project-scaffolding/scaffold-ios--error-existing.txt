@@ -1,4 +1,0 @@
-Creating SnapshotTestApp...
-Output directory already exists: /var/folders/_t/2njffz894t57qpp76v1sw__h0000gn/T/fd-scaffold-EOFXZY/ios-existing/SnapshotTestApp
-
-Choose a different name or remove the existing directory.

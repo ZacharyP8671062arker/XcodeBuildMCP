@@ -1,8 +1,0 @@
-📊 File Coverage
-
-  xcresult: <TMPDIR>/invalid.xcresult
-  File: SomeFile.swift
-
-❌ Failed to get file coverage: Failed to load result bundle.
-
-Hint: Make sure the xcresult bundle contains coverage data for "SomeFile.swift".

@@ -1,8 +1,0 @@
-🧹 Clean Started
-
-   Workspace: CalculatorApp.xcworkspace
-   Scheme: NONEXISTENT
-   Derived Data: /Users/cameroncooke/Library/Developer/FlowDeck/DerivedData/XcodeBuildMCP-21505d5e586f
-
-   → 🧹 Cleaning build folder...
-[38;2;220;80;80m✗[0m Clean failed

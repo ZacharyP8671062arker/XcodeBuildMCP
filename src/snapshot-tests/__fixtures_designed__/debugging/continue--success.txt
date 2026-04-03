@@ -1,7 +1,0 @@
-🐛 Continue
-
-✅ Resumed debugger session.
-
-Next steps:
-1. View stack trace: xcodebuildmcp debugging stack
-2. View variables: xcodebuildmcp debugging variables

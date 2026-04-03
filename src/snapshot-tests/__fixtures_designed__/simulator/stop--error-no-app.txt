@@ -1,6 +1,0 @@
-🛑 Stop App
-
-  Simulator: <UUID>
-  Bundle ID: com.nonexistent.app
-
-❌ Failed to stop app: An error was encountered processing the command (domain=com.apple.CoreSimulator.SimError, code=164): found nothing to terminate

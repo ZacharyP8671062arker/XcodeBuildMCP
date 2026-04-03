@@ -1,5 +1,0 @@
-🧹 Swift Package Clean
-
-  Package: example_projects/SwiftPackage
-
-✅ Clean succeeded. Build artifacts removed.

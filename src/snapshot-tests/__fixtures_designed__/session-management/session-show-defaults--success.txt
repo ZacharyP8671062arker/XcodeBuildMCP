@@ -1,4 +1,0 @@
-⚙️ Show Defaults
-
-  Workspace: example_projects/iOS_Calculator/CalculatorApp.xcworkspace
-  Scheme: CalculatorApp

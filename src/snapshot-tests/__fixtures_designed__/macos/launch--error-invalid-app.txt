@@ -1,5 +1,0 @@
-🚀 Launch macOS App
-
-  App: <TMPDIR>/Fake.app
-
-❌ Launch failed: The application cannot be opened because its executable is missing.

@@ -1,6 +1,0 @@
-👆 Tap
-
-  Simulator: <UUID>
-  Position: (100, 100)
-
-❌ Failed to simulate tap: Simulator with UDID <UUID> not found.

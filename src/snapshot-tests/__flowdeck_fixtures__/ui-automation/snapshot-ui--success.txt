@@ -1,4 +1,0 @@
-[38;2;100;200;100m✓[0m Screen captured
-   Screenshot: /var/folders/_t/2njffz894t57qpp76v1sw__h0000gn/T/flowdeck-snapshot-6964B0E1-603B-4174-9211-F97A6112E6C7.png
-   Elements: 21
-   Size: 402x874 points (402x874 px)

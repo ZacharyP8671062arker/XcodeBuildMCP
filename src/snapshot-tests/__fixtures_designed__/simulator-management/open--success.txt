@@ -1,8 +1,0 @@
-📱 Open Simulator
-
-✅ Simulator app opened successfully.
-
-Next steps:
-1. Boot simulator: xcodebuildmcp simulator-management boot --simulator-id "UUID_FROM_LIST_SIMS"
-2. Start log capture: xcodebuildmcp logging start-simulator-log-capture --simulator-id "UUID" --bundle-id "YOUR_APP_BUNDLE_ID"
-3. Launch app with logs: xcodebuildmcp simulator launch-app-with-logs --simulator-id "UUID" --bundle-id "YOUR_APP_BUNDLE_ID"

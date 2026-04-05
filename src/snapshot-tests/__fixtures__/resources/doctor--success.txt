@@ -86,6 +86,10 @@ PATH
   /Users/<redacted>/.cargo/bin
   /Users/<redacted>/.lmstudio/bin
   /Users/<redacted>/go/bin
+  /Users/<redacted>/.claude/plugins/marketplaces/sentry-skills/plugins/sentry-skills/bin
+  /Users/<redacted>/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-simplifier/bin
+  /Users/<redacted>/.claude/plugins/cache/claude-plugins-official/sentry/1.0.0/bin
+  /Users/<redacted>/.claude/plugins/marketplaces/claude-plugins-official/plugins/swift-lsp/bin
 
 UI Automation (axe)
   Available: Yes
@@ -107,19 +111,18 @@ Debugger Backend (DAP)
   Selected backend: dap
 
 Manifest Tool Inventory
-  Total Unique Tools: 82
-  Workflow Count: 16
+  Total Unique Tools: 77
+  Workflow Count: 15
   coverage: 2 tools
   debugging: 8 tools
-  device: 17 tools
+  device: 15 tools
   doctor: 1 tools
-  logging: 4 tools
   macos: 13 tools
   project-discovery: 5 tools
   project-scaffolding: 2 tools
   session-management: 5 tools
   simulator-management: 8 tools
-  simulator: 23 tools
+  simulator: 20 tools
   swift-package: 8 tools
   ui-automation: 11 tools
   utilities: 1 tools

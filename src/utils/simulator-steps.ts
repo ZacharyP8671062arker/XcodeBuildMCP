@@ -112,7 +112,7 @@ export async function launchSimulatorApp(
   return { success: true, processId };
 }
 
-const PID_POLL_TIMEOUT_MS = 2000;
+const PID_POLL_TIMEOUT_MS = 5000;
 const PID_POLL_INTERVAL_MS = 100;
 
 export type ProcessSpawner = (
@@ -194,8 +194,7 @@ export async function launchSimulatorAppWithLogging(
       };
     }
 
-    // Poll log file for PID (first line is "bundleId: pid")
-    const processId = await pollForPid(logFilePath);
+    const processId = await resolveAppPid(logFilePath);
 
     // Start OSLog stream as a separate detached process writing to its own file
     const osLogPath = startOsLogStream(simulatorUuid, bundleId, logsDir, spawner);
@@ -216,15 +215,20 @@ export async function launchSimulatorAppWithLogging(
   }
 }
 
-async function pollForPid(logFilePath: string): Promise<number | undefined> {
+async function resolveAppPid(logFilePath: string): Promise<number | undefined> {
   const start = Date.now();
   while (Date.now() - start < PID_POLL_TIMEOUT_MS) {
     const content = readLogFileSafe(logFilePath);
     if (content) {
-      const firstLine = content.split('\n')[0] ?? '';
-      const pidMatch = firstLine.match(/:\s*(\d+)/);
-      if (pidMatch) {
-        return parseInt(pidMatch[1], 10);
+      for (const line of content.split('\n')) {
+        const bracketMatch = line.match(/\[(\d{3,})\]/);
+        if (bracketMatch) {
+          return parseInt(bracketMatch[1], 10);
+        }
+        const colonMatch = line.match(/:\s*(\d+)\s*$/);
+        if (colonMatch) {
+          return parseInt(colonMatch[1], 10);
+        }
       }
     }
     await new Promise((resolve) => setTimeout(resolve, PID_POLL_INTERVAL_MS));

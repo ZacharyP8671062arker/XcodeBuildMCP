@@ -610,3 +610,8 @@ Settings
       __ORIGINAL_SDK_DEFINED_LLVM_TARGET_TRIPLE_SYS = ios
       arch = undefined_arch
       variant = normal
+
+Next steps:
+1. Build for macOS: xcodebuildmcp macos build --workspace-path "example_projects/iOS_Calculator/CalculatorApp.xcworkspace" --scheme "CalculatorApp"
+2. Build for iOS Simulator: xcodebuildmcp simulator build --workspace-path "example_projects/iOS_Calculator/CalculatorApp.xcworkspace" --scheme "CalculatorApp" --simulator-name "iPhone 17"
+3. List schemes: xcodebuildmcp device list-schemes --workspace-path "example_projects/iOS_Calculator/CalculatorApp.xcworkspace"

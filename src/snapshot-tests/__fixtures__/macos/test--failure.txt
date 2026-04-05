@@ -4,6 +4,7 @@
    Scheme: MCPTest
    Configuration: Debug
    Platform: macOS
+   Derived Data: <HOME>/Library/Developer/XcodeBuildMCP/DerivedData
 
 MCPTestsXCTests
   ✗ testDeliberateFailure():
@@ -16,4 +17,4 @@ MCPTestTests
         MCPTestTests.swift:11
 
 ❌ 2 tests failed, 2 passed, 0 skipped (⏱️ <DURATION>)
-  └ Build Logs: <TMPDIR>/logs/test_macos_<TIMESTAMP>.log
+  └ Build Logs: <HOME>/Library/Developer/XcodeBuildMCP/logs/test_macos_<TIMESTAMP>_pid<PID>.log

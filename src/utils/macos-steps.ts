@@ -43,18 +43,32 @@ export async function launchMacApp(
   }
 
   const appName = path.basename(appPath, '.app');
-  let processId: number | undefined;
-  try {
-    const pgrepResult = await executor(['pgrep', '-x', appName], 'Get Process ID', false);
-    if (pgrepResult.success && pgrepResult.output) {
-      const pid = parseInt(pgrepResult.output.trim().split('\n')[0], 10);
-      if (!isNaN(pid)) {
-        processId = pid;
-      }
-    }
-  } catch {
-    // non-fatal
-  }
+  const processId = await resolveProcessId(appName, executor);
 
   return { success: true, bundleId, processId };
+}
+
+const MAC_PID_TIMEOUT_MS = 2000;
+const MAC_PID_INTERVAL_MS = 100;
+
+async function resolveProcessId(
+  appName: string,
+  executor: CommandExecutor,
+): Promise<number | undefined> {
+  const start = Date.now();
+  while (Date.now() - start < MAC_PID_TIMEOUT_MS) {
+    try {
+      const pgrepResult = await executor(['pgrep', '-x', appName], 'Get Process ID', false);
+      if (pgrepResult.success && pgrepResult.output) {
+        const pid = parseInt(pgrepResult.output.trim().split('\n')[0], 10);
+        if (!isNaN(pid)) {
+          return pid;
+        }
+      }
+    } catch {
+      // not visible yet
+    }
+    await new Promise((resolve) => setTimeout(resolve, MAC_PID_INTERVAL_MS));
+  }
+  return undefined;
 }

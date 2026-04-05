@@ -27,3 +27,8 @@ Hints
   Use the device ID/UDID from above when required by other tools.
   Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.
   Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.
+
+Next steps:
+1. Build for device: xcodebuildmcp device build
+2. Run tests on device: xcodebuildmcp device test
+3. Get app path: xcodebuildmcp device get-app-path

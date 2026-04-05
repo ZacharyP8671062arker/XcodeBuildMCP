@@ -581,3 +581,8 @@ Tips
   - Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)
   - If a debugger is attached, ensure the app is running (not stopped on breakpoints)
   - Screenshots are for visual verification only
+
+Next steps:
+1. Refresh after layout changes: xcodebuildmcp simulator snapshot-ui --simulator-id "<UUID>"
+2. Tap on element: xcodebuildmcp ui-automation tap --simulator-id "<UUID>" --x "0" --y "0"
+3. Take screenshot for verification: xcodebuildmcp simulator screenshot --simulator-id "<UUID>"

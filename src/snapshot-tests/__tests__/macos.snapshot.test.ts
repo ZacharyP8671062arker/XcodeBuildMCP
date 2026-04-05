@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createSnapshotHarness } from '../harness.ts';
 import { expectMatchesFixture } from '../fixture-io.ts';
 import type { SnapshotHarness } from '../harness.ts';
+import { DERIVED_DATA_DIR } from '../../utils/log-paths.ts';
 
 const PROJECT = 'example_projects/macOS/MCPTest.xcodeproj';
 
@@ -148,7 +149,7 @@ describe('macos workflow', () => {
   describe('launch', () => {
     it('success', { timeout: 120000 }, async () => {
       const settingsOutput = execSync(
-        `xcodebuild -project ${PROJECT} -scheme MCPTest -showBuildSettings 2>/dev/null`,
+        `xcodebuild -project ${PROJECT} -scheme MCPTest -showBuildSettings -derivedDataPath '${DERIVED_DATA_DIR}' 2>/dev/null`,
         { encoding: 'utf8' },
       );
       const match = settingsOutput.match(/BUILT_PRODUCTS_DIR = (.+)/);
@@ -175,7 +176,7 @@ describe('macos workflow', () => {
   describe('stop', () => {
     it('success', { timeout: 120000 }, async () => {
       const settingsOutput = execSync(
-        `xcodebuild -project ${PROJECT} -scheme MCPTest -showBuildSettings 2>/dev/null`,
+        `xcodebuild -project ${PROJECT} -scheme MCPTest -showBuildSettings -derivedDataPath '${DERIVED_DATA_DIR}' 2>/dev/null`,
         { encoding: 'utf8' },
       );
       const match = settingsOutput.match(/BUILT_PRODUCTS_DIR = (.+)/);

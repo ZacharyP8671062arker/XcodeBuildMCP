@@ -24,3 +24,6 @@ File: example_projects/iOS_Calculator/CalculatorAppPackage/Sources/CalculatorApp
    L63  CalculatorService.inputDecimal() -- 92.9% (13/14 lines)
 
 🟢 Full Coverage (28 functions) -- all at 100%
+
+Next steps:
+1. View overall coverage: xcodebuildmcp coverage get-coverage-report --xcresult-path "<TMPDIR>/TestResults.xcresult"

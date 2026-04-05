@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process';
 import { createSnapshotHarness, ensureSimulatorBooted } from '../harness.ts';
 import { expectMatchesFixture } from '../fixture-io.ts';
 import type { SnapshotHarness } from '../harness.ts';
+import { DERIVED_DATA_DIR } from '../../utils/log-paths.ts';
 
 const WORKSPACE = 'example_projects/iOS_Calculator/CalculatorApp.xcworkspace';
 
@@ -138,7 +139,7 @@ describe('simulator workflow', () => {
   describe('install', () => {
     it('success', async () => {
       const settingsOutput = execSync(
-        `xcodebuild -workspace ${WORKSPACE} -scheme CalculatorApp -showBuildSettings -destination 'platform=iOS Simulator,name=iPhone 17' 2>/dev/null`,
+        `xcodebuild -workspace ${WORKSPACE} -scheme CalculatorApp -showBuildSettings -derivedDataPath '${DERIVED_DATA_DIR}' -destination 'platform=iOS Simulator,name=iPhone 17' 2>/dev/null`,
         { encoding: 'utf8' },
       );
       const match = settingsOutput.match(/BUILT_PRODUCTS_DIR = (.+)/);

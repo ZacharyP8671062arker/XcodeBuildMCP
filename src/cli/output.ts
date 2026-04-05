@@ -50,6 +50,13 @@ export function printToolResponse(
   const { format = 'text', style = 'normal' } = options;
 
   if (isCompletePipelineStream(response) || process.env.XCODEBUILDMCP_VERBOSE === '1') {
+    if (!response.isError && style !== 'minimal') {
+      const nextStepsText = extractRenderedNextSteps(response);
+      if (nextStepsText.length > 0) {
+        writeLine('');
+        writeLine(nextStepsText);
+      }
+    }
     if (response.isError) {
       process.exitCode = 1;
     }

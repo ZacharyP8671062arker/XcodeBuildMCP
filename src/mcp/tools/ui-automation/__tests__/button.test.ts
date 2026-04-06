@@ -8,7 +8,40 @@ import {
 import { schema, handler, buttonLogic } from '../button.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('Button Plugin', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -52,13 +85,15 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'home',
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'home',
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -86,14 +121,16 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'side-button',
-          duration: 2.5,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'side-button',
+            duration: 2.5,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -123,13 +160,15 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'apple-pay',
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'apple-pay',
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -157,13 +196,15 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
       };
 
-      await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'siri',
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'siri',
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -243,13 +284,15 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'home',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'home',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -269,14 +312,16 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'side-button',
-          duration: 2.5,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'side-button',
+            duration: 2.5,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -289,13 +334,15 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'home',
-        },
-        createNoopExecutor(),
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'home',
+          },
+          createNoopExecutor(),
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -315,13 +362,15 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'home',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'home',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -340,13 +389,15 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'home',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'home',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(allText(result)).toMatch(
@@ -365,13 +416,15 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'home',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'home',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(allText(result)).toMatch(
@@ -390,13 +443,15 @@ describe('Button Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await buttonLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          buttonType: 'home',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        buttonLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            buttonType: 'home',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);

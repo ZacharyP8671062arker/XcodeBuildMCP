@@ -3,7 +3,40 @@ import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, install_app_deviceLogic } from '../install_app_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('install_app_device plugin', () => {
   beforeEach(() => {
@@ -63,12 +96,14 @@ describe('install_app_device plugin', () => {
         return mockExecutor(command, description, useShell, opts, _detached);
       };
 
-      await install_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          appPath: '/path/to/test.app',
-        },
-        trackingExecutor,
+      await runLogic(() =>
+        install_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            appPath: '/path/to/test.app',
+          },
+          trackingExecutor,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -100,12 +135,14 @@ describe('install_app_device plugin', () => {
         return mockExecutor(command);
       };
 
-      await install_app_deviceLogic(
-        {
-          deviceId: 'different-device-uuid',
-          appPath: '/apps/MyApp.app',
-        },
-        trackingExecutor,
+      await runLogic(() =>
+        install_app_deviceLogic(
+          {
+            deviceId: 'different-device-uuid',
+            appPath: '/apps/MyApp.app',
+          },
+          trackingExecutor,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -134,12 +171,14 @@ describe('install_app_device plugin', () => {
         return mockExecutor(command);
       };
 
-      await install_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          appPath: '/path/to/My App.app',
-        },
-        trackingExecutor,
+      await runLogic(() =>
+        install_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            appPath: '/path/to/My App.app',
+          },
+          trackingExecutor,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -162,12 +201,14 @@ describe('install_app_device plugin', () => {
         output: 'App installation successful',
       });
 
-      const result = await install_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          appPath: '/path/to/test.app',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        install_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            appPath: '/path/to/test.app',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -181,12 +222,14 @@ describe('install_app_device plugin', () => {
         error: 'Installation failed: App not found',
       });
 
-      const result = await install_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          appPath: '/path/to/nonexistent.app',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        install_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            appPath: '/path/to/nonexistent.app',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -195,12 +238,14 @@ describe('install_app_device plugin', () => {
     it('should return exception handling response', async () => {
       const mockExecutor = createMockExecutor(new Error('Network error'));
 
-      const result = await install_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          appPath: '/path/to/test.app',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        install_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            appPath: '/path/to/test.app',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);

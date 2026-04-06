@@ -1,12 +1,9 @@
 import * as z from 'zod';
-import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { persistActiveSessionDefaultsProfile } from '../../../utils/config-store.ts';
 import { sessionStore } from '../../../utils/session-store.ts';
-import type { ToolResponse } from '../../../types/common.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
-import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { formatProfileLabel, formatProfileAnnotation } from './session-format-helpers.ts';
 
 const schemaObj = z.object({
@@ -30,15 +27,15 @@ function resolveProfileToActivate(params: Params): string | null | undefined {
   return params.profile.trim();
 }
 
-export async function sessionUseDefaultsProfileLogic(params: Params): Promise<ToolResponse> {
+export async function sessionUseDefaultsProfileLogic(params: Params): Promise<void> {
+  const ctx = getHandlerContext();
   const notices: string[] = [];
   const errorHeader = header('Use Defaults Profile');
 
   if (params.global === true && params.profile !== undefined) {
-    return toolResponse([
-      errorHeader,
-      statusLine('error', 'Provide either global=true or profile, not both.'),
-    ]);
+    ctx.emit(errorHeader);
+    ctx.emit(statusLine('error', 'Provide either global=true or profile, not both.'));
+    return;
   }
 
   const beforeProfile = sessionStore.getActiveProfile();
@@ -46,13 +43,14 @@ export async function sessionUseDefaultsProfileLogic(params: Params): Promise<To
 
   if (typeof profileToActivate === 'string') {
     if (profileToActivate.length === 0) {
-      return toolResponse([errorHeader, statusLine('error', 'Profile name cannot be empty.')]);
+      ctx.emit(errorHeader);
+      ctx.emit(statusLine('error', 'Profile name cannot be empty.'));
+      return;
     }
     if (!sessionStore.listProfiles().includes(profileToActivate)) {
-      return toolResponse([
-        errorHeader,
-        statusLine('error', `Profile "${profileToActivate}" does not exist.`),
-      ]);
+      ctx.emit(errorHeader);
+      ctx.emit(statusLine('error', `Profile "${profileToActivate}" does not exist.`));
+      return;
     }
   }
 
@@ -66,20 +64,18 @@ export async function sessionUseDefaultsProfileLogic(params: Params): Promise<To
     notices.push(`Persisted active profile selection to ${path}`);
   }
 
-  const profileAnnotation = formatProfileAnnotation(active);
-  const events: PipelineEvent[] = [
+  ctx.emit(
     header('Use Defaults Profile', [
       { label: 'Current profile', value: formatProfileLabel(beforeProfile) },
     ]),
-  ];
+  );
 
   if (notices.length > 0) {
-    events.push(section('Notices', notices));
+    ctx.emit(section('Notices', notices));
   }
 
-  events.push(statusLine('success', `Activated profile ${profileAnnotation}`));
-
-  return toolResponse(events);
+  const profileAnnotation = formatProfileAnnotation(active);
+  ctx.emit(statusLine('success', `Activated profile ${profileAnnotation}`));
 }
 
 export const schema = schemaObj.shape;

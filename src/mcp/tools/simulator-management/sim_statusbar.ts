@@ -6,6 +6,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -36,7 +37,7 @@ type SimStatusbarParams = z.infer<typeof simStatusbarSchema>;
 export async function sim_statusbarLogic(
   params: SimStatusbarParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   log(
     'info',
     `Setting simulator ${params.simulatorId} status bar data network to ${params.dataNetwork}`,
@@ -47,44 +48,63 @@ export async function sim_statusbarLogic(
     { label: 'Data Network', value: params.dataNetwork },
   ]);
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      let command: string[];
+      const response = await (async (): Promise<ToolResponse> => {
+        let command: string[];
 
-      if (params.dataNetwork === 'clear') {
-        command = ['xcrun', 'simctl', 'status_bar', params.simulatorId, 'clear'];
-      } else {
-        command = [
-          'xcrun',
-          'simctl',
-          'status_bar',
-          params.simulatorId,
-          'override',
-          '--dataNetwork',
-          params.dataNetwork,
-        ];
+        if (params.dataNetwork === 'clear') {
+          command = ['xcrun', 'simctl', 'status_bar', params.simulatorId, 'clear'];
+        } else {
+          command = [
+            'xcrun',
+            'simctl',
+            'status_bar',
+            params.simulatorId,
+            'override',
+            '--dataNetwork',
+            params.dataNetwork,
+          ];
+        }
+
+        const result = await executor(command, 'Set Status Bar', false);
+
+        if (!result.success) {
+          log(
+            'error',
+            `Failed to set status bar: ${result.error} (simulator: ${params.simulatorId})`,
+          );
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Failed to set status bar: ${result.error}`),
+          ]);
+        }
+
+        const successMsg =
+          params.dataNetwork === 'clear'
+            ? 'Status bar overrides cleared'
+            : 'Status bar data network set successfully';
+
+        log('info', `${successMsg} (simulator: ${params.simulatorId})`);
+        return toolResponse([headerEvent, statusLine('success', successMsg)]);
+      })();
+
+      if (!response) {
+        return;
       }
 
-      const result = await executor(command, 'Set Status Bar', false);
-
-      if (!result.success) {
-        log(
-          'error',
-          `Failed to set status bar: ${result.error} (simulator: ${params.simulatorId})`,
-        );
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Failed to set status bar: ${result.error}`),
-        ]);
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
       }
-
-      const successMsg =
-        params.dataNetwork === 'clear'
-          ? 'Status bar overrides cleared'
-          : 'Status bar data network set successfully';
-
-      log('info', `${successMsg} (simulator: ${params.simulatorId})`);
-      return toolResponse([headerEvent, statusLine('success', successMsg)]);
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

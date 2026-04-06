@@ -4,7 +4,40 @@ import { createMockExecutor, mockProcess } from '../../../../test-utils/mock-exe
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, touchLogic } from '../touch.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('Touch Plugin', () => {
   beforeEach(() => {
@@ -119,15 +152,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -160,15 +195,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 150,
-          y: 250,
-          up: true,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 150,
+            y: 250,
+            up: true,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -201,16 +238,18 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 300,
-          y: 400,
-          down: true,
-          up: true,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 300,
+            y: 400,
+            down: true,
+            up: true,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -244,17 +283,19 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 50,
-          y: 75,
-          down: true,
-          up: true,
-          delay: 1.5,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 50,
+            y: 75,
+            down: true,
+            up: true,
+            delay: 1.5,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -290,16 +331,18 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
       };
 
-      await touchLogic(
-        {
-          simulatorId: 'ABCDEF12-3456-7890-ABCD-ABCDEFABCDEF',
-          x: 0,
-          y: 0,
-          up: true,
-          delay: 0.5,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: 'ABCDEF12-3456-7890-ABCD-ABCDEFABCDEF',
+            x: 0,
+            y: 0,
+            up: true,
+            delay: 0.5,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -326,15 +369,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -348,15 +393,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -372,15 +419,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          up: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            up: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -392,13 +441,15 @@ describe('Touch Plugin', () => {
     it('should return error when neither down nor up is specified', async () => {
       const mockExecutor = createMockExecutor({ success: true });
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -417,15 +468,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -446,15 +499,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          up: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            up: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -475,16 +530,18 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-          up: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+            up: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -501,15 +558,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -528,15 +587,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -555,15 +616,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -579,15 +642,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -603,15 +668,17 @@ describe('Touch Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await touchLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          down: true,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        touchLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            down: true,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);

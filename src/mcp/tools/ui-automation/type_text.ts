@@ -18,6 +18,7 @@ import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../utils/axe-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
 import type { AxeHelpers } from './shared/axe-command.ts';
@@ -43,7 +44,7 @@ export async function type_textLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const toolName = 'type_text';
 
   const { simulatorId, text } = params;
@@ -64,15 +65,34 @@ export async function type_textLogic(
     `${LOG_PREFIX}/${toolName}: Starting type "${text.substring(0, 20)}..." on ${simulatorId}`,
   );
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      await executeAxeCommand(commandArgs, simulatorId, 'type', executor, axeHelpers);
-      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-      return toolResponse([
-        headerEvent,
-        statusLine('success', 'Text typing simulated successfully.'),
-        ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
-      ]);
+      const response = await (async (): Promise<ToolResponse> => {
+        await executeAxeCommand(commandArgs, simulatorId, 'type', executor, axeHelpers);
+        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+        return toolResponse([
+          headerEvent,
+          statusLine('success', 'Text typing simulated successfully.'),
+          ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
+        ]);
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

@@ -6,7 +6,40 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, launch_app_deviceLogic } from '../launch_app_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('launch_app_device plugin (device-shared)', () => {
   beforeEach(() => {
@@ -62,13 +95,15 @@ describe('launch_app_device plugin (device-shared)', () => {
         return mockExecutor(command, logPrefix, useShell, opts, _detached);
       };
 
-      await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'io.sentry.app',
-        },
-        trackingExecutor,
-        createMockFileSystemExecutor(),
+      await runLogic(() =>
+        launch_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            bundleId: 'io.sentry.app',
+          },
+          trackingExecutor,
+          createMockFileSystemExecutor(),
+        ),
       );
 
       expect(calls).toHaveLength(1);
@@ -103,14 +138,16 @@ describe('launch_app_device plugin (device-shared)', () => {
         return mockExecutor(command);
       };
 
-      await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'io.sentry.app',
-          env: { STAGING_ENABLED: '1', DEBUG: 'true' },
-        },
-        trackingExecutor,
-        createMockFileSystemExecutor(),
+      await runLogic(() =>
+        launch_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            bundleId: 'io.sentry.app',
+            env: { STAGING_ENABLED: '1', DEBUG: 'true' },
+          },
+          trackingExecutor,
+          createMockFileSystemExecutor(),
+        ),
       );
 
       const cmd = calls[0].command;
@@ -133,13 +170,15 @@ describe('launch_app_device plugin (device-shared)', () => {
         return mockExecutor(command);
       };
 
-      await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'io.sentry.app',
-        },
-        trackingExecutor,
-        createMockFileSystemExecutor(),
+      await runLogic(() =>
+        launch_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            bundleId: 'io.sentry.app',
+          },
+          trackingExecutor,
+          createMockFileSystemExecutor(),
+        ),
       );
 
       expect(calls[0].command).not.toContain('--environment-variables');
@@ -153,13 +192,15 @@ describe('launch_app_device plugin (device-shared)', () => {
         output: 'App launched successfully',
       });
 
-      const result = await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'io.sentry.app',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
+      const result = await runLogic(() =>
+        launch_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            bundleId: 'io.sentry.app',
+          },
+          mockExecutor,
+          createMockFileSystemExecutor(),
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -181,13 +222,15 @@ describe('launch_app_device plugin (device-shared)', () => {
         output: 'App launched successfully',
       });
 
-      const result = await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'io.sentry.app',
-        },
-        mockExecutor,
-        mockFileSystem,
+      const result = await runLogic(() =>
+        launch_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            bundleId: 'io.sentry.app',
+          },
+          mockExecutor,
+          mockFileSystem,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -204,13 +247,15 @@ describe('launch_app_device plugin (device-shared)', () => {
         error: 'Launch failed: App not found',
       });
 
-      const result = await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'com.nonexistent.app',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
+      const result = await runLogic(() =>
+        launch_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            bundleId: 'com.nonexistent.app',
+          },
+          mockExecutor,
+          createMockFileSystemExecutor(),
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -219,13 +264,15 @@ describe('launch_app_device plugin (device-shared)', () => {
     it('should handle executor exception with Error object', async () => {
       const mockExecutor = createMockExecutor(new Error('Network error'));
 
-      const result = await launch_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          bundleId: 'io.sentry.app',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
+      const result = await runLogic(() =>
+        launch_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            bundleId: 'io.sentry.app',
+          },
+          mockExecutor,
+          createMockFileSystemExecutor(),
+        ),
       );
 
       expect(result.isError).toBe(true);

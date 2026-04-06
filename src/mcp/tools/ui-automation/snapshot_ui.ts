@@ -11,6 +11,7 @@ import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../utils/axe-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { recordSnapshotUiCall } from './shared/snapshot-ui-state.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
@@ -32,7 +33,7 @@ export async function snapshot_uiLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const toolName = 'snapshot_ui';
   const { simulatorId } = params;
   const commandArgs = ['describe-ui'];
@@ -49,39 +50,58 @@ export async function snapshot_uiLogic(
 
   log('info', `${LOG_PREFIX}/${toolName}: Starting for ${simulatorId}`);
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      const responseText = await executeAxeCommand(
-        commandArgs,
-        simulatorId,
-        'describe-ui',
-        executor,
-        axeHelpers,
-      );
+      const response = await (async (): Promise<ToolResponse> => {
+        const responseText = await executeAxeCommand(
+          commandArgs,
+          simulatorId,
+          'describe-ui',
+          executor,
+          axeHelpers,
+        );
 
-      recordSnapshotUiCall(simulatorId);
+        recordSnapshotUiCall(simulatorId);
 
-      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-      return toolResponse(
-        [
-          headerEvent,
-          statusLine('success', 'Accessibility hierarchy retrieved successfully.'),
-          section('Accessibility Hierarchy', ['```json', responseText, '```']),
-          section('Tips', [
-            '- Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)',
-            '- If a debugger is attached, ensure the app is running (not stopped on breakpoints)',
-            '- Screenshots are for visual verification only',
-          ]),
-          ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
-        ],
-        {
-          nextStepParams: {
-            snapshot_ui: { simulatorId },
-            tap: { simulatorId, x: 0, y: 0 },
-            screenshot: { simulatorId },
+        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+        return toolResponse(
+          [
+            headerEvent,
+            statusLine('success', 'Accessibility hierarchy retrieved successfully.'),
+            section('Accessibility Hierarchy', ['```json', responseText, '```']),
+            section('Tips', [
+              '- Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)',
+              '- If a debugger is attached, ensure the app is running (not stopped on breakpoints)',
+              '- Screenshots are for visual verification only',
+            ]),
+            ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
+          ],
+          {
+            nextStepParams: {
+              snapshot_ui: { simulatorId },
+              tap: { simulatorId, x: 0, y: 0 },
+              screenshot: { simulatorId },
+            },
           },
-        },
-      );
+        );
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

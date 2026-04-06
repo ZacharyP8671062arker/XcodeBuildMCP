@@ -7,6 +7,40 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, get_sim_app_pathLogic } from '../get_sim_app_path.ts';
 import type { CommandExecutor } from '../../../../utils/CommandExecutor.ts';
 import { XcodePlatform } from '../../../../types/common.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('get_sim_app_path tool', () => {
   beforeEach(() => {
@@ -127,15 +161,17 @@ describe('get_sim_app_path tool', () => {
         };
       };
 
-      const result = await get_sim_app_pathLogic(
-        {
-          workspacePath: '/path/to/workspace.xcworkspace',
-          scheme: 'MyScheme',
-          platform: XcodePlatform.iOSSimulator,
-          simulatorName: 'iPhone 17',
-          useLatestOS: true,
-        },
-        trackingExecutor,
+      const result = await runLogic(() =>
+        get_sim_app_pathLogic(
+          {
+            workspacePath: '/path/to/workspace.xcworkspace',
+            scheme: 'MyScheme',
+            platform: XcodePlatform.iOSSimulator,
+            simulatorName: 'iPhone 17',
+            useLatestOS: true,
+          },
+          trackingExecutor,
+        ),
       );
 
       expect(callHistory).toHaveLength(1);
@@ -174,14 +210,16 @@ describe('get_sim_app_path tool', () => {
         error: 'Failed to run xcodebuild',
       });
 
-      const result = await get_sim_app_pathLogic(
-        {
-          projectPath: '/path/to/project.xcodeproj',
-          scheme: 'MyScheme',
-          platform: XcodePlatform.iOSSimulator,
-          simulatorId: 'SIM-UUID',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        get_sim_app_pathLogic(
+          {
+            projectPath: '/path/to/project.xcodeproj',
+            scheme: 'MyScheme',
+            platform: XcodePlatform.iOSSimulator,
+            simulatorId: 'SIM-UUID',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);

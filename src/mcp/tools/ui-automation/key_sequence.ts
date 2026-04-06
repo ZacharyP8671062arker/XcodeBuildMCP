@@ -17,6 +17,7 @@ import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../utils/axe-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
 import type { AxeHelpers } from './shared/axe-command.ts';
@@ -42,7 +43,7 @@ export async function key_sequenceLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const toolName = 'key_sequence';
   const { simulatorId, keyCodes, delay } = params;
 
@@ -66,15 +67,34 @@ export async function key_sequenceLogic(
     `${LOG_PREFIX}/${toolName}: Starting key sequence [${keyCodes.join(',')}] on ${simulatorId}`,
   );
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      await executeAxeCommand(commandArgs, simulatorId, 'key-sequence', executor, axeHelpers);
-      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-      return toolResponse([
-        headerEvent,
-        statusLine('success', `Key sequence [${keyCodes.join(',')}] executed successfully.`),
-        ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
-      ]);
+      const response = await (async (): Promise<ToolResponse> => {
+        await executeAxeCommand(commandArgs, simulatorId, 'key-sequence', executor, axeHelpers);
+        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+        return toolResponse([
+          headerEvent,
+          statusLine('success', `Key sequence [${keyCodes.join(',')}] executed successfully.`),
+          ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
+        ]);
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

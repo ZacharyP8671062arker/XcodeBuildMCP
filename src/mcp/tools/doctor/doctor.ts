@@ -11,7 +11,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { version } from '../../../utils/version/index.ts';
 import type { ToolResponse } from '../../../types/common.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
-import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { getConfig } from '../../../utils/config-store.ts';
 import { detectXcodeRuntime } from '../../../utils/xcode-process.ts';
 import { type DoctorDependencies, createDoctorDependencies } from './lib/doctor.deps.ts';
@@ -480,6 +480,7 @@ export async function runDoctor(
   events.push(statusLine('success', 'Doctor diagnostics complete'));
 
   const result = toolResponse(events);
+
   // Restore previous silence flag
   if (prevSilence === undefined) {
     delete process.env.XCODEBUILDMCP_SILENCE_LOGS;
@@ -497,8 +498,33 @@ export async function doctorLogic(
   return runDoctor(params, deps);
 }
 
+export async function doctorToolLogic(
+  params: DoctorParams,
+  executor: CommandExecutor,
+): Promise<void> {
+  const ctx = getHandlerContext();
+  const response = await doctorLogic(params, executor);
+
+  const events = response._meta?.events;
+  if (Array.isArray(events)) {
+    for (const event of events as PipelineEvent[]) {
+      ctx.emit(event);
+    }
+  }
+
+  for (const contentItem of response.content) {
+    if (contentItem.type === 'image') {
+      ctx.attach({ data: contentItem.data, mimeType: contentItem.mimeType });
+    }
+  }
+
+  if (response.nextStepParams) {
+    ctx.nextStepParams = response.nextStepParams;
+  }
+}
+
 export const schema = doctorSchema.shape;
 
-export const handler = createTypedTool(doctorSchema, doctorLogic, getDefaultCommandExecutor);
+export const handler = createTypedTool(doctorSchema, doctorToolLogic, getDefaultCommandExecutor);
 
 export type { DoctorDependencies } from './lib/doctor.deps.ts';

@@ -13,6 +13,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -31,7 +32,7 @@ const publicSchemaObject = stopAppDeviceSchema.omit({ deviceId: true } as const)
 export async function stop_app_deviceLogic(
   params: StopAppDeviceParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const { deviceId, processId } = params;
   const headerEvent = header('Stop App', [
     { label: 'Device', value: formatDeviceId(deviceId) },
@@ -40,32 +41,51 @@ export async function stop_app_deviceLogic(
 
   log('info', `Stopping app with PID ${processId} on device ${deviceId}`);
 
-  return withErrorHandling(
-    async () => {
-      const result = await executor(
-        [
-          'xcrun',
-          'devicectl',
-          'device',
-          'process',
-          'terminate',
-          '--device',
-          deviceId,
-          '--pid',
-          processId.toString(),
-        ],
-        'Stop app on device',
-        false,
-      );
+  const ctx = getHandlerContext();
 
-      if (!result.success) {
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Failed to stop app: ${result.error}`),
-        ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        const result = await executor(
+          [
+            'xcrun',
+            'devicectl',
+            'device',
+            'process',
+            'terminate',
+            '--device',
+            deviceId,
+            '--pid',
+            processId.toString(),
+          ],
+          'Stop app on device',
+          false,
+        );
+
+        if (!result.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Failed to stop app: ${result.error}`),
+          ]);
+        }
+
+        return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
+      })();
+
+      if (!response) {
+        return;
       }
 
-      return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

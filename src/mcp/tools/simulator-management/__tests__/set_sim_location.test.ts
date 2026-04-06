@@ -6,6 +6,40 @@ import {
   createNoopExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, set_sim_locationLogic } from '../set_sim_location.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('set_sim_location tool', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -43,13 +77,15 @@ describe('set_sim_location tool', () => {
         });
       };
 
-      await set_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          latitude: 37.7749,
-          longitude: -122.4194,
-        },
-        mockExecutor,
+      await runLogic(() =>
+        set_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            latitude: 37.7749,
+            longitude: -122.4194,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -74,13 +110,15 @@ describe('set_sim_location tool', () => {
         });
       };
 
-      await set_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          latitude: 37.7749,
-          longitude: -122.4194,
-        },
-        mockExecutor,
+      await runLogic(() =>
+        set_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            latitude: 37.7749,
+            longitude: -122.4194,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(capturedArgs).toEqual([
@@ -99,26 +137,30 @@ describe('set_sim_location tool', () => {
         error: undefined,
       });
 
-      const result = await set_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          latitude: 37.7749,
-          longitude: -122.4194,
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        set_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            latitude: 37.7749,
+            longitude: -122.4194,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
     });
 
     it('should handle latitude validation failure', async () => {
-      const result = await set_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          latitude: 95,
-          longitude: -122.4194,
-        },
-        createNoopExecutor(),
+      const result = await runLogic(() =>
+        set_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            latitude: 95,
+            longitude: -122.4194,
+          },
+          createNoopExecutor(),
+        ),
       );
 
       expect(result.content[0]?.text).toContain('Latitude must be between -90 and 90 degrees');
@@ -126,13 +168,15 @@ describe('set_sim_location tool', () => {
     });
 
     it('should handle longitude validation failure', async () => {
-      const result = await set_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          latitude: 37.7749,
-          longitude: -185,
-        },
-        createNoopExecutor(),
+      const result = await runLogic(() =>
+        set_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            latitude: 37.7749,
+            longitude: -185,
+          },
+          createNoopExecutor(),
+        ),
       );
 
       expect(result.content[0]?.text).toContain('Longitude must be between -180 and 180 degrees');
@@ -146,13 +190,15 @@ describe('set_sim_location tool', () => {
         error: 'Simulator not found',
       });
 
-      const result = await set_sim_locationLogic(
-        {
-          simulatorId: 'invalid-uuid',
-          latitude: 37.7749,
-          longitude: -122.4194,
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        set_sim_locationLogic(
+          {
+            simulatorId: 'invalid-uuid',
+            latitude: 37.7749,
+            longitude: -122.4194,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -161,13 +207,15 @@ describe('set_sim_location tool', () => {
     it('should handle exception with Error object', async () => {
       const mockExecutor = createMockExecutor(new Error('Connection failed'));
 
-      const result = await set_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          latitude: 37.7749,
-          longitude: -122.4194,
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        set_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            latitude: 37.7749,
+            longitude: -122.4194,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -180,13 +228,15 @@ describe('set_sim_location tool', () => {
         error: undefined,
       });
 
-      const result = await set_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          latitude: 90,
-          longitude: 180,
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        set_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            latitude: 90,
+            longitude: 180,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();

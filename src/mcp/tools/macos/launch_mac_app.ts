@@ -5,7 +5,7 @@ import type { ToolResponse } from '../../../types/common.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
@@ -22,7 +22,7 @@ export async function launch_mac_appLogic(
   params: LaunchMacAppParams,
   executor: CommandExecutor,
   fileSystem?: FileSystemExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const headerEvent = header('Launch macOS App', [{ label: 'App', value: params.appPath }]);
 
   const fileExistsValidation = validateFileExists(params.appPath, fileSystem);
@@ -32,34 +32,53 @@ export async function launch_mac_appLogic(
 
   log('info', `Starting launch macOS app request for ${params.appPath}`);
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      const result = await launchMacApp(params.appPath, executor, { args: params.args });
+      const response = await (async (): Promise<ToolResponse> => {
+        const result = await launchMacApp(params.appPath, executor, { args: params.args });
 
-      if (!result.success) {
-        return toolResponse([
+        if (!result.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Launch macOS app operation failed: ${result.error}`),
+          ]);
+        }
+
+        const details: Array<{ label: string; value: string }> = [];
+        if (result.bundleId) {
+          details.push({ label: 'Bundle ID', value: result.bundleId });
+        }
+        if (result.processId !== undefined) {
+          details.push({ label: 'Process ID', value: String(result.processId) });
+        }
+
+        const events: PipelineEvent[] = [
           headerEvent,
-          statusLine('error', `Launch macOS app operation failed: ${result.error}`),
-        ]);
+          statusLine('success', 'App launched successfully'),
+        ];
+        if (details.length > 0) {
+          events.push(detailTree(details));
+        }
+
+        return toolResponse(events);
+      })();
+
+      if (!response) {
+        return;
       }
 
-      const details: Array<{ label: string; value: string }> = [];
-      if (result.bundleId) {
-        details.push({ label: 'Bundle ID', value: result.bundleId });
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
       }
-      if (result.processId !== undefined) {
-        details.push({ label: 'Process ID', value: String(result.processId) });
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
       }
-
-      const events: PipelineEvent[] = [
-        headerEvent,
-        statusLine('success', 'App launched successfully'),
-      ];
-      if (details.length > 0) {
-        events.push(detailTree(details));
-      }
-
-      return toolResponse(events);
     },
     {
       header: headerEvent,

@@ -1,12 +1,13 @@
-import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
+import {
+  createTypedToolWithContext,
+  getHandlerContext,
+} from '../../../utils/typed-tool-factory.ts';
 import { sessionStore } from '../../../utils/session-store.ts';
 import { readXcodeIdeState } from '../../../utils/xcode-state-reader.ts';
 import { lookupBundleId } from '../../../utils/xcode-state-watcher.ts';
 import * as z from 'zod';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 import { formatProfileAnnotation } from '../session-management/session-format-helpers.ts';
 
@@ -24,7 +25,8 @@ interface SyncXcodeDefaultsContext {
 export async function syncXcodeDefaultsLogic(
   _params: Params,
   ctx: SyncXcodeDefaultsContext,
-): Promise<ToolResponse> {
+): Promise<void> {
+  const handlerContext = getHandlerContext();
   const headerEvent = header('Sync Xcode Defaults');
 
   const xcodeState = await readXcodeIdeState({
@@ -35,10 +37,9 @@ export async function syncXcodeDefaultsLogic(
   });
 
   if (xcodeState.error) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to read Xcode IDE state: ${xcodeState.error}`),
-    ]);
+    handlerContext.emit(headerEvent);
+    handlerContext.emit(statusLine('error', `Failed to read Xcode IDE state: ${xcodeState.error}`));
+    return;
   }
 
   const synced: Record<string, string> = {};
@@ -68,10 +69,11 @@ export async function syncXcodeDefaultsLogic(
   }
 
   if (Object.keys(synced).length === 0) {
-    return toolResponse([
-      headerEvent,
+    handlerContext.emit(headerEvent);
+    handlerContext.emit(
       statusLine('info', 'No scheme or simulator selection detected in Xcode IDE state.'),
-    ]);
+    );
+    return;
   }
 
   sessionStore.setDefaults(synced);
@@ -80,11 +82,11 @@ export async function syncXcodeDefaultsLogic(
   const profileAnnotation = formatProfileAnnotation(activeProfile);
   const items = Object.entries(synced).map(([k, v]) => ({ label: k, value: v }));
 
-  return toolResponse([
-    headerEvent,
+  handlerContext.emit(headerEvent);
+  handlerContext.emit(
     statusLine('success', `Synced session defaults from Xcode IDE ${profileAnnotation}`),
-    detailTree(items),
-  ]);
+  );
+  handlerContext.emit(detailTree(items));
 }
 
 export const schema = schemaObj.shape;

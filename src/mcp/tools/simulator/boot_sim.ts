@@ -6,6 +6,7 @@ import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -43,30 +44,49 @@ const publicSchemaObject = z.strictObject(
 export async function boot_simLogic(
   params: BootSimParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   log('info', `Starting xcrun simctl boot request for simulator ${params.simulatorId}`);
 
   const headerEvent = header('Boot Simulator', [{ label: 'Simulator', value: params.simulatorId }]);
 
-  return withErrorHandling(
-    async () => {
-      const command = ['xcrun', 'simctl', 'boot', params.simulatorId];
-      const result = await executor(command, 'Boot Simulator', false);
+  const ctx = getHandlerContext();
 
-      if (!result.success) {
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Boot simulator operation failed: ${result.error}`),
-        ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        const command = ['xcrun', 'simctl', 'boot', params.simulatorId];
+        const result = await executor(command, 'Boot Simulator', false);
+
+        if (!result.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Boot simulator operation failed: ${result.error}`),
+          ]);
+        }
+
+        return toolResponse([headerEvent, statusLine('success', 'Simulator booted successfully')], {
+          nextStepParams: {
+            open_sim: {},
+            install_app_sim: { simulatorId: params.simulatorId, appPath: 'PATH_TO_YOUR_APP' },
+            launch_app_sim: { simulatorId: params.simulatorId, bundleId: 'YOUR_APP_BUNDLE_ID' },
+          },
+        });
+      })();
+
+      if (!response) {
+        return;
       }
 
-      return toolResponse([headerEvent, statusLine('success', 'Simulator booted successfully')], {
-        nextStepParams: {
-          open_sim: {},
-          install_app_sim: { simulatorId: params.simulatorId, appPath: 'PATH_TO_YOUR_APP' },
-          launch_app_sim: { simulatorId: params.simulatorId, bundleId: 'YOUR_APP_BUNDLE_ID' },
-        },
-      });
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

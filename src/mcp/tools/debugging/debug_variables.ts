@@ -3,7 +3,10 @@ import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
-import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
+import {
+  createTypedToolWithContext,
+  getHandlerContext,
+} from '../../../utils/typed-tool-factory.ts';
 import {
   getDefaultDebuggerToolContext,
   type DebuggerToolContext,
@@ -19,21 +22,40 @@ export type DebugVariablesParams = z.infer<typeof debugVariablesSchema>;
 export async function debug_variablesLogic(
   params: DebugVariablesParams,
   ctx: DebuggerToolContext,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const headerEvent = header('Variables');
 
-  return withErrorHandling(
-    async () => {
-      const output = await ctx.debugger.getVariables(params.debugSessionId, {
-        frameIndex: params.frameIndex,
-      });
-      const trimmed = output.trim();
+  const handlerCtx = getHandlerContext();
 
-      return toolResponse([
-        headerEvent,
-        statusLine('success', 'Variables retrieved'),
-        ...(trimmed ? [section('Values:', trimmed.split('\n'))] : []),
-      ]);
+  return withErrorHandling(
+    handlerCtx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        const output = await ctx.debugger.getVariables(params.debugSessionId, {
+          frameIndex: params.frameIndex,
+        });
+        const trimmed = output.trim();
+
+        return toolResponse([
+          headerEvent,
+          statusLine('success', 'Variables retrieved'),
+          ...(trimmed ? [section('Values:', trimmed.split('\n'))] : []),
+        ]);
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          handlerCtx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        handlerCtx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

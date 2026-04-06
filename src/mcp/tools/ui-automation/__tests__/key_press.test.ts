@@ -9,7 +9,40 @@ import {
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, key_pressLogic } from '../key_press.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 function createDefaultMockAxeHelpers() {
   return {
@@ -86,13 +119,15 @@ describe('Key Press Tool', () => {
 
       const mockAxeHelpers = createDefaultMockAxeHelpers();
 
-      await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 40,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 40,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -118,14 +153,16 @@ describe('Key Press Tool', () => {
 
       const mockAxeHelpers = createDefaultMockAxeHelpers();
 
-      await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 42,
-          duration: 1.5,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 42,
+            duration: 1.5,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -153,13 +190,15 @@ describe('Key Press Tool', () => {
 
       const mockAxeHelpers = createDefaultMockAxeHelpers();
 
-      await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 255,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 255,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -188,13 +227,15 @@ describe('Key Press Tool', () => {
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
       };
 
-      await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 44,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 44,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -220,13 +261,15 @@ describe('Key Press Tool', () => {
 
       const mockAxeHelpers = createDefaultMockAxeHelpers();
 
-      const result = await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 40,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 40,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -242,14 +285,16 @@ describe('Key Press Tool', () => {
 
       const mockAxeHelpers = createDefaultMockAxeHelpers();
 
-      const result = await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 42,
-          duration: 1.5,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 42,
+            duration: 1.5,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -262,13 +307,15 @@ describe('Key Press Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 40,
-        },
-        createNoopExecutor(),
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 40,
+          },
+          createNoopExecutor(),
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -284,13 +331,15 @@ describe('Key Press Tool', () => {
 
       const mockAxeHelpers = createDefaultMockAxeHelpers();
 
-      const result = await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 40,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 40,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -306,13 +355,15 @@ describe('Key Press Tool', () => {
 
       const mockAxeHelpers = createDefaultMockAxeHelpers();
 
-      const result = await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 40,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 40,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -328,13 +379,15 @@ describe('Key Press Tool', () => {
 
       const mockAxeHelpers = createDefaultMockAxeHelpers();
 
-      const result = await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 40,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 40,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -350,13 +403,15 @@ describe('Key Press Tool', () => {
 
       const mockAxeHelpers = createDefaultMockAxeHelpers();
 
-      const result = await key_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCode: 40,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCode: 40,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);

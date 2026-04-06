@@ -3,7 +3,40 @@ import * as z from 'zod';
 import { createMockExecutor, type CommandExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, showBuildSettingsLogic } from '../show_build_settings.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('show_build_settings plugin', () => {
   beforeEach(() => {
@@ -51,9 +84,11 @@ Build settings for action build and target MyApp:
         return mockExecutor(...args);
       };
 
-      const result = await showBuildSettingsLogic(
-        { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyScheme' },
-        wrappedExecutor,
+      const result = await runLogic(() =>
+        showBuildSettingsLogic(
+          { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyScheme' },
+          wrappedExecutor,
+        ),
       );
 
       expect(calls).toHaveLength(1);
@@ -94,9 +129,11 @@ Build settings for action build and target MyApp:
         process: { pid: 12345 },
       });
 
-      const result = await showBuildSettingsLogic(
-        { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'InvalidScheme' },
-        mockExecutor,
+      const result = await runLogic(() =>
+        showBuildSettingsLogic(
+          { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'InvalidScheme' },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -108,9 +145,11 @@ Build settings for action build and target MyApp:
         throw new Error('Command execution failed');
       };
 
-      const result = await showBuildSettingsLogic(
-        { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyScheme' },
-        mockExecutor,
+      const result = await runLogic(() =>
+        showBuildSettingsLogic(
+          { projectPath: '/path/to/MyProject.xcodeproj', scheme: 'MyScheme' },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);

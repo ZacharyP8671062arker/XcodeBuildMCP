@@ -9,6 +9,7 @@ import { determineSimulatorUuid } from '../../../utils/simulator-utils.ts';
 import {
   createSessionAwareToolWithContext,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import {
   getDefaultDebuggerToolContext,
@@ -62,7 +63,7 @@ export type DebugAttachSimParams = z.infer<typeof debugAttachSchema>;
 export async function debug_attach_simLogic(
   params: DebugAttachSimParams,
   ctx: DebuggerToolContext,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const { executor, debugger: debuggerManager } = ctx;
   const headerEvent = header('Attach Debugger');
 
@@ -107,100 +108,119 @@ export async function debug_attach_simLogic(
     ]);
   }
 
+  const handlerCtx = getHandlerContext();
+
   return withErrorHandling(
+    handlerCtx,
     async () => {
-      const session = await debuggerManager.createSession({
-        simulatorId,
-        pid,
-        waitFor: params.waitFor,
-      });
+      const response = await (async (): Promise<ToolResponse> => {
+        const session = await debuggerManager.createSession({
+          simulatorId,
+          pid,
+          waitFor: params.waitFor,
+        });
 
-      const isCurrent = params.makeCurrent ?? true;
-      if (isCurrent) {
-        debuggerManager.setCurrentSession(session.id);
-      }
+        const isCurrent = params.makeCurrent ?? true;
+        if (isCurrent) {
+          debuggerManager.setCurrentSession(session.id);
+        }
 
-      const shouldContinue = params.continueOnAttach ?? true;
-      if (shouldContinue) {
-        try {
-          await debuggerManager.resumeSession(session.id);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          if (/not\s*stopped/i.test(message)) {
-            log('debug', 'Process already running after attach, no resume needed');
-          } else {
-            try {
-              await debuggerManager.detachSession(session.id);
-            } catch (detachError) {
-              const detachMessage =
-                detachError instanceof Error ? detachError.message : String(detachError);
-              log(
-                'warn',
-                `Failed to detach debugger session after resume failure: ${detachMessage}`,
-              );
+        const shouldContinue = params.continueOnAttach ?? true;
+        if (shouldContinue) {
+          try {
+            await debuggerManager.resumeSession(session.id);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (/not\s*stopped/i.test(message)) {
+              log('debug', 'Process already running after attach, no resume needed');
+            } else {
+              try {
+                await debuggerManager.detachSession(session.id);
+              } catch (detachError) {
+                const detachMessage =
+                  detachError instanceof Error ? detachError.message : String(detachError);
+                log(
+                  'warn',
+                  `Failed to detach debugger session after resume failure: ${detachMessage}`,
+                );
+              }
+              return toolResponse([
+                headerEvent,
+                statusLine('error', `Failed to resume debugger after attach: ${message}`),
+              ]);
             }
-            return toolResponse([
-              headerEvent,
-              statusLine('error', `Failed to resume debugger after attach: ${message}`),
-            ]);
+          }
+        } else {
+          try {
+            await debuggerManager.runCommand(session.id, 'process interrupt');
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (!/already stopped|not running/i.test(message)) {
+              try {
+                await debuggerManager.detachSession(session.id);
+              } catch (detachError) {
+                const detachMessage =
+                  detachError instanceof Error ? detachError.message : String(detachError);
+                log(
+                  'warn',
+                  `Failed to detach debugger session after pause failure: ${detachMessage}`,
+                );
+              }
+              return toolResponse([
+                headerEvent,
+                statusLine('error', `Failed to pause debugger after attach: ${message}`),
+              ]);
+            }
           }
         }
-      } else {
-        try {
-          await debuggerManager.runCommand(session.id, 'process interrupt');
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          if (!/already stopped|not running/i.test(message)) {
-            try {
-              await debuggerManager.detachSession(session.id);
-            } catch (detachError) {
-              const detachMessage =
-                detachError instanceof Error ? detachError.message : String(detachError);
-              log(
-                'warn',
-                `Failed to detach debugger session after pause failure: ${detachMessage}`,
-              );
-            }
-            return toolResponse([
-              headerEvent,
-              statusLine('error', `Failed to pause debugger after attach: ${message}`),
-            ]);
-          }
-        }
+
+        const backendLabel = session.backend === 'dap' ? 'DAP debugger' : 'LLDB';
+        const currentText = isCurrent
+          ? 'This session is now the current debug session.'
+          : 'This session is not set as the current session.';
+
+        const execState = await debuggerManager.getExecutionState(session.id);
+        const isRunning = execState.status === 'running' || execState.status === 'unknown';
+        const resumeText = isRunning
+          ? 'Execution is running. App is responsive to UI interaction.'
+          : 'Execution is paused. Use debug_continue to resume before UI automation.';
+
+        const events = [
+          headerEvent,
+          ...(simResult.warning ? [section('Warning', [simResult.warning])] : []),
+          statusLine(
+            'success',
+            `Attached ${backendLabel} to simulator process ${pid} (${simulatorId})`,
+          ),
+          detailTree([
+            { label: 'Debug session ID', value: session.id },
+            { label: 'Status', value: currentText },
+            { label: 'Execution', value: resumeText },
+          ]),
+        ];
+
+        return toolResponse(events, {
+          nextStepParams: {
+            debug_breakpoint_add: { debugSessionId: session.id, file: '...', line: 123 },
+            debug_continue: { debugSessionId: session.id },
+            debug_stack: { debugSessionId: session.id },
+          },
+        });
+      })();
+
+      if (!response) {
+        return;
       }
 
-      const backendLabel = session.backend === 'dap' ? 'DAP debugger' : 'LLDB';
-      const currentText = isCurrent
-        ? 'This session is now the current debug session.'
-        : 'This session is not set as the current session.';
-
-      const execState = await debuggerManager.getExecutionState(session.id);
-      const isRunning = execState.status === 'running' || execState.status === 'unknown';
-      const resumeText = isRunning
-        ? 'Execution is running. App is responsive to UI interaction.'
-        : 'Execution is paused. Use debug_continue to resume before UI automation.';
-
-      const events = [
-        headerEvent,
-        ...(simResult.warning ? [section('Warning', [simResult.warning])] : []),
-        statusLine(
-          'success',
-          `Attached ${backendLabel} to simulator process ${pid} (${simulatorId})`,
-        ),
-        detailTree([
-          { label: 'Debug session ID', value: session.id },
-          { label: 'Status', value: currentText },
-          { label: 'Execution', value: resumeText },
-        ]),
-      ];
-
-      return toolResponse(events, {
-        nextStepParams: {
-          debug_breakpoint_add: { debugSessionId: session.id, file: '...', line: 123 },
-          debug_continue: { debugSessionId: session.id },
-          debug_stack: { debugSessionId: session.id },
-        },
-      });
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          handlerCtx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        handlerCtx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

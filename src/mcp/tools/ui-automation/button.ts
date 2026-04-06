@@ -11,6 +11,7 @@ import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
 import type { AxeHelpers } from './shared/axe-command.ts';
@@ -39,7 +40,7 @@ export async function buttonLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const toolName = 'button';
   const { simulatorId, buttonType, duration } = params;
 
@@ -60,15 +61,34 @@ export async function buttonLogic(
 
   log('info', `${LOG_PREFIX}/${toolName}: Starting ${buttonType} button press on ${simulatorId}`);
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      await executeAxeCommand(commandArgs, simulatorId, 'button', executor, axeHelpers);
-      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-      return toolResponse([
-        headerEvent,
-        statusLine('success', `Hardware button '${buttonType}' pressed successfully.`),
-        ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
-      ]);
+      const response = await (async (): Promise<ToolResponse> => {
+        await executeAxeCommand(commandArgs, simulatorId, 'button', executor, axeHelpers);
+        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+        return toolResponse([
+          headerEvent,
+          statusLine('success', `Hardware button '${buttonType}' pressed successfully.`),
+          ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
+        ]);
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

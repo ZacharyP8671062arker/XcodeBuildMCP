@@ -4,7 +4,40 @@ import { createMockExecutor, mockProcess } from '../../../../test-utils/mock-exe
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, long_pressLogic } from '../long_press.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('Long Press Plugin', () => {
   beforeEach(() => {
@@ -111,15 +144,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          duration: 1500,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            duration: 1500,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -155,15 +190,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 50,
-          y: 75,
-          duration: 2000,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 50,
+            y: 75,
+            duration: 2000,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -199,15 +236,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 300,
-          y: 400,
-          duration: 500,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 300,
+            y: 400,
+            duration: 500,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -243,15 +282,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
       };
 
-      await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 150,
-          y: 250,
-          duration: 3000,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 150,
+            y: 250,
+            duration: 3000,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -284,15 +325,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          duration: 1500,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            duration: 1500,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -314,15 +357,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          duration: 1500,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            duration: 1500,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -342,15 +387,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          duration: 1500,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            duration: 1500,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -369,15 +416,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          duration: 1500,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            duration: 1500,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -393,15 +442,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          duration: 1500,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            duration: 1500,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -417,15 +468,17 @@ describe('Long Press Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await long_pressLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          duration: 1500,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        long_pressLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            duration: 1500,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);

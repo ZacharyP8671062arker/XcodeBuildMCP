@@ -10,7 +10,10 @@ import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
-import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
+import {
+  createTypedToolWithContext,
+  getHandlerContext,
+} from '../../../utils/typed-tool-factory.ts';
 
 const BaseScaffoldSchema = z.object({
   projectName: z.string().min(1),
@@ -322,38 +325,61 @@ export async function scaffold_macos_projectLogic(
   params: ScaffoldMacOSProjectParams,
   commandExecutor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      const projectParams = { ...params, platform: 'macOS' as const };
-      const projectPath = await scaffoldProject(projectParams, commandExecutor, fileSystemExecutor);
+      const response = await (async (): Promise<ToolResponse> => {
+        const projectParams = { ...params, platform: 'macOS' as const };
+        const projectPath = await scaffoldProject(
+          projectParams,
+          commandExecutor,
+          fileSystemExecutor,
+        );
 
-      const generatedProjectName =
-        params.customizeNames === false ? 'MyProject' : params.projectName;
-      const workspacePath = `${projectPath}/${generatedProjectName}.xcworkspace`;
+        const generatedProjectName =
+          params.customizeNames === false ? 'MyProject' : params.projectName;
+        const workspacePath = `${projectPath}/${generatedProjectName}.xcworkspace`;
 
-      return toolResponse(
-        [
-          header('Scaffold macOS Project', [
-            { label: 'Name', value: params.projectName },
-            { label: 'Path', value: projectPath },
-            { label: 'Platform', value: 'macOS' },
-          ]),
-          statusLine('success', `Project scaffolded successfully\n  └ ${projectPath}`),
-        ],
-        {
-          nextStepParams: {
-            build_macos: {
-              workspacePath,
-              scheme: generatedProjectName,
-            },
-            build_run_macos: {
-              workspacePath,
-              scheme: generatedProjectName,
+        return toolResponse(
+          [
+            header('Scaffold macOS Project', [
+              { label: 'Name', value: params.projectName },
+              { label: 'Path', value: projectPath },
+              { label: 'Platform', value: 'macOS' },
+            ]),
+            statusLine('success', `Project scaffolded successfully\n  └ ${projectPath}`),
+          ],
+          {
+            nextStepParams: {
+              build_macos: {
+                workspacePath,
+                scheme: generatedProjectName,
+              },
+              build_run_macos: {
+                workspacePath,
+                scheme: generatedProjectName,
+              },
             },
           },
-        },
-      );
+        );
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: header('Scaffold macOS Project', [

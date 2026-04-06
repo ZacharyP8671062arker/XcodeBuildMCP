@@ -1,4 +1,39 @@
 import { describe, it, expect, vi } from 'vitest';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
+
 import {
   schema,
   handler,
@@ -20,11 +55,13 @@ describe('swift_package_stop plugin', () => {
 
   describe('Handler Behavior', () => {
     it('returns not-found response when process is missing', async () => {
-      const result = await swift_package_stopLogic(
-        { pid: 99999 },
-        createMockProcessManager({
-          getProcess: () => undefined,
-        }),
+      const result = await runLogic(() =>
+        swift_package_stopLogic(
+          { pid: 99999 },
+          createMockProcessManager({
+            getProcess: () => undefined,
+          }),
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -39,19 +76,21 @@ describe('swift_package_stop plugin', () => {
         startedAt,
       }));
 
-      const result = await swift_package_stopLogic(
-        { pid: 12345 },
-        createMockProcessManager({
-          getProcess: () => ({
-            process: {
-              kill: () => undefined,
-              on: () => undefined,
-              pid: 12345,
-            },
-            startedAt,
+      const result = await runLogic(() =>
+        swift_package_stopLogic(
+          { pid: 12345 },
+          createMockProcessManager({
+            getProcess: () => ({
+              process: {
+                kill: () => undefined,
+                on: () => undefined,
+                pid: 12345,
+              },
+              startedAt,
+            }),
+            terminateTrackedProcess,
           }),
-          terminateTrackedProcess,
-        }),
+        ),
       );
 
       expect(terminateTrackedProcess).toHaveBeenCalledWith(12345, 5000);
@@ -62,22 +101,24 @@ describe('swift_package_stop plugin', () => {
 
     it('returns error response when termination reports an error', async () => {
       const startedAt = new Date('2023-01-01T10:00:00.000Z');
-      const result = await swift_package_stopLogic(
-        { pid: 54321 },
-        createMockProcessManager({
-          getProcess: () => ({
-            process: {
-              kill: () => undefined,
-              on: () => undefined,
-              pid: 54321,
-            },
-            startedAt,
+      const result = await runLogic(() =>
+        swift_package_stopLogic(
+          { pid: 54321 },
+          createMockProcessManager({
+            getProcess: () => ({
+              process: {
+                kill: () => undefined,
+                on: () => undefined,
+                pid: 54321,
+              },
+              startedAt,
+            }),
+            terminateTrackedProcess: async () => ({
+              status: 'terminated',
+              error: 'ESRCH: No such process',
+            }),
           }),
-          terminateTrackedProcess: async () => ({
-            status: 'terminated',
-            error: 'ESRCH: No such process',
-          }),
-        }),
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -93,20 +134,22 @@ describe('swift_package_stop plugin', () => {
         startedAt,
       }));
 
-      await swift_package_stopLogic(
-        { pid: 12345 },
-        createMockProcessManager({
-          getProcess: () => ({
-            process: {
-              kill: () => undefined,
-              on: () => undefined,
-              pid: 12345,
-            },
-            startedAt,
+      await runLogic(() =>
+        swift_package_stopLogic(
+          { pid: 12345 },
+          createMockProcessManager({
+            getProcess: () => ({
+              process: {
+                kill: () => undefined,
+                on: () => undefined,
+                pid: 12345,
+              },
+              startedAt,
+            }),
+            terminateTrackedProcess,
           }),
-          terminateTrackedProcess,
-        }),
-        10,
+          10,
+        ),
       );
 
       expect(terminateTrackedProcess).toHaveBeenCalledWith(12345, 10);

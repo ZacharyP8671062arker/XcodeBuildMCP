@@ -117,7 +117,7 @@ describe('xcode-ide bridge tools (standalone fallback)', () => {
 
   it('call handler forwards remote tool calls without MCP server instance', async () => {
     const result = await callHandler({ remoteTool: 'toolA', arguments: { foo: 'bar' } });
-    expect(result.isError).toBe(false);
+    expect(result.isError).toBeFalsy();
     expect(clientMocks.callTool).toHaveBeenCalledWith('toolA', { foo: 'bar' }, {});
     expect(clientMocks.disconnect).toHaveBeenCalledOnce();
   });

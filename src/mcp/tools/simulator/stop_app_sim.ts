@@ -6,6 +6,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -38,7 +39,7 @@ export type StopAppSimParams = z.infer<typeof internalSchemaObject>;
 export async function stop_app_simLogic(
   params: StopAppSimParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const simulatorId = params.simulatorId;
   const simulatorDisplayName = params.simulatorName
     ? `"${params.simulatorName}" (${simulatorId})`
@@ -51,19 +52,38 @@ export async function stop_app_simLogic(
     { label: 'Bundle ID', value: params.bundleId },
   ]);
 
-  return withErrorHandling(
-    async () => {
-      const command = ['xcrun', 'simctl', 'terminate', simulatorId, params.bundleId];
-      const result = await executor(command, 'Stop App in Simulator', false);
+  const ctx = getHandlerContext();
 
-      if (!result.success) {
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Stop app in simulator operation failed: ${result.error}`),
-        ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        const command = ['xcrun', 'simctl', 'terminate', simulatorId, params.bundleId];
+        const result = await executor(command, 'Stop App in Simulator', false);
+
+        if (!result.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Stop app in simulator operation failed: ${result.error}`),
+          ]);
+        }
+
+        return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
+      })();
+
+      if (!response) {
+        return;
       }
 
-      return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

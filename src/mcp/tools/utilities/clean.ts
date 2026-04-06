@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -83,7 +84,7 @@ const SIMULATOR_TO_DEVICE_PLATFORM: Partial<Record<XcodePlatform, XcodePlatform>
 export async function cleanLogic(
   params: CleanParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const headerEvent = header('Clean');
 
   if (params.workspacePath && !params.scheme) {
@@ -149,24 +150,43 @@ export async function cleanLogic(
 
   command.push('clean');
 
-  return withErrorHandling(
-    async () => {
-      const result = await executor(command, 'Clean', false, { cwd: projectDir });
+  const ctx = getHandlerContext();
 
-      if (!result.success) {
-        const combinedOutput = [result.error, result.output].filter(Boolean).join('\n').trim();
-        const errorLines = combinedOutput
-          .split('\n')
-          .filter((line) => /error:/i.test(line))
-          .map((line) => line.trim());
-        const errorMessage = errorLines.length > 0 ? errorLines.join('; ') : 'Unknown error';
-        return toolResponse([
-          cleanHeaderEvent,
-          statusLine('error', `Clean failed: ${errorMessage}`),
-        ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        const result = await executor(command, 'Clean', false, { cwd: projectDir });
+
+        if (!result.success) {
+          const combinedOutput = [result.error, result.output].filter(Boolean).join('\n').trim();
+          const errorLines = combinedOutput
+            .split('\n')
+            .filter((line) => /error:/i.test(line))
+            .map((line) => line.trim());
+          const errorMessage = errorLines.length > 0 ? errorLines.join('; ') : 'Unknown error';
+          return toolResponse([
+            cleanHeaderEvent,
+            statusLine('error', `Clean failed: ${errorMessage}`),
+          ]);
+        }
+
+        return toolResponse([cleanHeaderEvent, statusLine('success', 'Clean successful')]);
+      })();
+
+      if (!response) {
+        return;
       }
 
-      return toolResponse([cleanHeaderEvent, statusLine('success', 'Clean successful')]);
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: cleanHeaderEvent,

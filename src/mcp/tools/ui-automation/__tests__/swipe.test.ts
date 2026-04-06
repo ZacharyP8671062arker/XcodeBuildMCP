@@ -6,7 +6,40 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 
 import { schema, handler, type AxeHelpers, swipeLogic, type SwipeParams } from '../swipe.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 function createMockAxeHelpers(): AxeHelpers {
   return {
@@ -103,16 +136,18 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 100,
-          y1: 200,
-          x2: 300,
-          y2: 400,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 100,
+            y1: 200,
+            x2: 300,
+            y2: 400,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -145,17 +180,19 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 50,
-          y1: 75,
-          x2: 250,
-          y2: 350,
-          duration: 1.5,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 50,
+            y1: 75,
+            x2: 250,
+            y2: 350,
+            duration: 1.5,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -190,20 +227,22 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 0,
-          y1: 0,
-          x2: 500,
-          y2: 800,
-          duration: 2.0,
-          delta: 10,
-          preDelay: 0.5,
-          postDelay: 0.3,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 0,
+            y1: 0,
+            x2: 500,
+            y2: 800,
+            duration: 2.0,
+            delta: 10,
+            preDelay: 0.5,
+            postDelay: 0.3,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -247,17 +286,19 @@ describe('Swipe Tool', () => {
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
       };
 
-      await swipeLogic(
-        {
-          simulatorId: 'ABCDEF12-3456-7890-ABCD-ABCDEFABCDEF',
-          x1: 150,
-          y1: 250,
-          x2: 400,
-          y2: 600,
-          delta: 5,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: 'ABCDEF12-3456-7890-ABCD-ABCDEFABCDEF',
+            x1: 150,
+            y1: 250,
+            x2: 400,
+            y2: 600,
+            delta: 5,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -314,16 +355,18 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      const result = await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 100,
-          y1: 200,
-          x2: 300,
-          y2: 400,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 100,
+            y1: 200,
+            x2: 300,
+            y2: 400,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -341,17 +384,19 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      const result = await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 100,
-          y1: 200,
-          x2: 300,
-          y2: 400,
-          duration: 1.5,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 100,
+            y1: 200,
+            x2: 300,
+            y2: 400,
+            duration: 1.5,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -369,16 +414,18 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpersWithNullPath();
 
-      const result = await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 100,
-          y1: 200,
-          x2: 300,
-          y2: 400,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 100,
+            y1: 200,
+            x2: 300,
+            y2: 400,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -394,16 +441,18 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      const result = await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 100,
-          y1: 200,
-          x2: 300,
-          y2: 400,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 100,
+            y1: 200,
+            x2: 300,
+            y2: 400,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -418,16 +467,18 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      const result = await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 100,
-          y1: 200,
-          x2: 300,
-          y2: 400,
-        },
-        systemErrorExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 100,
+            y1: 200,
+            x2: 300,
+            y2: 400,
+          },
+          systemErrorExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -444,16 +495,18 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      const result = await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 100,
-          y1: 200,
-          x2: 300,
-          y2: 400,
-        },
-        unexpectedErrorExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 100,
+            y1: 200,
+            x2: 300,
+            y2: 400,
+          },
+          unexpectedErrorExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -470,16 +523,18 @@ describe('Swipe Tool', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      const result = await swipeLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x1: 100,
-          y1: 200,
-          x2: 300,
-          y2: 400,
-        },
-        stringErrorExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        swipeLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x1: 100,
+            y1: 200,
+            x2: 300,
+            y2: 400,
+          },
+          stringErrorExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);

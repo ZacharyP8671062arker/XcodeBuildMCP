@@ -1,5 +1,39 @@
 import { describe, it, expect } from 'vitest';
 import { schema, handler, swift_package_listLogic } from '../swift_package_list.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('swift_package_list plugin', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -15,13 +49,15 @@ describe('swift_package_list plugin', () => {
 
   describe('Handler Behavior', () => {
     it('should return empty list when no processes are running', async () => {
-      const result = await swift_package_listLogic(
-        {},
-        {
-          processMap: new Map(),
-          arrayFrom: () => [],
-          dateNow: () => Date.now(),
-        },
+      const result = await runLogic(() =>
+        swift_package_listLogic(
+          {},
+          {
+            processMap: new Map(),
+            arrayFrom: () => [],
+            dateNow: () => Date.now(),
+          },
+        ),
       );
 
       expect(result.isError).toBeUndefined();
@@ -32,22 +68,24 @@ describe('swift_package_list plugin', () => {
 
     it('should use default executable name and clamp durations to at least one second', async () => {
       const startedAt = new Date('2023-01-01T10:00:00.000Z');
-      const result = await swift_package_listLogic(
-        {},
-        {
-          processMap: new Map([
-            [
-              12345,
-              {
-                executableName: undefined,
-                packagePath: '/test/package',
-                startedAt,
-              },
-            ],
-          ]),
-          arrayFrom: Array.from,
-          dateNow: () => startedAt.getTime(),
-        },
+      const result = await runLogic(() =>
+        swift_package_listLogic(
+          {},
+          {
+            processMap: new Map([
+              [
+                12345,
+                {
+                  executableName: undefined,
+                  packagePath: '/test/package',
+                  startedAt,
+                },
+              ],
+            ]),
+            arrayFrom: Array.from,
+            dateNow: () => startedAt.getTime(),
+          },
+        ),
       );
 
       expect(result.isError).toBeUndefined();

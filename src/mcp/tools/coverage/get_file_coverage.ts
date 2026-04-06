@@ -6,14 +6,14 @@
  */
 
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
-import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { validateFileExists } from '../../../utils/validation.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from '../../../utils/execution/index.ts';
-import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
+import {
+  createTypedToolWithContext,
+  getHandlerContext,
+} from '../../../utils/typed-tool-factory.ts';
 import { header, statusLine, section, fileRef } from '../../../utils/tool-event-builders.ts';
 
 const getFileCoverageSchema = z.object({
@@ -75,7 +75,8 @@ type GetFileCoverageContext = {
 export async function get_file_coverageLogic(
   params: GetFileCoverageParams,
   context: GetFileCoverageContext,
-): Promise<ToolResponse> {
+): Promise<void> {
+  const ctx = getHandlerContext();
   const { xcresultPath, file, showLines } = params;
 
   const headerEvent = header('File Coverage', [
@@ -85,10 +86,9 @@ export async function get_file_coverageLogic(
 
   const fileExistsValidation = validateFileExists(xcresultPath, context.fileSystem);
   if (!fileExistsValidation.isValid) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', fileExistsValidation.errorMessage!),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', fileExistsValidation.errorMessage!));
+    return;
   }
 
   log('info', `Getting file coverage for "${file}" from: ${xcresultPath}`);
@@ -100,20 +100,20 @@ export async function get_file_coverageLogic(
   );
 
   if (!funcResult.success) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to get file coverage: ${funcResult.error ?? funcResult.output}`),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', `Failed to get file coverage: ${funcResult.error ?? funcResult.output}`));
+    return;
   }
 
   let data: unknown;
   try {
     data = JSON.parse(funcResult.output);
   } catch {
-    return toolResponse([
-      headerEvent,
+    ctx.emit(headerEvent);
+    ctx.emit(
       statusLine('error', `Failed to parse coverage JSON output.\n\nRaw output:\n${funcResult.output}`),
-    ]);
+    );
+    return;
   }
 
   let fileEntries: FileFunctionCoverage[] = [];
@@ -137,18 +137,27 @@ export async function get_file_coverageLogic(
   }
 
   if (fileEntries.length === 0) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `No coverage data found for "${file}".\n\nMake sure the file name or path is correct and that tests covered this file.`),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(
+      statusLine(
+        'error',
+        `No coverage data found for "${file}".\n\nMake sure the file name or path is correct and that tests covered this file.`,
+      ),
+    );
+    return;
   }
 
-  const events: PipelineEvent[] = [headerEvent];
+  ctx.emit(headerEvent);
 
   for (const entry of fileEntries) {
     const filePct = (entry.lineCoverage * 100).toFixed(1);
-    events.push(fileRef(entry.filePath, 'File'));
-    events.push(statusLine('info', `Coverage: ${filePct}% (${entry.coveredLines}/${entry.executableLines} lines)`));
+    ctx.emit(fileRef(entry.filePath, 'File'));
+    ctx.emit(
+      statusLine(
+        'info',
+        `Coverage: ${filePct}% (${entry.coveredLines}/${entry.executableLines} lines)`,
+      ),
+    );
 
     if (entry.functions && entry.functions.length > 0) {
       const notCovered = entry.functions
@@ -168,7 +177,7 @@ export async function get_file_coverageLogic(
         const notCoveredLines = notCovered.map(
           (fn) => `L${fn.lineNumber}  ${fn.name} -- 0/${fn.executableLines} lines`,
         );
-        events.push(
+        ctx.emit(
           section(
             `Not Covered (${notCovered.length} ${notCovered.length === 1 ? 'function' : 'functions'}, ${totalMissedLines} lines)`,
             notCoveredLines,
@@ -182,7 +191,7 @@ export async function get_file_coverageLogic(
           const fnPct = (fn.lineCoverage * 100).toFixed(1);
           return `L${fn.lineNumber}  ${fn.name} -- ${fnPct}% (${fn.coveredLines}/${fn.executableLines} lines)`;
         });
-        events.push(
+        ctx.emit(
           section(
             `Partial Coverage (${partial.length} ${partial.length === 1 ? 'function' : 'functions'})`,
             partialLines,
@@ -192,7 +201,7 @@ export async function get_file_coverageLogic(
       }
 
       if (full.length > 0) {
-        events.push(
+        ctx.emit(
           section(
             `Full Coverage (${full.length} ${full.length === 1 ? 'function' : 'functions'}) -- all at 100%`,
             [],
@@ -217,20 +226,18 @@ export async function get_file_coverageLogic(
         const rangeLines = uncoveredRanges.map((range) =>
           range.start === range.end ? `L${range.start}` : `L${range.start}-${range.end}`,
         );
-        events.push(section(`Uncovered line ranges (${filePath})`, rangeLines));
+        ctx.emit(section(`Uncovered line ranges (${filePath})`, rangeLines));
       } else {
-        events.push(statusLine('success', 'All executable lines are covered.'));
+        ctx.emit(statusLine('success', 'All executable lines are covered.'));
       }
     } else {
-      events.push(statusLine('warning', 'Could not retrieve line-level coverage from archive.'));
+      ctx.emit(statusLine('warning', 'Could not retrieve line-level coverage from archive.'));
     }
   }
 
-  return toolResponse(events, {
-    nextStepParams: {
-      get_coverage_report: { xcresultPath },
-    },
-  });
+  ctx.nextStepParams = {
+    get_coverage_report: { xcresultPath },
+  };
 }
 
 interface LineRange {

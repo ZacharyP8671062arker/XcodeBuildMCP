@@ -17,6 +17,7 @@ import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../utils/axe-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { getSnapshotUiWarning } from './shared/snapshot-ui-state.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
@@ -61,7 +62,7 @@ export async function swipeLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const toolName = 'swipe';
 
   const { simulatorId, x1, y1, x2, y2, duration, delta, preDelay, postDelay } = params;
@@ -105,23 +106,42 @@ export async function swipeLogic(
     `${LOG_PREFIX}/${toolName}: Starting swipe (${x1},${y1})->(${x2},${y2})${optionsText} on ${simulatorId}`,
   );
 
-  return withErrorHandling(
-    async () => {
-      await executeAxeCommand(commandArgs, simulatorId, 'swipe', executor, axeHelpers);
-      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+  const ctx = getHandlerContext();
 
-      const coordinateWarning = getSnapshotUiWarning(simulatorId);
-      const warnings = [guard.warningText, coordinateWarning].filter(
-        (w): w is string => typeof w === 'string' && w.length > 0,
-      );
-      return toolResponse([
-        headerEvent,
-        statusLine(
-          'success',
-          `Swipe from (${x1}, ${y1}) to (${x2}, ${y2})${optionsText} simulated successfully.`,
-        ),
-        ...warnings.map((w) => statusLine('warning', w)),
-      ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        await executeAxeCommand(commandArgs, simulatorId, 'swipe', executor, axeHelpers);
+        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+
+        const coordinateWarning = getSnapshotUiWarning(simulatorId);
+        const warnings = [guard.warningText, coordinateWarning].filter(
+          (w): w is string => typeof w === 'string' && w.length > 0,
+        );
+        return toolResponse([
+          headerEvent,
+          statusLine(
+            'success',
+            `Swipe from (${x1}, ${y1}) to (${x2}, ${y2})${optionsText} simulated successfully.`,
+          ),
+          ...warnings.map((w) => statusLine('warning', w)),
+        ]);
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

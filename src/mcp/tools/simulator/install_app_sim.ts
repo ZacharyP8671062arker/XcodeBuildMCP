@@ -7,6 +7,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -48,7 +49,7 @@ export async function install_app_simLogic(
   params: InstallAppSimParams,
   executor: CommandExecutor,
   fileSystem?: FileSystemExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const simulatorDisplayName = params.simulatorName
     ? `"${params.simulatorName}" (${params.simulatorId})`
     : params.simulatorId;
@@ -65,44 +66,66 @@ export async function install_app_simLogic(
 
   log('info', `Starting xcrun simctl install request for simulator ${params.simulatorId}`);
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      const installResult = await installAppOnSimulator(
-        params.simulatorId,
-        params.appPath,
-        executor,
-      );
-
-      if (!installResult.success) {
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Install app in simulator operation failed: ${installResult.error}`),
-        ]);
-      }
-
-      let bundleId = '';
-      try {
-        const bundleIdResult = await executor(
-          ['defaults', 'read', `${params.appPath}/Info`, 'CFBundleIdentifier'],
-          'Extract Bundle ID',
-          false,
+      const response = await (async (): Promise<ToolResponse> => {
+        const installResult = await installAppOnSimulator(
+          params.simulatorId,
+          params.appPath,
+          executor,
         );
-        if (bundleIdResult.success) {
-          bundleId = bundleIdResult.output.trim();
+
+        if (!installResult.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine(
+              'error',
+              `Install app in simulator operation failed: ${installResult.error}`,
+            ),
+          ]);
         }
-      } catch (error) {
-        log('warn', `Could not extract bundle ID from app: ${error}`);
+
+        let bundleId = '';
+        try {
+          const bundleIdResult = await executor(
+            ['defaults', 'read', `${params.appPath}/Info`, 'CFBundleIdentifier'],
+            'Extract Bundle ID',
+            false,
+          );
+          if (bundleIdResult.success) {
+            bundleId = bundleIdResult.output.trim();
+          }
+        } catch (error) {
+          log('warn', `Could not extract bundle ID from app: ${error}`);
+        }
+
+        return toolResponse([headerEvent, statusLine('success', 'App installed successfully')], {
+          nextStepParams: {
+            open_sim: {},
+            launch_app_sim: {
+              simulatorId: params.simulatorId,
+              bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
+            },
+          },
+        });
+      })();
+
+      if (!response) {
+        return;
       }
 
-      return toolResponse([headerEvent, statusLine('success', 'App installed successfully')], {
-        nextStepParams: {
-          open_sim: {},
-          launch_app_sim: {
-            simulatorId: params.simulatorId,
-            bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
-          },
-        },
-      });
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

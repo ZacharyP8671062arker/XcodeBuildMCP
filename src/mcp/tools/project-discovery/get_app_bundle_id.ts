@@ -11,7 +11,7 @@ import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/command.ts';
 import { getDefaultFileSystemExecutor, getDefaultCommandExecutor } from '../../../utils/command.ts';
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
-import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { extractBundleIdFromAppPath } from '../../../utils/bundle-id.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -31,7 +31,7 @@ export async function get_app_bundle_idLogic(
   params: GetAppBundleIdParams,
   executor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const appPath = params.appPath;
   const headerEvent = header('Get Bundle ID', [{ label: 'App', value: appPath }]);
 
@@ -44,27 +44,46 @@ export async function get_app_bundle_idLogic(
 
   log('info', `Starting bundle ID extraction for app: ${appPath}`);
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      const bundleId = await extractBundleIdFromAppPath(appPath, executor).catch((innerError) => {
-        throw new Error(
-          `Could not extract bundle ID from Info.plist: ${innerError instanceof Error ? innerError.message : String(innerError)}`,
-        );
-      });
+      const response = await (async (): Promise<ToolResponse> => {
+        const bundleId = await extractBundleIdFromAppPath(appPath, executor).catch((innerError) => {
+          throw new Error(
+            `Could not extract bundle ID from Info.plist: ${innerError instanceof Error ? innerError.message : String(innerError)}`,
+          );
+        });
 
-      log('info', `Extracted app bundle ID: ${bundleId}`);
+        log('info', `Extracted app bundle ID: ${bundleId}`);
 
-      return toolResponse(
-        [headerEvent, statusLine('success', `Bundle ID\n  \u2514 ${bundleId.trim()}`)],
-        {
-          nextStepParams: {
-            install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
-            launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: bundleId.trim() },
-            install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-            launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: bundleId.trim() },
+        return toolResponse(
+          [headerEvent, statusLine('success', `Bundle ID\n  \u2514 ${bundleId.trim()}`)],
+          {
+            nextStepParams: {
+              install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
+              launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: bundleId.trim() },
+              install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+              launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: bundleId.trim() },
+            },
           },
-        },
-      );
+        );
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

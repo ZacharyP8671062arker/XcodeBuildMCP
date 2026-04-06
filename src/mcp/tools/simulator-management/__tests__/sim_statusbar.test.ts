@@ -6,6 +6,40 @@ import {
   type CommandExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, sim_statusbarLogic } from '../sim_statusbar.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('sim_statusbar tool', () => {
   describe('Schema Validation', () => {
@@ -29,12 +63,14 @@ describe('sim_statusbar tool', () => {
         output: 'Status bar set successfully',
       });
 
-      const result = await sim_statusbarLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          dataNetwork: 'wifi',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        sim_statusbarLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            dataNetwork: 'wifi',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -46,12 +82,14 @@ describe('sim_statusbar tool', () => {
         error: 'Simulator not found',
       });
 
-      const result = await sim_statusbarLogic(
-        {
-          simulatorId: 'invalid-uuid',
-          dataNetwork: '3g',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        sim_statusbarLogic(
+          {
+            simulatorId: 'invalid-uuid',
+            dataNetwork: '3g',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -62,12 +100,14 @@ describe('sim_statusbar tool', () => {
         throw new Error('Connection failed');
       };
 
-      const result = await sim_statusbarLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          dataNetwork: '4g',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        sim_statusbarLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            dataNetwork: '4g',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -97,12 +137,14 @@ describe('sim_statusbar tool', () => {
         });
       };
 
-      await sim_statusbarLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          dataNetwork: 'wifi',
-        },
-        mockExecutor,
+      await runLogic(() =>
+        sim_statusbarLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            dataNetwork: 'wifi',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(calls).toHaveLength(1);
@@ -146,12 +188,14 @@ describe('sim_statusbar tool', () => {
         });
       };
 
-      await sim_statusbarLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          dataNetwork: 'clear',
-        },
-        mockExecutor,
+      await runLogic(() =>
+        sim_statusbarLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            dataNetwork: 'clear',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(calls).toHaveLength(1);
@@ -169,12 +213,14 @@ describe('sim_statusbar tool', () => {
         output: 'Status bar cleared successfully',
       });
 
-      const result = await sim_statusbarLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          dataNetwork: 'clear',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        sim_statusbarLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            dataNetwork: 'clear',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();

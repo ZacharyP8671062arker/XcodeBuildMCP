@@ -12,7 +12,10 @@ import type { ToolResponse } from '../../../types/common.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
-import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
+import {
+  createTypedToolWithContext,
+  getHandlerContext,
+} from '../../../utils/typed-tool-factory.ts';
 
 const BaseScaffoldSchema = z.object({
   projectName: z.string().min(1),
@@ -348,40 +351,63 @@ export async function scaffold_ios_projectLogic(
   params: ScaffoldIOSProjectParams,
   commandExecutor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      const projectParams = { ...params, platform: 'iOS' };
-      const projectPath = await scaffoldProject(projectParams, commandExecutor, fileSystemExecutor);
+      const response = await (async (): Promise<ToolResponse> => {
+        const projectParams = { ...params, platform: 'iOS' };
+        const projectPath = await scaffoldProject(
+          projectParams,
+          commandExecutor,
+          fileSystemExecutor,
+        );
 
-      const generatedProjectName =
-        params.customizeNames === false ? 'MyProject' : params.projectName;
-      const workspacePath = `${projectPath}/${generatedProjectName}.xcworkspace`;
+        const generatedProjectName =
+          params.customizeNames === false ? 'MyProject' : params.projectName;
+        const workspacePath = `${projectPath}/${generatedProjectName}.xcworkspace`;
 
-      return toolResponse(
-        [
-          header('Scaffold iOS Project', [
-            { label: 'Name', value: params.projectName },
-            { label: 'Path', value: projectPath },
-            { label: 'Platform', value: 'iOS' },
-          ]),
-          statusLine('success', `Project scaffolded successfully\n  └ ${projectPath}`),
-        ],
-        {
-          nextStepParams: {
-            build_sim: {
-              workspacePath,
-              scheme: generatedProjectName,
-              simulatorName: 'iPhone 17',
-            },
-            build_run_sim: {
-              workspacePath,
-              scheme: generatedProjectName,
-              simulatorName: 'iPhone 17',
+        return toolResponse(
+          [
+            header('Scaffold iOS Project', [
+              { label: 'Name', value: params.projectName },
+              { label: 'Path', value: projectPath },
+              { label: 'Platform', value: 'iOS' },
+            ]),
+            statusLine('success', `Project scaffolded successfully\n  └ ${projectPath}`),
+          ],
+          {
+            nextStepParams: {
+              build_sim: {
+                workspacePath,
+                scheme: generatedProjectName,
+                simulatorName: 'iPhone 17',
+              },
+              build_run_sim: {
+                workspacePath,
+                scheme: generatedProjectName,
+                simulatorName: 'iPhone 17',
+              },
             },
           },
-        },
-      );
+        );
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: header('Scaffold iOS Project', [

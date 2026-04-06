@@ -1,10 +1,10 @@
 import * as z from 'zod';
 import { sessionStore } from '../../../utils/session-store.ts';
-import type { ToolResponse } from '../../../types/common.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, section } from '../../../utils/tool-event-builders.ts';
-import type { PipelineEvent } from '../../../types/pipeline-events.ts';
-import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
+import {
+  createTypedToolWithContext,
+  getHandlerContext,
+} from '../../../utils/typed-tool-factory.ts';
 import {
   formatProfileLabel,
   buildFullDetailTree,
@@ -13,20 +13,19 @@ import {
 
 const schemaObject = z.object({});
 
-export async function sessionShowDefaultsLogic(): Promise<ToolResponse> {
+export async function sessionShowDefaultsLogic(): Promise<void> {
+  const ctx = getHandlerContext();
   const namedProfiles = sessionStore.listProfiles();
   const profileKeys: Array<string | null> = [null, ...namedProfiles];
 
-  const events: PipelineEvent[] = [header('Show Defaults')];
+  ctx.emit(header('Show Defaults'));
 
   for (const profileKey of profileKeys) {
     const defaults = sessionStore.getAllForProfile(profileKey);
     const label = `\u{1F4C1} ${formatProfileLabel(profileKey)}`;
     const items = buildFullDetailTree(defaults);
-    events.push(section(label, formatDetailLines(items)));
+    ctx.emit(section(label, formatDetailLines(items)));
   }
-
-  return toolResponse(events);
 }
 
 export const schema = schemaObject.shape;

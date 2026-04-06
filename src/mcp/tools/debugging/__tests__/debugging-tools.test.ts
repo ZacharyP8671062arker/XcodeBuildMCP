@@ -45,7 +45,40 @@ import {
   handler as variablesHandler,
   debug_variablesLogic,
 } from '../debug_variables.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 function createMockBackend(overrides: Partial<DebuggerBackend> = {}): DebuggerBackend {
   return {
@@ -130,14 +163,16 @@ describe('debug_attach_sim', () => {
     it('should attach successfully with pid', async () => {
       const ctx = createTestContext();
 
-      const result = await debug_attach_simLogic(
-        {
-          simulatorId: 'test-sim-uuid',
-          pid: 1234,
-          continueOnAttach: true,
-          makeCurrent: true,
-        },
-        ctx,
+      const result = await runLogic(() =>
+        debug_attach_simLogic(
+          {
+            simulatorId: 'test-sim-uuid',
+            pid: 1234,
+            continueOnAttach: true,
+            makeCurrent: true,
+          },
+          ctx,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -151,14 +186,16 @@ describe('debug_attach_sim', () => {
     it('should attach without continuing when continueOnAttach is false', async () => {
       const ctx = createTestContext();
 
-      const result = await debug_attach_simLogic(
-        {
-          simulatorId: 'test-sim-uuid',
-          pid: 1234,
-          continueOnAttach: false,
-          makeCurrent: true,
-        },
-        ctx,
+      const result = await runLogic(() =>
+        debug_attach_simLogic(
+          {
+            simulatorId: 'test-sim-uuid',
+            pid: 1234,
+            continueOnAttach: false,
+            makeCurrent: true,
+          },
+          ctx,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -173,14 +210,16 @@ describe('debug_attach_sim', () => {
         },
       });
 
-      const result = await debug_attach_simLogic(
-        {
-          simulatorId: 'test-sim-uuid',
-          pid: 1234,
-          continueOnAttach: true,
-          makeCurrent: true,
-        },
-        ctx,
+      const result = await runLogic(() =>
+        debug_attach_simLogic(
+          {
+            simulatorId: 'test-sim-uuid',
+            pid: 1234,
+            continueOnAttach: true,
+            makeCurrent: true,
+          },
+          ctx,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -196,14 +235,16 @@ describe('debug_attach_sim', () => {
         },
       });
 
-      const result = await debug_attach_simLogic(
-        {
-          simulatorId: 'test-sim-uuid',
-          pid: 1234,
-          continueOnAttach: true,
-          makeCurrent: true,
-        },
-        ctx,
+      const result = await runLogic(() =>
+        debug_attach_simLogic(
+          {
+            simulatorId: 'test-sim-uuid',
+            pid: 1234,
+            continueOnAttach: true,
+            makeCurrent: true,
+          },
+          ctx,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -220,14 +261,16 @@ describe('debug_attach_sim', () => {
         debugger: createTestDebuggerManager(),
       };
 
-      const result = await debug_attach_simLogic(
-        {
-          simulatorName: 'NonExistent Simulator',
-          bundleId: 'com.test.app',
-          continueOnAttach: true,
-          makeCurrent: true,
-        },
-        ctx,
+      const result = await runLogic(() =>
+        debug_attach_simLogic(
+          {
+            simulatorName: 'NonExistent Simulator',
+            bundleId: 'com.test.app',
+            continueOnAttach: true,
+            makeCurrent: true,
+          },
+          ctx,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -242,14 +285,16 @@ describe('debug_attach_sim', () => {
         debugger: createTestDebuggerManager(),
       };
 
-      const result = await debug_attach_simLogic(
-        {
-          simulatorId: 'test-sim-uuid',
-          bundleId: 'com.test.app',
-          continueOnAttach: true,
-          makeCurrent: true,
-        },
-        ctx,
+      const result = await runLogic(() =>
+        debug_attach_simLogic(
+          {
+            simulatorId: 'test-sim-uuid',
+            bundleId: 'com.test.app',
+            continueOnAttach: true,
+            makeCurrent: true,
+          },
+          ctx,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -260,14 +305,16 @@ describe('debug_attach_sim', () => {
     it('should include nextStepParams on success', async () => {
       const ctx = createTestContext();
 
-      const result = await debug_attach_simLogic(
-        {
-          simulatorId: 'test-sim-uuid',
-          pid: 1234,
-          continueOnAttach: true,
-          makeCurrent: true,
-        },
-        ctx,
+      const result = await runLogic(() =>
+        debug_attach_simLogic(
+          {
+            simulatorId: 'test-sim-uuid',
+            pid: 1234,
+            continueOnAttach: true,
+            makeCurrent: true,
+          },
+          ctx,
+        ),
       );
 
       expect(result.nextStepParams).toBeDefined();
@@ -319,9 +366,11 @@ describe('debug_breakpoint_add', () => {
     it('should add file-line breakpoint successfully', async () => {
       const { ctx, session } = await createSessionAndContext();
 
-      const result = await debug_breakpoint_addLogic(
-        { debugSessionId: session.id, file: 'main.swift', line: 42 },
-        ctx,
+      const result = await runLogic(() =>
+        debug_breakpoint_addLogic(
+          { debugSessionId: session.id, file: 'main.swift', line: 42 },
+          ctx,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -330,9 +379,8 @@ describe('debug_breakpoint_add', () => {
     it('should add function breakpoint successfully', async () => {
       const { ctx, session } = await createSessionAndContext();
 
-      const result = await debug_breakpoint_addLogic(
-        { debugSessionId: session.id, function: 'viewDidLoad' },
-        ctx,
+      const result = await runLogic(() =>
+        debug_breakpoint_addLogic({ debugSessionId: session.id, function: 'viewDidLoad' }, ctx),
       );
 
       expect(result.isError).toBeFalsy();
@@ -341,14 +389,16 @@ describe('debug_breakpoint_add', () => {
     it('should add breakpoint with condition', async () => {
       const { ctx, session } = await createSessionAndContext();
 
-      const result = await debug_breakpoint_addLogic(
-        {
-          debugSessionId: session.id,
-          file: 'main.swift',
-          line: 10,
-          condition: 'x > 5',
-        },
-        ctx,
+      const result = await runLogic(() =>
+        debug_breakpoint_addLogic(
+          {
+            debugSessionId: session.id,
+            file: 'main.swift',
+            line: 10,
+            condition: 'x > 5',
+          },
+          ctx,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -361,9 +411,11 @@ describe('debug_breakpoint_add', () => {
         },
       });
 
-      const result = await debug_breakpoint_addLogic(
-        { debugSessionId: session.id, file: 'missing.swift', line: 1 },
-        ctx,
+      const result = await runLogic(() =>
+        debug_breakpoint_addLogic(
+          { debugSessionId: session.id, file: 'missing.swift', line: 1 },
+          ctx,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -375,7 +427,9 @@ describe('debug_breakpoint_add', () => {
     it('should use current session when debugSessionId is omitted', async () => {
       const { ctx } = await createSessionAndContext();
 
-      const result = await debug_breakpoint_addLogic({ file: 'main.swift', line: 10 }, ctx);
+      const result = await runLogic(() =>
+        debug_breakpoint_addLogic({ file: 'main.swift', line: 10 }, ctx),
+      );
 
       expect(result.isError).toBeFalsy();
     });
@@ -406,9 +460,8 @@ describe('debug_breakpoint_remove', () => {
     it('should remove breakpoint successfully', async () => {
       const { ctx, session } = await createSessionAndContext();
 
-      const result = await debug_breakpoint_removeLogic(
-        { debugSessionId: session.id, breakpointId: 1 },
-        ctx,
+      const result = await runLogic(() =>
+        debug_breakpoint_removeLogic({ debugSessionId: session.id, breakpointId: 1 }, ctx),
       );
 
       expect(result.isError).toBeFalsy();
@@ -421,9 +474,8 @@ describe('debug_breakpoint_remove', () => {
         },
       });
 
-      const result = await debug_breakpoint_removeLogic(
-        { debugSessionId: session.id, breakpointId: 999 },
-        ctx,
+      const result = await runLogic(() =>
+        debug_breakpoint_removeLogic({ debugSessionId: session.id, breakpointId: 999 }, ctx),
       );
 
       expect(result.isError).toBe(true);
@@ -435,7 +487,7 @@ describe('debug_breakpoint_remove', () => {
     it('should use current session when debugSessionId is omitted', async () => {
       const { ctx } = await createSessionAndContext();
 
-      const result = await debug_breakpoint_removeLogic({ breakpointId: 1 }, ctx);
+      const result = await runLogic(() => debug_breakpoint_removeLogic({ breakpointId: 1 }, ctx));
 
       expect(result.isError).toBeFalsy();
     });
@@ -465,7 +517,7 @@ describe('debug_continue', () => {
     it('should resume session successfully with explicit id', async () => {
       const { ctx, session } = await createSessionAndContext();
 
-      const result = await debug_continueLogic({ debugSessionId: session.id }, ctx);
+      const result = await runLogic(() => debug_continueLogic({ debugSessionId: session.id }, ctx));
 
       expect(result.isError).toBeFalsy();
     });
@@ -473,7 +525,7 @@ describe('debug_continue', () => {
     it('should resume current session when debugSessionId is omitted', async () => {
       const { ctx } = await createSessionAndContext();
 
-      const result = await debug_continueLogic({}, ctx);
+      const result = await runLogic(() => debug_continueLogic({}, ctx));
 
       expect(result.isError).toBeFalsy();
     });
@@ -485,7 +537,7 @@ describe('debug_continue', () => {
         },
       });
 
-      const result = await debug_continueLogic({ debugSessionId: session.id }, ctx);
+      const result = await runLogic(() => debug_continueLogic({ debugSessionId: session.id }, ctx));
 
       expect(result.isError).toBe(true);
       const text = allText(result);
@@ -518,7 +570,7 @@ describe('debug_detach', () => {
     it('should detach session successfully with explicit id', async () => {
       const { ctx, session } = await createSessionAndContext();
 
-      const result = await debug_detachLogic({ debugSessionId: session.id }, ctx);
+      const result = await runLogic(() => debug_detachLogic({ debugSessionId: session.id }, ctx));
 
       expect(result.isError).toBeFalsy();
     });
@@ -526,7 +578,7 @@ describe('debug_detach', () => {
     it('should detach current session when debugSessionId is omitted', async () => {
       const { ctx } = await createSessionAndContext();
 
-      const result = await debug_detachLogic({}, ctx);
+      const result = await runLogic(() => debug_detachLogic({}, ctx));
 
       expect(result.isError).toBeFalsy();
     });
@@ -538,7 +590,7 @@ describe('debug_detach', () => {
         },
       });
 
-      const result = await debug_detachLogic({ debugSessionId: session.id }, ctx);
+      const result = await runLogic(() => debug_detachLogic({ debugSessionId: session.id }, ctx));
 
       expect(result.isError).toBe(true);
       const text = allText(result);
@@ -575,9 +627,8 @@ describe('debug_lldb_command', () => {
         runCommand: async () => '  frame #0: main\n',
       });
 
-      const result = await debug_lldb_commandLogic(
-        { debugSessionId: session.id, command: 'bt' },
-        ctx,
+      const result = await runLogic(() =>
+        debug_lldb_commandLogic({ debugSessionId: session.id, command: 'bt' }, ctx),
       );
 
       expect(result.isError).toBeFalsy();
@@ -592,9 +643,11 @@ describe('debug_lldb_command', () => {
         },
       });
 
-      await debug_lldb_commandLogic(
-        { debugSessionId: session.id, command: 'expr x', timeoutMs: 5000 },
-        ctx,
+      await runLogic(() =>
+        debug_lldb_commandLogic(
+          { debugSessionId: session.id, command: 'expr x', timeoutMs: 5000 },
+          ctx,
+        ),
       );
 
       expect(receivedOpts?.timeoutMs).toBe(5000);
@@ -607,9 +660,8 @@ describe('debug_lldb_command', () => {
         },
       });
 
-      const result = await debug_lldb_commandLogic(
-        { debugSessionId: session.id, command: 'expr longRunning()' },
-        ctx,
+      const result = await runLogic(() =>
+        debug_lldb_commandLogic({ debugSessionId: session.id, command: 'expr longRunning()' }, ctx),
       );
 
       expect(result.isError).toBe(true);
@@ -623,7 +675,7 @@ describe('debug_lldb_command', () => {
         runCommand: async () => 'result',
       });
 
-      const result = await debug_lldb_commandLogic({ command: 'po self' }, ctx);
+      const result = await runLogic(() => debug_lldb_commandLogic({ command: 'po self' }, ctx));
 
       expect(result.isError).toBeFalsy();
     });
@@ -658,7 +710,7 @@ describe('debug_stack', () => {
         getStack: async () => stackOutput,
       });
 
-      const result = await debug_stackLogic({ debugSessionId: session.id }, ctx);
+      const result = await runLogic(() => debug_stackLogic({ debugSessionId: session.id }, ctx));
 
       expect(result.isError).toBeFalsy();
     });
@@ -672,7 +724,9 @@ describe('debug_stack', () => {
         },
       });
 
-      await debug_stackLogic({ debugSessionId: session.id, threadIndex: 2, maxFrames: 5 }, ctx);
+      await runLogic(() =>
+        debug_stackLogic({ debugSessionId: session.id, threadIndex: 2, maxFrames: 5 }, ctx),
+      );
 
       expect(receivedOpts?.threadIndex).toBe(2);
       expect(receivedOpts?.maxFrames).toBe(5);
@@ -685,7 +739,7 @@ describe('debug_stack', () => {
         },
       });
 
-      const result = await debug_stackLogic({ debugSessionId: session.id }, ctx);
+      const result = await runLogic(() => debug_stackLogic({ debugSessionId: session.id }, ctx));
 
       expect(result.isError).toBe(true);
       const text = allText(result);
@@ -698,7 +752,7 @@ describe('debug_stack', () => {
         getStack: async () => 'frame #0: main',
       });
 
-      const result = await debug_stackLogic({}, ctx);
+      const result = await runLogic(() => debug_stackLogic({}, ctx));
 
       expect(result.isError).toBeFalsy();
     });
@@ -732,7 +786,9 @@ describe('debug_variables', () => {
         getVariables: async () => variablesOutput,
       });
 
-      const result = await debug_variablesLogic({ debugSessionId: session.id }, ctx);
+      const result = await runLogic(() =>
+        debug_variablesLogic({ debugSessionId: session.id }, ctx),
+      );
 
       expect(result.isError).toBeFalsy();
     });
@@ -746,7 +802,9 @@ describe('debug_variables', () => {
         },
       });
 
-      await debug_variablesLogic({ debugSessionId: session.id, frameIndex: 3 }, ctx);
+      await runLogic(() =>
+        debug_variablesLogic({ debugSessionId: session.id, frameIndex: 3 }, ctx),
+      );
 
       expect(receivedOpts?.frameIndex).toBe(3);
     });
@@ -758,9 +816,8 @@ describe('debug_variables', () => {
         },
       });
 
-      const result = await debug_variablesLogic(
-        { debugSessionId: session.id, frameIndex: 999 },
-        ctx,
+      const result = await runLogic(() =>
+        debug_variablesLogic({ debugSessionId: session.id, frameIndex: 999 }, ctx),
       );
 
       expect(result.isError).toBe(true);
@@ -774,7 +831,7 @@ describe('debug_variables', () => {
         getVariables: async () => 'y = 99',
       });
 
-      const result = await debug_variablesLogic({}, ctx);
+      const result = await runLogic(() => debug_variablesLogic({}, ctx));
 
       expect(result.isError).toBeFalsy();
     });

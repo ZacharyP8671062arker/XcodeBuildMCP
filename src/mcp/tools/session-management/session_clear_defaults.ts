@@ -1,10 +1,8 @@
 import * as z from 'zod';
 import { sessionStore } from '../../../utils/session-store.ts';
 import { sessionDefaultKeys } from '../../../utils/session-defaults-schema.ts';
-import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { formatProfileLabel, formatProfileAnnotation } from './session-format-helpers.ts';
 
@@ -27,36 +25,34 @@ const schemaObj = z.object({
 
 type Params = z.infer<typeof schemaObj>;
 
-export async function sessionClearDefaultsLogic(params: Params): Promise<ToolResponse> {
+export async function sessionClearDefaultsLogic(params: Params): Promise<void> {
+  const ctx = getHandlerContext();
+
   if (params.all) {
     if (params.profile !== undefined || params.keys !== undefined) {
-      return toolResponse([
-        header('Clear Defaults'),
-        statusLine('error', 'all=true cannot be combined with profile or keys.'),
-      ]);
+      ctx.emit(header('Clear Defaults'));
+      ctx.emit(statusLine('error', 'all=true cannot be combined with profile or keys.'));
+      return;
     }
 
     sessionStore.clearAll();
-    return toolResponse([
-      header('Clear Defaults'),
-      statusLine('success', 'All session defaults cleared.'),
-    ]);
+    ctx.emit(header('Clear Defaults'));
+    ctx.emit(statusLine('success', 'All session defaults cleared.'));
+    return;
   }
 
   const profile = params.profile?.trim();
   if (profile !== undefined) {
     if (profile.length === 0) {
-      return toolResponse([
-        header('Clear Defaults'),
-        statusLine('error', 'Profile name cannot be empty.'),
-      ]);
+      ctx.emit(header('Clear Defaults'));
+      ctx.emit(statusLine('error', 'Profile name cannot be empty.'));
+      return;
     }
 
     if (!sessionStore.listProfiles().includes(profile)) {
-      return toolResponse([
-        header('Clear Defaults'),
-        statusLine('error', `Profile "${profile}" does not exist.`),
-      ]);
+      ctx.emit(header('Clear Defaults'));
+      ctx.emit(statusLine('error', `Profile "${profile}" does not exist.`));
+      return;
     }
 
     if (params.keys) {
@@ -65,10 +61,9 @@ export async function sessionClearDefaultsLogic(params: Params): Promise<ToolRes
       sessionStore.clearForProfile(profile);
     }
 
-    return toolResponse([
-      header('Clear Defaults', [{ label: 'Profile', value: profile }]),
-      statusLine('success', `Session defaults cleared for profile "${profile}".`),
-    ]);
+    ctx.emit(header('Clear Defaults', [{ label: 'Profile', value: profile }]));
+    ctx.emit(statusLine('success', `Session defaults cleared for profile "${profile}".`));
+    return;
   }
 
   const currentActiveProfile = sessionStore.getActiveProfile();
@@ -80,12 +75,12 @@ export async function sessionClearDefaultsLogic(params: Params): Promise<ToolRes
   }
 
   const profileAnnotation = formatProfileAnnotation(currentActiveProfile);
-  return toolResponse([
+  ctx.emit(
     header('Clear Defaults', [
       { label: 'Profile', value: formatProfileLabel(currentActiveProfile) },
     ]),
-    statusLine('success', `Session defaults cleared ${profileAnnotation}`),
-  ]);
+  );
+  ctx.emit(statusLine('success', `Session defaults cleared ${profileAnnotation}`));
 }
 
 export const schema = schemaObj.shape;

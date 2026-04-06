@@ -16,6 +16,7 @@ import {
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 
 import { toolResponse } from '../../../utils/tool-response.ts';
@@ -45,7 +46,7 @@ export async function launch_app_deviceLogic(
   params: LaunchAppDeviceParams,
   executor: CommandExecutor,
   fileSystem: FileSystemExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const { deviceId, bundleId } = params;
 
   log('info', `Launching app ${bundleId} on device ${deviceId}`);
@@ -55,36 +56,55 @@ export async function launch_app_deviceLogic(
     { label: 'Bundle ID', value: bundleId },
   ]);
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      const launchResult = await launchAppOnDevice(deviceId, bundleId, executor, fileSystem, {
-        env: params.env,
-      });
+      const response = await (async (): Promise<ToolResponse> => {
+        const launchResult = await launchAppOnDevice(deviceId, bundleId, executor, fileSystem, {
+          env: params.env,
+        });
 
-      if (!launchResult.success) {
-        return toolResponse([
+        if (!launchResult.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Failed to launch app: ${launchResult.error}`),
+          ]);
+        }
+
+        const processId = launchResult.processId;
+
+        const events: PipelineEvent[] = [
           headerEvent,
-          statusLine('error', `Failed to launch app: ${launchResult.error}`),
-        ]);
+          statusLine('success', 'App launched successfully.'),
+        ];
+
+        if (processId !== undefined) {
+          events.push(detailTree([{ label: 'Process ID', value: processId.toString() }]));
+        }
+
+        return toolResponse(
+          events,
+          processId !== undefined
+            ? { nextStepParams: { stop_app_device: { deviceId, processId } } }
+            : undefined,
+        );
+      })();
+
+      if (!response) {
+        return;
       }
 
-      const processId = launchResult.processId;
-
-      const events: PipelineEvent[] = [
-        headerEvent,
-        statusLine('success', 'App launched successfully.'),
-      ];
-
-      if (processId !== undefined) {
-        events.push(detailTree([{ label: 'Process ID', value: processId.toString() }]));
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
       }
-
-      return toolResponse(
-        events,
-        processId !== undefined
-          ? { nextStepParams: { stop_app_device: { deviceId, processId } } }
-          : undefined,
-      );
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

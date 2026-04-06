@@ -8,13 +8,10 @@
 import * as z from 'zod';
 import * as path from 'node:path';
 import { log } from '../../../utils/logging/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import { getDefaultFileSystemExecutor, getDefaultCommandExecutor } from '../../../utils/command.ts';
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
-import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
-import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
 const DEFAULT_MAX_DEPTH = 3;
 const SKIPPED_DIRS = new Set(['build', 'DerivedData', 'Pods', '.git', 'node_modules']);
@@ -238,7 +235,8 @@ export async function discoverProjects(
 export async function discover_projsLogic(
   params: DiscoverProjsParams,
   fileSystemExecutor: FileSystemExecutor,
-): Promise<ToolResponse> {
+): Promise<void> {
+  const ctx = getHandlerContext();
   const scanPath = resolveScanBase(params.workspaceRoot, params.scanPath);
   const maxDepth = params.maxDepth ?? DEFAULT_MAX_DEPTH;
   const resolvedWorkspaceRoot = path.resolve(params.workspaceRoot);
@@ -251,7 +249,9 @@ export async function discover_projsLogic(
   ]);
   const results = await discoverProjectsOrError(params, fileSystemExecutor);
   if ('error' in results) {
-    return toolResponse([headerEvent, statusLine('error', results.error)]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', results.error));
+    return;
   }
 
   log(
@@ -262,13 +262,13 @@ export async function discover_projsLogic(
   const projectWord = results.projects.length === 1 ? 'project' : 'projects';
   const workspaceWord = results.workspaces.length === 1 ? 'workspace' : 'workspaces';
 
-  const events: PipelineEvent[] = [
-    headerEvent,
+  ctx.emit(headerEvent);
+  ctx.emit(
     statusLine(
       'success',
       `Found ${results.projects.length} ${projectWord} and ${results.workspaces.length} ${workspaceWord}`,
     ),
-  ];
+  );
 
   const cwd = process.cwd();
   function toRelative(p: string): string {
@@ -276,14 +276,12 @@ export async function discover_projsLogic(
   }
 
   if (results.projects.length > 0) {
-    events.push(section('Projects:', results.projects.map(toRelative)));
+    ctx.emit(section('Projects:', results.projects.map(toRelative)));
   }
 
   if (results.workspaces.length > 0) {
-    events.push(section('Workspaces:', results.workspaces.map(toRelative)));
+    ctx.emit(section('Workspaces:', results.workspaces.map(toRelative)));
   }
-
-  return toolResponse(events);
 }
 
 export const schema = discoverProjsSchema.shape;

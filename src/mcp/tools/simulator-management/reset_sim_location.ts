@@ -6,6 +6,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -20,32 +21,51 @@ type ResetSimulatorLocationParams = z.infer<typeof resetSimulatorLocationSchema>
 export async function reset_sim_locationLogic(
   params: ResetSimulatorLocationParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   log('info', `Resetting simulator ${params.simulatorId} location`);
 
   const headerEvent = header('Reset Location', [{ label: 'Simulator', value: params.simulatorId }]);
 
-  return withErrorHandling(
-    async () => {
-      const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'clear'];
-      const result = await executor(command, 'Reset Simulator Location', false);
+  const ctx = getHandlerContext();
 
-      if (!result.success) {
-        log(
-          'error',
-          `Failed to reset simulator location: ${result.error} (simulator: ${params.simulatorId})`,
-        );
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'clear'];
+        const result = await executor(command, 'Reset Simulator Location', false);
+
+        if (!result.success) {
+          log(
+            'error',
+            `Failed to reset simulator location: ${result.error} (simulator: ${params.simulatorId})`,
+          );
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Failed to reset simulator location: ${result.error}`),
+          ]);
+        }
+
+        log('info', `Reset simulator ${params.simulatorId} location`);
         return toolResponse([
           headerEvent,
-          statusLine('error', `Failed to reset simulator location: ${result.error}`),
+          statusLine('success', 'Location successfully reset to default'),
         ]);
+      })();
+
+      if (!response) {
+        return;
       }
 
-      log('info', `Reset simulator ${params.simulatorId} location`);
-      return toolResponse([
-        headerEvent,
-        statusLine('success', 'Location successfully reset to default'),
-      ]);
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

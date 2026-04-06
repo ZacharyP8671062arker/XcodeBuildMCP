@@ -3,7 +3,40 @@ import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, stop_app_deviceLogic } from '../stop_app_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('stop_app_device plugin', () => {
   beforeEach(() => {
@@ -61,12 +94,14 @@ describe('stop_app_device plugin', () => {
         return mockExecutor(command, description, useShell, opts, _detached);
       };
 
-      await stop_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          processId: 12345,
-        },
-        trackingExecutor,
+      await runLogic(() =>
+        stop_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            processId: 12345,
+          },
+          trackingExecutor,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -99,12 +134,14 @@ describe('stop_app_device plugin', () => {
         return mockExecutor(command);
       };
 
-      await stop_app_deviceLogic(
-        {
-          deviceId: 'different-device-uuid',
-          processId: 99999,
-        },
-        trackingExecutor,
+      await runLogic(() =>
+        stop_app_deviceLogic(
+          {
+            deviceId: 'different-device-uuid',
+            processId: 99999,
+          },
+          trackingExecutor,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -134,12 +171,14 @@ describe('stop_app_device plugin', () => {
         return mockExecutor(command);
       };
 
-      await stop_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          processId: 2147483647,
-        },
-        trackingExecutor,
+      await runLogic(() =>
+        stop_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            processId: 2147483647,
+          },
+          trackingExecutor,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -163,12 +202,14 @@ describe('stop_app_device plugin', () => {
         output: 'App terminated successfully',
       });
 
-      const result = await stop_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          processId: 12345,
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        stop_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            processId: 12345,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -182,12 +223,14 @@ describe('stop_app_device plugin', () => {
         error: 'Terminate failed: Process not found',
       });
 
-      const result = await stop_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          processId: 99999,
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        stop_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            processId: 99999,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -196,12 +239,14 @@ describe('stop_app_device plugin', () => {
     it('should return exception handling response', async () => {
       const mockExecutor = createMockExecutor(new Error('Network error'));
 
-      const result = await stop_app_deviceLogic(
-        {
-          deviceId: 'test-device-123',
-          processId: 12345,
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        stop_app_deviceLogic(
+          {
+            deviceId: 'test-device-123',
+            processId: 12345,
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);

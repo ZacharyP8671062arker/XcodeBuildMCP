@@ -5,7 +5,40 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 
 import { schema, handler, type AxeHelpers, tapLogic } from '../tap.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 function createMockAxeHelpers(): AxeHelpers {
   return {
@@ -125,14 +158,16 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-        },
-        wrappedExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+          },
+          wrappedExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(callHistory).toHaveLength(1);
@@ -171,13 +206,15 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          id: 'loginButton',
-        },
-        wrappedExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            id: 'loginButton',
+          },
+          wrappedExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(callHistory).toHaveLength(1);
@@ -214,13 +251,15 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          label: 'Log in',
-        },
-        wrappedExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            label: 'Log in',
+          },
+          wrappedExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(callHistory).toHaveLength(1);
@@ -257,15 +296,17 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 120,
-          y: 240,
-          id: 'loginButton',
-        },
-        wrappedExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 120,
+            y: 240,
+            id: 'loginButton',
+          },
+          wrappedExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(callHistory).toHaveLength(1);
@@ -304,15 +345,17 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 150,
-          y: 300,
-          preDelay: 0.5,
-        },
-        wrappedExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 150,
+            y: 300,
+            preDelay: 0.5,
+          },
+          wrappedExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(callHistory).toHaveLength(1);
@@ -353,15 +396,17 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 250,
-          y: 400,
-          postDelay: 1.0,
-        },
-        wrappedExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 250,
+            y: 400,
+            postDelay: 1.0,
+          },
+          wrappedExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(callHistory).toHaveLength(1);
@@ -402,16 +447,18 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpers();
 
-      await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 350,
-          y: 500,
-          preDelay: 0.3,
-          postDelay: 0.7,
-        },
-        wrappedExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 350,
+            y: 500,
+            preDelay: 0.3,
+            postDelay: 0.7,
+          },
+          wrappedExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(callHistory).toHaveLength(1);
@@ -560,16 +607,18 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpersWithNullPath();
 
-      const result = await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-          preDelay: 0.5,
-          postDelay: 1.0,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+            preDelay: 0.5,
+            postDelay: 1.0,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -585,14 +634,16 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpersWithNullPath();
 
-      const result = await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -608,14 +659,16 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpersWithNullPath();
 
-      const result = await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -629,14 +682,16 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpersWithNullPath();
 
-      const result = await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -650,14 +705,16 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpersWithNullPath();
 
-      const result = await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -671,14 +728,16 @@ describe('Tap Plugin', () => {
 
       const mockAxeHelpers = createMockAxeHelpersWithNullPath();
 
-      const result = await tapLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          x: 100,
-          y: 200,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        tapLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            x: 100,
+            y: 200,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);

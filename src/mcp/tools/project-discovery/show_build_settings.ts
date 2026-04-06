@@ -6,6 +6,7 @@ import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
@@ -43,7 +44,7 @@ function stripXcodebuildPreamble(output: string): string {
 export async function showBuildSettingsLogic(
   params: ShowBuildSettingsParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   log('info', `Showing build settings for scheme ${params.scheme}`);
 
   const hasProjectPath = typeof params.projectPath === 'string';
@@ -56,45 +57,64 @@ export async function showBuildSettingsLogic(
       : [{ label: 'Workspace', value: params.workspacePath! }]),
   ]);
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      const command = ['xcodebuild', '-showBuildSettings'];
+      const response = await (async (): Promise<ToolResponse> => {
+        const command = ['xcodebuild', '-showBuildSettings'];
 
-      if (hasProjectPath) {
-        command.push('-project', params.projectPath!);
-      } else {
-        command.push('-workspace', params.workspacePath!);
+        if (hasProjectPath) {
+          command.push('-project', params.projectPath!);
+        } else {
+          command.push('-workspace', params.workspacePath!);
+        }
+
+        command.push('-scheme', params.scheme);
+
+        const result = await executor(command, 'Show Build Settings', false);
+
+        if (!result.success) {
+          return toolResponse([headerEvent, statusLine('error', result.error || 'Unknown error')]);
+        }
+
+        const settingsOutput = stripXcodebuildPreamble(
+          result.output || 'Build settings retrieved successfully.',
+        );
+
+        const pathKey = hasProjectPath ? 'projectPath' : 'workspacePath';
+        const nextStepParams = {
+          build_macos: { [pathKey]: pathValue!, scheme: params.scheme },
+          build_sim: { [pathKey]: pathValue!, scheme: params.scheme, simulatorName: 'iPhone 17' },
+          list_schemes: { [pathKey]: pathValue! },
+        };
+
+        const settingsLines = settingsOutput.split('\n').filter((l) => l.trim());
+
+        return toolResponse(
+          [
+            headerEvent,
+            statusLine('success', 'Build settings retrieved'),
+            section('Settings', settingsLines),
+          ],
+          { nextStepParams },
+        );
+      })();
+
+      if (!response) {
+        return;
       }
 
-      command.push('-scheme', params.scheme);
-
-      const result = await executor(command, 'Show Build Settings', false);
-
-      if (!result.success) {
-        return toolResponse([headerEvent, statusLine('error', result.error || 'Unknown error')]);
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
       }
-
-      const settingsOutput = stripXcodebuildPreamble(
-        result.output || 'Build settings retrieved successfully.',
-      );
-
-      const pathKey = hasProjectPath ? 'projectPath' : 'workspacePath';
-      const nextStepParams = {
-        build_macos: { [pathKey]: pathValue!, scheme: params.scheme },
-        build_sim: { [pathKey]: pathValue!, scheme: params.scheme, simulatorName: 'iPhone 17' },
-        list_schemes: { [pathKey]: pathValue! },
-      };
-
-      const settingsLines = settingsOutput.split('\n').filter((l) => l.trim());
-
-      return toolResponse(
-        [
-          headerEvent,
-          statusLine('success', 'Build settings retrieved'),
-          section('Settings', settingsLines),
-        ],
-        { nextStepParams },
-      );
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

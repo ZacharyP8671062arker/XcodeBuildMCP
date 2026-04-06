@@ -6,7 +6,40 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 import { createMockFileSystemExecutor } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, sessionSetDefaultsLogic } from '../session_set_defaults.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('session-set-defaults tool', () => {
   beforeEach(() => {
@@ -56,14 +89,16 @@ describe('session-set-defaults tool', () => {
 
   describe('Handler Behavior', () => {
     it('should set provided defaults and return updated state', async () => {
-      const result = await sessionSetDefaultsLogic(
-        {
-          scheme: 'MyScheme',
-          simulatorName: 'iPhone 17',
-          useLatestOS: true,
-          arch: 'arm64',
-        },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic(
+          {
+            scheme: 'MyScheme',
+            simulatorName: 'iPhone 17',
+            useLatestOS: true,
+            arch: 'arm64',
+          },
+          createContext(),
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -108,9 +143,8 @@ describe('session-set-defaults tool', () => {
 
     it('should clear workspacePath when projectPath is set', async () => {
       sessionStore.setDefaults({ workspacePath: '/old/App.xcworkspace' });
-      const result = await sessionSetDefaultsLogic(
-        { projectPath: '/new/App.xcodeproj' },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic({ projectPath: '/new/App.xcodeproj' }, createContext()),
       );
       const current = sessionStore.getAll();
       expect(current.projectPath).toBe('/new/App.xcodeproj');
@@ -120,9 +154,8 @@ describe('session-set-defaults tool', () => {
 
     it('should clear projectPath when workspacePath is set', async () => {
       sessionStore.setDefaults({ projectPath: '/old/App.xcodeproj' });
-      const result = await sessionSetDefaultsLogic(
-        { workspacePath: '/new/App.xcworkspace' },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic({ workspacePath: '/new/App.xcworkspace' }, createContext()),
       );
       const current = sessionStore.getAll();
       expect(current.workspacePath).toBe('/new/App.xcworkspace');
@@ -132,9 +165,8 @@ describe('session-set-defaults tool', () => {
 
     it('should clear stale simulatorName when simulatorId is explicitly set', async () => {
       sessionStore.setDefaults({ simulatorName: 'Old Name' });
-      const result = await sessionSetDefaultsLogic(
-        { simulatorId: 'RESOLVED-SIM-UUID' },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic({ simulatorId: 'RESOLVED-SIM-UUID' }, createContext()),
       );
       const current = sessionStore.getAll();
       expect(current.simulatorId).toBe('RESOLVED-SIM-UUID');
@@ -144,7 +176,9 @@ describe('session-set-defaults tool', () => {
 
     it('should clear stale simulatorId when only simulatorName is set', async () => {
       sessionStore.setDefaults({ simulatorId: 'OLD-SIM-UUID' });
-      const result = await sessionSetDefaultsLogic({ simulatorName: 'iPhone 17' }, createContext());
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic({ simulatorName: 'iPhone 17' }, createContext()),
+      );
       const current = sessionStore.getAll();
       // simulatorId resolution happens in background; stale id is cleared immediately
       expect(current.simulatorName).toBe('iPhone 17');
@@ -154,9 +188,8 @@ describe('session-set-defaults tool', () => {
 
     it('does not claim simulatorName was cleared when none existed', async () => {
       sessionStore.setDefaults({ simulatorId: 'RESOLVED-SIM-UUID' });
-      const result = await sessionSetDefaultsLogic(
-        { simulatorId: 'RESOLVED-SIM-UUID' },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic({ simulatorId: 'RESOLVED-SIM-UUID' }, createContext()),
       );
 
       expect(result.isError).toBeFalsy();
@@ -181,21 +214,25 @@ describe('session-set-defaults tool', () => {
         }),
       };
 
-      const result = await sessionSetDefaultsLogic(
-        { simulatorName: 'NonExistentSimulator' },
-        contextWithFailingExecutor,
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic(
+          { simulatorName: 'NonExistentSimulator' },
+          contextWithFailingExecutor,
+        ),
       );
       expect(result.isError).toBeFalsy();
       expect(sessionStore.getAll().simulatorName).toBe('NonExistentSimulator');
     });
 
     it('should prefer workspacePath when both projectPath and workspacePath are provided', async () => {
-      const res = await sessionSetDefaultsLogic(
-        {
-          projectPath: '/app/App.xcodeproj',
-          workspacePath: '/app/App.xcworkspace',
-        },
-        createContext(),
+      const res = await runLogic(() =>
+        sessionSetDefaultsLogic(
+          {
+            projectPath: '/app/App.xcodeproj',
+            workspacePath: '/app/App.xcworkspace',
+          },
+          createContext(),
+        ),
       );
       const current = sessionStore.getAll();
       expect(current.workspacePath).toBe('/app/App.xcworkspace');
@@ -204,12 +241,14 @@ describe('session-set-defaults tool', () => {
     });
 
     it('should keep both simulatorId and simulatorName when both are provided', async () => {
-      const res = await sessionSetDefaultsLogic(
-        {
-          simulatorId: 'SIM-1',
-          simulatorName: 'iPhone 17',
-        },
-        createContext(),
+      const res = await runLogic(() =>
+        sessionSetDefaultsLogic(
+          {
+            simulatorId: 'SIM-1',
+            simulatorName: 'iPhone 17',
+          },
+          createContext(),
+        ),
       );
       const current = sessionStore.getAll();
       // Both are kept, simulatorId takes precedence for tools
@@ -243,13 +282,15 @@ describe('session-set-defaults tool', () => {
 
       await initConfigStore({ cwd, fs });
 
-      const result = await sessionSetDefaultsLogic(
-        {
-          workspacePath: '/new/App.xcworkspace',
-          simulatorId: 'RESOLVED-SIM-UUID',
-          persist: true,
-        },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic(
+          {
+            workspacePath: '/new/App.xcworkspace',
+            simulatorId: 'RESOLVED-SIM-UUID',
+            persist: true,
+          },
+          createContext(),
+        ),
       );
 
       expect(writes.length).toBe(1);
@@ -269,13 +310,15 @@ describe('session-set-defaults tool', () => {
       sessionStore.setDefaults({ scheme: 'OldIOS' });
       sessionStore.setActiveProfile(null);
 
-      const result = await sessionSetDefaultsLogic(
-        {
-          profile: 'ios',
-          scheme: 'NewIOS',
-          simulatorName: 'iPhone 17',
-        },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic(
+          {
+            profile: 'ios',
+            scheme: 'NewIOS',
+            simulatorName: 'iPhone 17',
+          },
+          createContext(),
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -285,12 +328,14 @@ describe('session-set-defaults tool', () => {
     });
 
     it('returns error when profile does not exist and createIfNotExists is false', async () => {
-      const result = await sessionSetDefaultsLogic(
-        {
-          profile: 'missing',
-          scheme: 'NewIOS',
-        },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic(
+          {
+            profile: 'missing',
+            scheme: 'NewIOS',
+          },
+          createContext(),
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -298,13 +343,15 @@ describe('session-set-defaults tool', () => {
     });
 
     it('creates profile when createIfNotExists is true and activates it', async () => {
-      const result = await sessionSetDefaultsLogic(
-        {
-          profile: 'ios',
-          createIfNotExists: true,
-          scheme: 'NewIOS',
-        },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic(
+          {
+            profile: 'ios',
+            createIfNotExists: true,
+            scheme: 'NewIOS',
+          },
+          createContext(),
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -341,14 +388,16 @@ describe('session-set-defaults tool', () => {
       sessionStore.setActiveProfile('ios');
       sessionStore.setActiveProfile(null);
 
-      await sessionSetDefaultsLogic(
-        {
-          profile: 'ios',
-          scheme: 'NewIOS',
-          simulatorName: 'iPhone 17',
-          persist: true,
-        },
-        createContext(),
+      await runLogic(() =>
+        sessionSetDefaultsLogic(
+          {
+            profile: 'ios',
+            scheme: 'NewIOS',
+            simulatorName: 'iPhone 17',
+            persist: true,
+          },
+          createContext(),
+        ),
       );
 
       expect(writes.length).toBe(2);
@@ -363,7 +412,9 @@ describe('session-set-defaults tool', () => {
 
     it('should store env as a Record<string, string> default', async () => {
       const envVars = { STAGING_ENABLED: '1', DEBUG: 'true' };
-      const result = await sessionSetDefaultsLogic({ env: envVars }, createContext());
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic({ env: envVars }, createContext()),
+      );
 
       expect(result.isError).toBeFalsy();
       expect(sessionStore.getAll().env).toEqual(envVars);
@@ -389,9 +440,8 @@ describe('session-set-defaults tool', () => {
       await initConfigStore({ cwd, fs });
 
       const envVars = { API_URL: 'https://staging.example.com' };
-      const result = await sessionSetDefaultsLogic(
-        { env: envVars, persist: true },
-        createContext(),
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic({ env: envVars, persist: true }, createContext()),
       );
 
       expect(writes.length).toBe(1);
@@ -413,7 +463,9 @@ describe('session-set-defaults tool', () => {
 
       await initConfigStore({ cwd, fs });
 
-      const result = await sessionSetDefaultsLogic({ persist: true }, createContext());
+      const result = await runLogic(() =>
+        sessionSetDefaultsLogic({ persist: true }, createContext()),
+      );
 
       expect(result.isError).toBeFalsy();
       expect(writes).toEqual([]);

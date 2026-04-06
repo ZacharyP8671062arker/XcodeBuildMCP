@@ -10,13 +10,13 @@ import {
   sessionDefaultsSchema,
   sessionDefaultKeys,
 } from '../../../utils/session-defaults-schema.ts';
-import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
-import type { ToolResponse } from '../../../types/common.ts';
+import {
+  createTypedToolWithContext,
+  getHandlerContext,
+} from '../../../utils/typed-tool-factory.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
-import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import {
   formatProfileLabel,
   formatProfileAnnotation,
@@ -68,7 +68,8 @@ const PARAM_LABEL_MAP: Record<string, string> = {
 export async function sessionSetDefaultsLogic(
   params: Params,
   context: SessionSetDefaultsContext,
-): Promise<ToolResponse> {
+): Promise<void> {
+  const ctx = getHandlerContext();
   const notices: string[] = [];
   let activeProfile = sessionStore.getActiveProfile();
   const { persist, profile: rawProfile, createIfNotExists = false, ...rawParams } = params;
@@ -76,21 +77,21 @@ export async function sessionSetDefaultsLogic(
   if (rawProfile !== undefined) {
     const profile = rawProfile.trim();
     if (profile.length === 0) {
-      return toolResponse([
-        header('Set Defaults'),
-        statusLine('error', 'Profile name cannot be empty.'),
-      ]);
+      ctx.emit(header('Set Defaults'));
+      ctx.emit(statusLine('error', 'Profile name cannot be empty.'));
+      return;
     }
 
     const profileExists = sessionStore.listProfiles().includes(profile);
     if (!profileExists && !createIfNotExists) {
-      return toolResponse([
-        header('Set Defaults'),
+      ctx.emit(header('Set Defaults'));
+      ctx.emit(
         statusLine(
           'error',
           `Profile "${profile}" does not exist. Pass createIfNotExists=true to create it.`,
         ),
-      ]);
+      );
+      return;
     }
 
     sessionStore.setActiveProfile(profile);
@@ -228,17 +229,14 @@ export async function sessionSetDefaultsLogic(
   }
   headerParams.push({ label: 'Profile', value: formatProfileLabel(activeProfile) });
 
-  const events: PipelineEvent[] = [header('Set Defaults', headerParams)];
-
   const profileAnnotation = formatProfileAnnotation(activeProfile);
-  events.push(statusLine('success', `Session defaults updated ${profileAnnotation}`));
-  events.push(detailTree(buildFullDetailTree(updated)));
+  ctx.emit(header('Set Defaults', headerParams));
+  ctx.emit(statusLine('success', `Session defaults updated ${profileAnnotation}`));
+  ctx.emit(detailTree(buildFullDetailTree(updated)));
 
   if (notices.length > 0) {
-    events.push(section('Notices', notices));
+    ctx.emit(section('Notices', notices));
   }
-
-  return toolResponse(events);
 }
 
 export const schema = schemaObj.shape;

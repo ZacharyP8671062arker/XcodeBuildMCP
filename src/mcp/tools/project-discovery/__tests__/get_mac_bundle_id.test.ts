@@ -1,5 +1,40 @@
 import { describe, it, expect } from 'vitest';
 import { schema, handler, get_mac_bundle_idLogic } from '../get_mac_bundle_id.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
+
 import {
   createMockFileSystemExecutor,
   createCommandMatchingMockExecutor,
@@ -33,10 +68,12 @@ describe('get_mac_bundle_id plugin', () => {
         existsSync: () => false,
       });
 
-      const result = await get_mac_bundle_idLogic(
-        { appPath: '/Applications/MyApp.app' },
-        mockExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        get_mac_bundle_idLogic(
+          { appPath: '/Applications/MyApp.app' },
+          mockExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -52,10 +89,12 @@ describe('get_mac_bundle_id plugin', () => {
         existsSync: () => true,
       });
 
-      const result = await get_mac_bundle_idLogic(
-        { appPath: '/Applications/MyApp.app' },
-        mockExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        get_mac_bundle_idLogic(
+          { appPath: '/Applications/MyApp.app' },
+          mockExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -77,10 +116,12 @@ describe('get_mac_bundle_id plugin', () => {
         existsSync: () => true,
       });
 
-      const result = await get_mac_bundle_idLogic(
-        { appPath: '/Applications/MyApp.app' },
-        mockExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        get_mac_bundle_idLogic(
+          { appPath: '/Applications/MyApp.app' },
+          mockExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -102,10 +143,12 @@ describe('get_mac_bundle_id plugin', () => {
         existsSync: () => true,
       });
 
-      const result = await get_mac_bundle_idLogic(
-        { appPath: '/Applications/MyApp.app' },
-        mockExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        get_mac_bundle_idLogic(
+          { appPath: '/Applications/MyApp.app' },
+          mockExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);

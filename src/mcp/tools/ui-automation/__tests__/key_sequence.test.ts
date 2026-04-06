@@ -8,7 +8,40 @@ import {
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, key_sequenceLogic } from '../key_sequence.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('Key Sequence Tool', () => {
   beforeEach(() => {
@@ -82,13 +115,15 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [40, 42, 44],
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [40, 42, 44],
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -118,14 +153,16 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [58, 59, 60],
-          delay: 0.5,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [58, 59, 60],
+            delay: 0.5,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -157,13 +194,15 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [255],
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [255],
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -193,14 +232,16 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({ AXE_PATH: '/some/path' }),
       };
 
-      await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [0, 1, 2, 3, 4],
-          delay: 1.0,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [0, 1, 2, 3, 4],
+            delay: 1.0,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -237,14 +278,16 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [40, 42, 44],
-          delay: 0.1,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [40, 42, 44],
+            delay: 0.1,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -263,13 +306,15 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [40],
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [40],
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -282,13 +327,15 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [40],
-        },
-        createNoopExecutor(),
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [40],
+          },
+          createNoopExecutor(),
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -307,13 +354,15 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [40],
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [40],
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -332,13 +381,15 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [40],
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [40],
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(allText(result)).toMatch(
@@ -357,13 +408,15 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [40],
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [40],
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(allText(result)).toMatch(
@@ -382,13 +435,15 @@ describe('Key Sequence Tool', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await key_sequenceLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          keyCodes: [40],
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        key_sequenceLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            keyCodes: [40],
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);

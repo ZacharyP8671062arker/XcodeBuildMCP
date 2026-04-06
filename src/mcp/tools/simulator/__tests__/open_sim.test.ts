@@ -6,7 +6,40 @@ import {
   type CommandExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, open_simLogic } from '../open_sim.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('open_sim tool', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -40,7 +73,7 @@ describe('open_sim tool', () => {
         output: '',
       });
 
-      const result = await open_simLogic({}, mockExecutor);
+      const result = await runLogic(() => open_simLogic({}, mockExecutor));
 
       const text = allText(result);
       expect(text).toContain('Open Simulator');
@@ -57,7 +90,7 @@ describe('open_sim tool', () => {
         error: 'Command failed',
       });
 
-      const result = await open_simLogic({}, mockExecutor);
+      const result = await runLogic(() => open_simLogic({}, mockExecutor));
 
       const text = allText(result);
       expect(text).toContain('Open simulator operation failed: Command failed');
@@ -69,7 +102,7 @@ describe('open_sim tool', () => {
         throw new Error('Test error');
       };
 
-      const result = await open_simLogic({}, mockExecutor);
+      const result = await runLogic(() => open_simLogic({}, mockExecutor));
 
       const text = allText(result);
       expect(text).toContain('Open simulator operation failed: Test error');
@@ -81,7 +114,7 @@ describe('open_sim tool', () => {
         throw 'String error';
       };
 
-      const result = await open_simLogic({}, mockExecutor);
+      const result = await runLogic(() => open_simLogic({}, mockExecutor));
 
       const text = allText(result);
       expect(text).toContain('Open simulator operation failed: String error');
@@ -112,7 +145,7 @@ describe('open_sim tool', () => {
         });
       };
 
-      await open_simLogic({}, mockExecutor);
+      await runLogic(() => open_simLogic({}, mockExecutor));
 
       expect(calls).toHaveLength(1);
       expect(calls[0]).toEqual({

@@ -7,6 +7,40 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, swift_package_cleanLogic } from '../swift_package_clean.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('swift_package_clean plugin', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -43,11 +77,13 @@ describe('swift_package_clean plugin', () => {
         });
       };
 
-      await swift_package_cleanLogic(
-        {
-          packagePath: '/test/package',
-        },
-        mockExecutor,
+      await runLogic(() =>
+        swift_package_cleanLogic(
+          {
+            packagePath: '/test/package',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(calls).toHaveLength(1);
@@ -67,11 +103,13 @@ describe('swift_package_clean plugin', () => {
         output: 'Package cleaned successfully',
       });
 
-      const result = await swift_package_cleanLogic(
-        {
-          packagePath: '/test/package',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        swift_package_cleanLogic(
+          {
+            packagePath: '/test/package',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeUndefined();
@@ -85,11 +123,13 @@ describe('swift_package_clean plugin', () => {
         output: 'Package cleaned successfully',
       });
 
-      const result = await swift_package_cleanLogic(
-        {
-          packagePath: '/test/package',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        swift_package_cleanLogic(
+          {
+            packagePath: '/test/package',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeUndefined();
@@ -105,11 +145,13 @@ describe('swift_package_clean plugin', () => {
         output: '',
       });
 
-      const result = await swift_package_cleanLogic(
-        {
-          packagePath: '/test/package',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        swift_package_cleanLogic(
+          {
+            packagePath: '/test/package',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeUndefined();
@@ -124,11 +166,13 @@ describe('swift_package_clean plugin', () => {
         error: 'Permission denied',
       });
 
-      const result = await swift_package_cleanLogic(
-        {
-          packagePath: '/test/package',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        swift_package_cleanLogic(
+          {
+            packagePath: '/test/package',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -142,11 +186,13 @@ describe('swift_package_clean plugin', () => {
         throw new Error('spawn ENOENT');
       };
 
-      const result = await swift_package_cleanLogic(
-        {
-          packagePath: '/test/package',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        swift_package_cleanLogic(
+          {
+            packagePath: '/test/package',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);

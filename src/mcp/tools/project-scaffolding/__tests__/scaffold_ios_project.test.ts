@@ -10,7 +10,40 @@ import {
   initConfigStore,
   type RuntimeConfigOverrides,
 } from '../../../../utils/config-store.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 const cwd = '/repo';
 
@@ -138,14 +171,16 @@ describe('scaffold_ios_project plugin', () => {
         return trackingCommandExecutor(command, ...args);
       };
 
-      await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        capturingExecutor,
-        mockFileSystemExecutor,
+      await runLogic(() =>
+        scaffold_ios_projectLogic(
+          {
+            projectName: 'TestIOSApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+          },
+          capturingExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       const curlCommand = capturedCommands.find((cmd) => cmd.includes('curl'));
@@ -177,14 +212,16 @@ describe('scaffold_ios_project plugin', () => {
         return trackingCommandExecutor(command, ...args);
       };
 
-      await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        capturingExecutor,
-        mockFileSystemExecutor,
+      await runLogic(() =>
+        scaffold_ios_projectLogic(
+          {
+            projectName: 'TestIOSApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+          },
+          capturingExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       const curlCommand = capturedCommands.find((cmd) => cmd.includes('curl'));
@@ -204,15 +241,17 @@ describe('scaffold_ios_project plugin', () => {
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
     it('should return success response for valid scaffold iOS project request', async () => {
-      const result = await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-          bundleIdentifier: 'com.test.iosapp',
-        },
-        mockCommandExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_ios_projectLogic(
+          {
+            projectName: 'TestIOSApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+            bundleIdentifier: 'com.test.iosapp',
+          },
+          mockCommandExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -236,22 +275,24 @@ describe('scaffold_ios_project plugin', () => {
     });
 
     it('should return success response with all optional parameters', async () => {
-      const result = await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-          bundleIdentifier: 'com.test.iosapp',
-          displayName: 'Test iOS App',
-          marketingVersion: '2.0',
-          currentProjectVersion: '5',
-          deploymentTarget: '17.0',
-          targetedDeviceFamily: ['iphone'],
-          supportedOrientations: ['portrait'],
-          supportedOrientationsIpad: ['portrait', 'landscape-left'],
-        },
-        mockCommandExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_ios_projectLogic(
+          {
+            projectName: 'TestIOSApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+            bundleIdentifier: 'com.test.iosapp',
+            displayName: 'Test iOS App',
+            marketingVersion: '2.0',
+            currentProjectVersion: '5',
+            deploymentTarget: '17.0',
+            targetedDeviceFamily: ['iphone'],
+            supportedOrientations: ['portrait'],
+            supportedOrientationsIpad: ['portrait', 'landscape-left'],
+          },
+          mockCommandExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -272,14 +313,16 @@ describe('scaffold_ios_project plugin', () => {
     });
 
     it('should return success response with customizeNames false', async () => {
-      const result = await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          outputPath: '/tmp/test-projects',
-          customizeNames: false,
-        },
-        mockCommandExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_ios_projectLogic(
+          {
+            projectName: 'TestIOSApp',
+            outputPath: '/tmp/test-projects',
+            customizeNames: false,
+          },
+          mockCommandExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -300,14 +343,16 @@ describe('scaffold_ios_project plugin', () => {
     });
 
     it('should return error response for invalid project name', async () => {
-      const result = await scaffold_ios_projectLogic(
-        {
-          projectName: '123InvalidName',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        mockCommandExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_ios_projectLogic(
+          {
+            projectName: '123InvalidName',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+          },
+          mockCommandExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -325,14 +370,16 @@ describe('scaffold_ios_project plugin', () => {
         ],
       });
 
-      const result = await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        mockCommandExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_ios_projectLogic(
+          {
+            projectName: 'TestIOSApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+          },
+          mockCommandExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -349,14 +396,16 @@ describe('scaffold_ios_project plugin', () => {
         error: 'Template download failed',
       });
 
-      const result = await scaffold_ios_projectLogic(
-        {
-          projectName: 'TestIOSApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        failingMockCommandExecutor,
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_ios_projectLogic(
+          {
+            projectName: 'TestIOSApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+          },
+          failingMockCommandExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);

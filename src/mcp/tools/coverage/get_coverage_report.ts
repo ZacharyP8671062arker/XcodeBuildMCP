@@ -6,13 +6,14 @@
  */
 
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { validateFileExists } from '../../../utils/validation.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from '../../../utils/execution/index.ts';
-import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
+import {
+  createTypedToolWithContext,
+  getHandlerContext,
+} from '../../../utils/typed-tool-factory.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const getCoverageReportSchema = z.object({
@@ -62,7 +63,8 @@ type GetCoverageReportContext = {
 export async function get_coverage_reportLogic(
   params: GetCoverageReportParams,
   context: GetCoverageReportContext,
-): Promise<ToolResponse> {
+): Promise<void> {
+  const ctx = getHandlerContext();
   const { xcresultPath, target, showFiles } = params;
 
   const headerParams = [{ label: 'xcresult', value: xcresultPath }];
@@ -73,10 +75,9 @@ export async function get_coverage_reportLogic(
 
   const fileExistsValidation = validateFileExists(xcresultPath, context.fileSystem);
   if (!fileExistsValidation.isValid) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', fileExistsValidation.errorMessage!),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', fileExistsValidation.errorMessage!));
+    return;
   }
 
   log('info', `Getting coverage report from: ${xcresultPath}`);
@@ -90,20 +91,20 @@ export async function get_coverage_reportLogic(
   const result = await context.executor(cmd, 'Get Coverage Report', false);
 
   if (!result.success) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Failed to get coverage report: ${result.error ?? result.output}`),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', `Failed to get coverage report: ${result.error ?? result.output}`));
+    return;
   }
 
   let data: unknown;
   try {
     data = JSON.parse(result.output);
   } catch {
-    return toolResponse([
-      headerEvent,
+    ctx.emit(headerEvent);
+    ctx.emit(
       statusLine('error', `Failed to parse coverage JSON output.\n\nRaw output:\n${result.output}`),
-    ]);
+    );
+    return;
   }
 
   let rawTargets: unknown[] = [];
@@ -117,10 +118,9 @@ export async function get_coverage_reportLogic(
   ) {
     rawTargets = (data as { targets: unknown[] }).targets;
   } else {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Unexpected coverage data format.\n\nRaw output:\n${result.output}`),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', `Unexpected coverage data format.\n\nRaw output:\n${result.output}`));
+    return;
   }
 
   let targets = rawTargets.filter(isValidCoverageTarget);
@@ -129,18 +129,21 @@ export async function get_coverage_reportLogic(
     const lowerTarget = target.toLowerCase();
     targets = targets.filter((t) => t.name.toLowerCase().includes(lowerTarget));
     if (targets.length === 0) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `No targets found matching "${target}".`),
-      ]);
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('error', `No targets found matching "${target}".`));
+      return;
     }
   }
 
   if (targets.length === 0) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', 'No coverage data found in the xcresult bundle.\n\nMake sure tests were run with coverage enabled.'),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(
+      statusLine(
+        'error',
+        'No coverage data found in the xcresult bundle.\n\nMake sure tests were run with coverage enabled.',
+      ),
+    );
+    return;
   }
 
   let totalCovered = 0;
@@ -167,15 +170,14 @@ export async function get_coverage_reportLogic(
     }
   }
 
-  return toolResponse([
-    headerEvent,
+  ctx.emit(headerEvent);
+  ctx.emit(
     statusLine('info', `Overall: ${overallPct.toFixed(1)}% (${totalCovered}/${totalExecutable} lines)`),
-    section('Targets', targetLines),
-  ], {
-    nextStepParams: {
-      get_file_coverage: { xcresultPath },
-    },
-  });
+  );
+  ctx.emit(section('Targets', targetLines));
+  ctx.nextStepParams = {
+    get_file_coverage: { xcresultPath },
+  };
 }
 
 export const schema = getCoverageReportSchema.shape;

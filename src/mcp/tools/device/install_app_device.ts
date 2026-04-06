@@ -13,6 +13,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -35,7 +36,7 @@ type InstallAppDeviceParams = z.infer<typeof installAppDeviceSchema>;
 export async function install_app_deviceLogic(
   params: InstallAppDeviceParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const { deviceId, appPath } = params;
   const headerEvent = header('Install App', [
     { label: 'Device', value: formatDeviceId(deviceId) },
@@ -44,18 +45,37 @@ export async function install_app_deviceLogic(
 
   log('info', `Installing app on device ${deviceId}`);
 
-  return withErrorHandling(
-    async () => {
-      const installResult = await installAppOnDevice(deviceId, appPath, executor);
+  const ctx = getHandlerContext();
 
-      if (!installResult.success) {
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Failed to install app: ${installResult.error}`),
-        ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        const installResult = await installAppOnDevice(deviceId, appPath, executor);
+
+        if (!installResult.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Failed to install app: ${installResult.error}`),
+          ]);
+        }
+
+        return toolResponse([headerEvent, statusLine('success', 'App installed successfully.')]);
+      })();
+
+      if (!response) {
+        return;
       }
 
-      return toolResponse([headerEvent, statusLine('success', 'App installed successfully.')]);
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

@@ -1,10 +1,7 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
-import type { PipelineEvent } from '../../../types/pipeline-events.ts';
-import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { getDefaultCommandExecutor } from '../../../utils/command.ts';
 import { activeProcesses } from './active-processes.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 type ListProcessInfo = {
@@ -22,7 +19,8 @@ export interface ProcessListDependencies {
 export async function swift_package_listLogic(
   params?: unknown,
   dependencies?: ProcessListDependencies,
-): Promise<ToolResponse> {
+): Promise<void> {
+  const ctx = getHandlerContext();
   const processMap =
     dependencies?.processMap ??
     new Map<number, ListProcessInfo>(
@@ -43,13 +41,12 @@ export async function swift_package_listLogic(
   const headerEvent = header('Swift Package Processes');
 
   if (processes.length === 0) {
-    return toolResponse([
-      headerEvent,
-      statusLine('info', 'No Swift Package processes currently running.'),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('info', 'No Swift Package processes currently running.'));
+    return;
   }
 
-  const events: PipelineEvent[] = [headerEvent];
+  ctx.emit(headerEvent);
 
   const cardLines: string[] = [''];
   for (const [pid, info] of processes as Array<[number, ListProcessInfo]>) {
@@ -69,9 +66,7 @@ export async function swift_package_listLogic(
     cardLines.pop();
   }
 
-  events.push(section(`Running Processes (${processes.length}):`, cardLines));
-
-  return toolResponse(events);
+  ctx.emit(section(`Running Processes (${processes.length}):`, cardLines));
 }
 
 const swiftPackageListSchema = z.object({});

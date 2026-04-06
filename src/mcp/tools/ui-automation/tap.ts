@@ -11,6 +11,7 @@ import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { getSnapshotUiWarning } from './shared/snapshot-ui-state.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
@@ -109,7 +110,7 @@ export async function tapLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const toolName = 'tap';
   const { simulatorId, x, y, id, label, preDelay, postDelay } = params;
 
@@ -157,20 +158,39 @@ export async function tapLogic(
 
   log('info', `${LOG_PREFIX}/${toolName}: Starting for ${targetDescription} on ${simulatorId}`);
 
-  return withErrorHandling(
-    async () => {
-      await executeAxeCommand(commandArgs, simulatorId, 'tap', executor, axeHelpers);
-      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+  const ctx = getHandlerContext();
 
-      const coordinateWarning = usesCoordinates ? getSnapshotUiWarning(simulatorId) : null;
-      const warnings = [guard.warningText, coordinateWarning].filter(
-        (w): w is string => typeof w === 'string' && w.length > 0,
-      );
-      return toolResponse([
-        headerEvent,
-        statusLine('success', `${actionDescription} simulated successfully.`),
-        ...warnings.map((w) => statusLine('warning', w)),
-      ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        await executeAxeCommand(commandArgs, simulatorId, 'tap', executor, axeHelpers);
+        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+
+        const coordinateWarning = usesCoordinates ? getSnapshotUiWarning(simulatorId) : null;
+        const warnings = [guard.warningText, coordinateWarning].filter(
+          (w): w is string => typeof w === 'string' && w.length > 0,
+        );
+        return toolResponse([
+          headerEvent,
+          statusLine('success', `${actionDescription} simulated successfully.`),
+          ...warnings.map((w) => statusLine('warning', w)),
+        ]);
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

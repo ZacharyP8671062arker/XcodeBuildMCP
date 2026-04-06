@@ -6,6 +6,40 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, listSchemes, listSchemesLogic } from '../list_schemes.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('list_schemes plugin', () => {
   beforeEach(() => {
@@ -64,9 +98,8 @@ describe('list_schemes plugin', () => {
         MyProjectTests`,
       });
 
-      const result = await listSchemesLogic(
-        { projectPath: '/path/to/MyProject.xcodeproj' },
-        mockExecutor,
+      const result = await runLogic(() =>
+        listSchemesLogic({ projectPath: '/path/to/MyProject.xcodeproj' }, mockExecutor),
       );
 
       expect(result.isError).toBeFalsy();
@@ -92,9 +125,8 @@ describe('list_schemes plugin', () => {
         error: 'Project not found',
       });
 
-      const result = await listSchemesLogic(
-        { projectPath: '/path/to/MyProject.xcodeproj' },
-        mockExecutor,
+      const result = await runLogic(() =>
+        listSchemesLogic({ projectPath: '/path/to/MyProject.xcodeproj' }, mockExecutor),
       );
 
       expect(result.isError).toBe(true);
@@ -107,9 +139,8 @@ describe('list_schemes plugin', () => {
         output: 'Information about project "MyProject":\n    Targets:\n        MyProject',
       });
 
-      const result = await listSchemesLogic(
-        { projectPath: '/path/to/MyProject.xcodeproj' },
-        mockExecutor,
+      const result = await runLogic(() =>
+        listSchemesLogic({ projectPath: '/path/to/MyProject.xcodeproj' }, mockExecutor),
       );
 
       expect(result.isError).toBe(true);
@@ -132,9 +163,8 @@ describe('list_schemes plugin', () => {
 `,
       });
 
-      const result = await listSchemesLogic(
-        { projectPath: '/path/to/MyProject.xcodeproj' },
-        mockExecutor,
+      const result = await runLogic(() =>
+        listSchemesLogic({ projectPath: '/path/to/MyProject.xcodeproj' }, mockExecutor),
       );
 
       expect(result.isError).toBeFalsy();
@@ -146,9 +176,8 @@ describe('list_schemes plugin', () => {
         throw new Error('Command execution failed');
       };
 
-      const result = await listSchemesLogic(
-        { projectPath: '/path/to/MyProject.xcodeproj' },
-        mockExecutor,
+      const result = await runLogic(() =>
+        listSchemesLogic({ projectPath: '/path/to/MyProject.xcodeproj' }, mockExecutor),
       );
 
       expect(result.isError).toBe(true);
@@ -182,7 +211,9 @@ describe('list_schemes plugin', () => {
         });
       };
 
-      await listSchemesLogic({ projectPath: '/path/to/MyProject.xcodeproj' }, mockExecutor);
+      await runLogic(() =>
+        listSchemesLogic({ projectPath: '/path/to/MyProject.xcodeproj' }, mockExecutor),
+      );
 
       expect(calls).toEqual([
         [
@@ -214,7 +245,9 @@ describe('list_schemes plugin', () => {
         });
       };
 
-      await listSchemesLogic({ workspacePath: '/path/to/MyProject.xcworkspace' }, mockExecutor);
+      await runLogic(() =>
+        listSchemesLogic({ workspacePath: '/path/to/MyProject.xcworkspace' }, mockExecutor),
+      );
 
       expect(calls).toEqual([
         [
@@ -235,9 +268,8 @@ describe('list_schemes plugin', () => {
         MyAppTests`,
       });
 
-      const result = await listSchemesLogic(
-        { workspacePath: '/path/to/MyProject.xcworkspace' },
-        mockExecutor,
+      const result = await runLogic(() =>
+        listSchemesLogic({ workspacePath: '/path/to/MyProject.xcworkspace' }, mockExecutor),
       );
 
       expect(result.isError).toBeFalsy();

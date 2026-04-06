@@ -6,6 +6,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -55,7 +56,7 @@ export async function launch_app_simLogic(
   params: LaunchAppSimParams,
   executor: CommandExecutor,
   launcher: SimulatorLauncher = launchSimulatorAppWithLogging,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const simulatorId = params.simulatorId;
   const simulatorDisplayName = params.simulatorName
     ? `"${params.simulatorName}" (${simulatorId})`
@@ -97,43 +98,62 @@ export async function launch_app_simLogic(
     ]);
   }
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      const launchResult: LaunchWithLoggingResult = await launcher(simulatorId, params.bundleId, {
-        args: params.args,
-        env: params.env,
-      });
+      const response = await (async (): Promise<ToolResponse> => {
+        const launchResult: LaunchWithLoggingResult = await launcher(simulatorId, params.bundleId, {
+          args: params.args,
+          env: params.env,
+        });
 
-      if (!launchResult.success) {
-        return toolResponse([
+        if (!launchResult.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Launch app in simulator operation failed: ${launchResult.error}`),
+          ]);
+        }
+
+        const detailItems: Array<{ label: string; value: string }> = [];
+        if (launchResult.processId !== undefined) {
+          detailItems.push({ label: 'Process ID', value: String(launchResult.processId) });
+        }
+        if (launchResult.logFilePath) {
+          detailItems.push({ label: 'Runtime Logs', value: displayPath(launchResult.logFilePath) });
+        }
+        if (launchResult.osLogPath) {
+          detailItems.push({ label: 'OSLog', value: displayPath(launchResult.osLogPath) });
+        }
+
+        const events = [
           headerEvent,
-          statusLine('error', `Launch app in simulator operation failed: ${launchResult.error}`),
-        ]);
+          statusLine('success', 'App launched successfully'),
+          ...(detailItems.length > 0 ? [detailTree(detailItems)] : []),
+        ];
+
+        return toolResponse(events, {
+          nextStepParams: {
+            open_sim: {},
+            stop_app_sim: { simulatorId, bundleId: params.bundleId },
+          },
+        });
+      })();
+
+      if (!response) {
+        return;
       }
 
-      const detailItems: Array<{ label: string; value: string }> = [];
-      if (launchResult.processId !== undefined) {
-        detailItems.push({ label: 'Process ID', value: String(launchResult.processId) });
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
       }
-      if (launchResult.logFilePath) {
-        detailItems.push({ label: 'Runtime Logs', value: displayPath(launchResult.logFilePath) });
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
       }
-      if (launchResult.osLogPath) {
-        detailItems.push({ label: 'OSLog', value: displayPath(launchResult.osLogPath) });
-      }
-
-      const events = [
-        headerEvent,
-        statusLine('success', 'App launched successfully'),
-        ...(detailItems.length > 0 ? [detailTree(detailItems)] : []),
-      ];
-
-      return toolResponse(events, {
-        nextStepParams: {
-          open_sim: {},
-          stop_app_sim: { simulatorId, bundleId: params.bundleId },
-        },
-      });
     },
     {
       header: headerEvent,

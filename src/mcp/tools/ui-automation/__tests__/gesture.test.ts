@@ -8,7 +8,40 @@ import {
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, gestureLogic } from '../gesture.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../../utils/axe-helpers.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('Gesture Plugin', () => {
   beforeEach(() => {
@@ -91,13 +124,15 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'scroll-up',
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'scroll-up',
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -126,15 +161,17 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'swipe-from-left-edge',
-          screenWidth: 375,
-          screenHeight: 667,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'swipe-from-left-edge',
+            screenWidth: 375,
+            screenHeight: 667,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -167,19 +204,21 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'scroll-down',
-          screenWidth: 414,
-          screenHeight: 896,
-          duration: 2.0,
-          delta: 150,
-          preDelay: 0.5,
-          postDelay: 0.3,
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'scroll-down',
+            screenWidth: 414,
+            screenHeight: 896,
+            duration: 2.0,
+            delta: 150,
+            preDelay: 0.5,
+            postDelay: 0.3,
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -220,13 +259,15 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'swipe-from-bottom-edge',
-        },
-        trackingExecutor,
-        mockAxeHelpers,
+      await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'swipe-from-bottom-edge',
+          },
+          trackingExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(capturedCommand).toEqual([
@@ -257,13 +298,15 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'scroll-up',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'scroll-up',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -283,19 +326,21 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'swipe-from-left-edge',
-          screenWidth: 375,
-          screenHeight: 667,
-          duration: 1.0,
-          delta: 50,
-          preDelay: 0.1,
-          postDelay: 0.2,
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'swipe-from-left-edge',
+            screenWidth: 375,
+            screenHeight: 667,
+            duration: 1.0,
+            delta: 50,
+            preDelay: 0.1,
+            postDelay: 0.2,
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -308,13 +353,15 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'scroll-up',
-        },
-        createNoopExecutor(),
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'scroll-up',
+          },
+          createNoopExecutor(),
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -334,13 +381,15 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'scroll-up',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'scroll-up',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -357,13 +406,15 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'scroll-up',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'scroll-up',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(allText(result)).toMatch(
@@ -380,13 +431,15 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'scroll-up',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'scroll-up',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(allText(result)).toMatch(
@@ -403,13 +456,15 @@ describe('Gesture Plugin', () => {
         getBundledAxeEnvironment: () => ({}),
       };
 
-      const result = await gestureLogic(
-        {
-          simulatorId: '12345678-1234-4234-8234-123456789012',
-          preset: 'scroll-up',
-        },
-        mockExecutor,
-        mockAxeHelpers,
+      const result = await runLogic(() =>
+        gestureLogic(
+          {
+            simulatorId: '12345678-1234-4234-8234-123456789012',
+            preset: 'scroll-up',
+          },
+          mockExecutor,
+          mockAxeHelpers,
+        ),
       );
 
       expect(result.isError).toBe(true);

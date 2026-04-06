@@ -8,7 +8,40 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, get_mac_app_pathLogic } from '../get_mac_app_path.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('get_mac_app_path plugin', () => {
   beforeEach(() => {
@@ -109,7 +142,7 @@ describe('get_mac_app_path plugin', () => {
         scheme: 'MyScheme',
       };
 
-      await get_mac_app_pathLogic(args, mockExecutor);
+      await runLogic(() => get_mac_app_pathLogic(args, mockExecutor));
 
       // Verify command generation with manual call tracking
       expect(calls).toHaveLength(1);
@@ -151,7 +184,7 @@ describe('get_mac_app_path plugin', () => {
         scheme: 'MyScheme',
       };
 
-      await get_mac_app_pathLogic(args, mockExecutor);
+      await runLogic(() => get_mac_app_pathLogic(args, mockExecutor));
 
       // Verify command generation with manual call tracking
       expect(calls).toHaveLength(1);
@@ -195,7 +228,7 @@ describe('get_mac_app_path plugin', () => {
         arch: 'arm64' as const,
       };
 
-      await get_mac_app_pathLogic(args, mockExecutor);
+      await runLogic(() => get_mac_app_pathLogic(args, mockExecutor));
 
       // Verify command generation with manual call tracking
       expect(calls).toHaveLength(1);
@@ -239,7 +272,7 @@ describe('get_mac_app_path plugin', () => {
         arch: 'x86_64' as const,
       };
 
-      await get_mac_app_pathLogic(args, mockExecutor);
+      await runLogic(() => get_mac_app_pathLogic(args, mockExecutor));
 
       // Verify command generation with manual call tracking
       expect(calls).toHaveLength(1);
@@ -284,7 +317,7 @@ describe('get_mac_app_path plugin', () => {
         extraArgs: ['--verbose'],
       };
 
-      await get_mac_app_pathLogic(args, mockExecutor);
+      await runLogic(() => get_mac_app_pathLogic(args, mockExecutor));
 
       // Verify command generation with manual call tracking
       expect(calls).toHaveLength(1);
@@ -328,7 +361,7 @@ describe('get_mac_app_path plugin', () => {
         arch: 'arm64' as const,
       };
 
-      await get_mac_app_pathLogic(args, mockExecutor);
+      await runLogic(() => get_mac_app_pathLogic(args, mockExecutor));
 
       // Verify command generation with manual call tracking
       expect(calls).toHaveLength(1);
@@ -375,12 +408,14 @@ FULL_PRODUCT_NAME = MyApp.app
         `,
       });
 
-      const result = await get_mac_app_pathLogic(
-        {
-          workspacePath: '/path/to/MyProject.xcworkspace',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        get_mac_app_pathLogic(
+          {
+            workspacePath: '/path/to/MyProject.xcworkspace',
+            scheme: 'MyScheme',
+          },
+          mockExecutor,
+        ),
       );
 
       const appPath =
@@ -402,12 +437,14 @@ FULL_PRODUCT_NAME = MyApp.app
         `,
       });
 
-      const result = await get_mac_app_pathLogic(
-        {
-          projectPath: '/path/to/MyProject.xcodeproj',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        get_mac_app_pathLogic(
+          {
+            projectPath: '/path/to/MyProject.xcodeproj',
+            scheme: 'MyScheme',
+          },
+          mockExecutor,
+        ),
       );
 
       const appPath =
@@ -426,12 +463,14 @@ FULL_PRODUCT_NAME = MyApp.app
         error: 'xcodebuild: error: No such scheme',
       });
 
-      const result = await get_mac_app_pathLogic(
-        {
-          workspacePath: '/path/to/MyProject.xcworkspace',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        get_mac_app_pathLogic(
+          {
+            workspacePath: '/path/to/MyProject.xcworkspace',
+            scheme: 'MyScheme',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -444,12 +483,14 @@ FULL_PRODUCT_NAME = MyApp.app
         output: 'OTHER_SETTING = value',
       });
 
-      const result = await get_mac_app_pathLogic(
-        {
-          workspacePath: '/path/to/MyProject.xcworkspace',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        get_mac_app_pathLogic(
+          {
+            workspacePath: '/path/to/MyProject.xcworkspace',
+            scheme: 'MyScheme',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -461,12 +502,14 @@ FULL_PRODUCT_NAME = MyApp.app
         throw new Error('Network error');
       };
 
-      const result = await get_mac_app_pathLogic(
-        {
-          workspacePath: '/path/to/MyProject.xcworkspace',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        get_mac_app_pathLogic(
+          {
+            workspacePath: '/path/to/MyProject.xcworkspace',
+            scheme: 'MyScheme',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);

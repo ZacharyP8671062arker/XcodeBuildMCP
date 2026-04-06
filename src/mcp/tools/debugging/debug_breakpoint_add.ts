@@ -4,7 +4,10 @@ import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { createTypedToolWithContext } from '../../../utils/typed-tool-factory.ts';
+import {
+  createTypedToolWithContext,
+  getHandlerContext,
+} from '../../../utils/typed-tool-factory.ts';
 import {
   getDefaultDebuggerToolContext,
   type DebuggerToolContext,
@@ -38,27 +41,46 @@ export type DebugBreakpointAddParams = z.infer<typeof debugBreakpointAddSchema>;
 export async function debug_breakpoint_addLogic(
   params: DebugBreakpointAddParams,
   ctx: DebuggerToolContext,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const headerEvent = header('Add Breakpoint');
 
+  const handlerCtx = getHandlerContext();
+
   return withErrorHandling(
+    handlerCtx,
     async () => {
-      const spec: BreakpointSpec = params.function
-        ? { kind: 'function', name: params.function }
-        : { kind: 'file-line', file: params.file!, line: params.line! };
+      const response = await (async (): Promise<ToolResponse> => {
+        const spec: BreakpointSpec = params.function
+          ? { kind: 'function', name: params.function }
+          : { kind: 'file-line', file: params.file!, line: params.line! };
 
-      const result = await ctx.debugger.addBreakpoint(params.debugSessionId, spec, {
-        condition: params.condition,
-      });
+        const result = await ctx.debugger.addBreakpoint(params.debugSessionId, spec, {
+          condition: params.condition,
+        });
 
-      const rawOutput = result.rawOutput.trim();
-      const events = [
-        headerEvent,
-        statusLine('success', `Breakpoint ${result.id} set`),
-        ...(rawOutput ? [section('Output:', rawOutput.split('\n'))] : []),
-      ];
+        const rawOutput = result.rawOutput.trim();
+        const events = [
+          headerEvent,
+          statusLine('success', `Breakpoint ${result.id} set`),
+          ...(rawOutput ? [section('Output:', rawOutput.split('\n'))] : []),
+        ];
 
-      return toolResponse(events);
+        return toolResponse(events);
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          handlerCtx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        handlerCtx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

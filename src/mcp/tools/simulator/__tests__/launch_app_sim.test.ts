@@ -4,6 +4,40 @@ import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, launch_app_simLogic, type SimulatorLauncher } from '../launch_app_sim.ts';
 import type { LaunchWithLoggingResult } from '../../../../utils/simulator-steps.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 function createMockLauncher(overrides?: Partial<LaunchWithLoggingResult>): SimulatorLauncher {
   return async (_uuid, _bundleId, _opts?) => ({
@@ -87,13 +121,15 @@ describe('launch_app_sim tool', () => {
         process: {} as any,
       });
 
-      const result = await launch_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          bundleId: 'io.sentry.testapp',
-        },
-        installCheckExecutor,
-        createMockLauncher(),
+      const result = await runLogic(() =>
+        launch_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            bundleId: 'io.sentry.testapp',
+          },
+          installCheckExecutor,
+          createMockLauncher(),
+        ),
       );
 
       const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
@@ -122,15 +158,17 @@ describe('launch_app_sim tool', () => {
         process: {} as any,
       });
 
-      await launch_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          bundleId: 'io.sentry.testapp',
-          args: ['--debug', '--verbose'],
-          env: { STAGING_ENABLED: '1' },
-        },
-        installCheckExecutor,
-        trackingLauncher,
+      await runLogic(() =>
+        launch_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            bundleId: 'io.sentry.testapp',
+            args: ['--debug', '--verbose'],
+            env: { STAGING_ENABLED: '1' },
+          },
+          installCheckExecutor,
+          trackingLauncher,
+        ),
       );
 
       expect(capturedArgs).toEqual(['--debug', '--verbose']);
@@ -145,14 +183,16 @@ describe('launch_app_sim tool', () => {
         process: {} as any,
       });
 
-      const result = await launch_app_simLogic(
-        {
-          simulatorId: 'resolved-uuid',
-          simulatorName: 'iPhone 17',
-          bundleId: 'io.sentry.testapp',
-        },
-        installCheckExecutor,
-        createMockLauncher(),
+      const result = await runLogic(() =>
+        launch_app_simLogic(
+          {
+            simulatorId: 'resolved-uuid',
+            simulatorName: 'iPhone 17',
+            bundleId: 'io.sentry.testapp',
+          },
+          installCheckExecutor,
+          createMockLauncher(),
+        ),
       );
 
       const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
@@ -183,12 +223,14 @@ describe('launch_app_sim tool', () => {
         };
       };
 
-      const result = await launch_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          bundleId: 'io.sentry.testapp',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        launch_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            bundleId: 'io.sentry.testapp',
+          },
+          mockExecutor,
+        ),
       );
 
       const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
@@ -210,12 +252,14 @@ describe('launch_app_sim tool', () => {
         };
       };
 
-      const result = await launch_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          bundleId: 'io.sentry.testapp',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        launch_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            bundleId: 'io.sentry.testapp',
+          },
+          mockExecutor,
+        ),
       );
 
       const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
@@ -232,13 +276,15 @@ describe('launch_app_sim tool', () => {
         process: {} as any,
       });
 
-      const result = await launch_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          bundleId: 'io.sentry.testapp',
-        },
-        installCheckExecutor,
-        createMockLauncher({ success: false, error: 'Launch failed' }),
+      const result = await runLogic(() =>
+        launch_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            bundleId: 'io.sentry.testapp',
+          },
+          installCheckExecutor,
+          createMockLauncher({ success: false, error: 'Launch failed' }),
+        ),
       );
 
       const text = result.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
@@ -261,13 +307,15 @@ describe('launch_app_sim tool', () => {
         process: {} as any,
       });
 
-      await launch_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          bundleId: 'io.sentry.testapp',
-        },
-        installCheckExecutor,
-        trackingLauncher,
+      await runLogic(() =>
+        launch_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            bundleId: 'io.sentry.testapp',
+          },
+          installCheckExecutor,
+          trackingLauncher,
+        ),
       );
 
       expect(capturedEnv).toBeUndefined();

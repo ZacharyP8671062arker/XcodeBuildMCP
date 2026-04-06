@@ -2,8 +2,6 @@ import * as path from 'node:path';
 import { tmpdir } from 'node:os';
 import * as z from 'zod';
 import { v4 as uuidv4 } from 'uuid';
-import type { ToolResponse } from '../../../types/common.ts';
-import { createImageContent } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
@@ -14,8 +12,8 @@ import {
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 
 const LOG_PREFIX = '[Screenshot]';
@@ -207,7 +205,8 @@ export async function screenshotLogic(
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
   pathUtils: { tmpdir: () => string; join: (...paths: string[]) => string } = { ...path, tmpdir },
   uuidUtils: { v4: () => string } = { v4: uuidv4 },
-): Promise<ToolResponse> {
+): Promise<void> {
+  const ctx = getHandlerContext();
   const { simulatorId } = params;
   const headerEvent = header('Screenshot', [{ label: 'Simulator', value: simulatorId }]);
   const runtime = process.env.XCODEBUILDMCP_RUNTIME;
@@ -277,20 +276,19 @@ export async function screenshotLogic(
             log('warn', `${LOG_PREFIX}/screenshot: Failed to delete temp file: ${err}`);
           }
 
-          return {
-            content: [createImageContent(base64Image, 'image/png')],
-            isError: false,
-          };
+          ctx.attach({ data: base64Image, mimeType: 'image/png' });
+          return;
         }
 
-        return toolResponse([
-          headerEvent,
-          statusLine('success', 'Screenshot captured'),
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('success', 'Screenshot captured'));
+        ctx.emit(
           detailTree([
             { label: 'Screenshot', value: screenshotPath },
             { label: 'Format', value: 'image/png (optimization failed)' },
           ]),
-        ]);
+        );
+        return;
       }
 
       log('info', `${LOG_PREFIX}/screenshot: Image optimized successfully`);
@@ -308,16 +306,16 @@ export async function screenshotLogic(
           log('warn', `${LOG_PREFIX}/screenshot: Failed to delete temporary files: ${err}`);
         }
 
-        const textResponse = toolResponse([
-          headerEvent,
-          statusLine('success', 'Screenshot captured'),
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('success', 'Screenshot captured'));
+        ctx.emit(
           detailTree([
             { label: 'Format', value: 'image/jpeg' },
             ...(base64Dims ? [{ label: 'Size', value: base64Dims }] : []),
           ] as Array<{ label: string; value: string }>),
-        ]);
-        textResponse.content.push(createImageContent(base64Image, 'image/jpeg'));
-        return textResponse;
+        );
+        ctx.attach({ data: base64Image, mimeType: 'image/jpeg' });
+        return;
       }
 
       try {
@@ -327,40 +325,40 @@ export async function screenshotLogic(
       }
 
       const dims = await getImageDimensions(optimizedPath, executor);
-      return toolResponse([
-        headerEvent,
-        statusLine('success', 'Screenshot captured'),
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'Screenshot captured'));
+      ctx.emit(
         detailTree([
           { label: 'Screenshot', value: optimizedPath },
           { label: 'Format', value: 'image/jpeg' },
           ...(dims ? [{ label: 'Size', value: dims }] : []),
         ] as Array<{ label: string; value: string }>),
-      ]);
+      );
+      return;
     } catch (fileError) {
       log('error', `${LOG_PREFIX}/screenshot: Failed to process image file: ${fileError}`);
-      return toolResponse([
-        headerEvent,
+      ctx.emit(headerEvent);
+      ctx.emit(
         statusLine(
           'error',
           `Screenshot captured but failed to process image file: ${fileError instanceof Error ? fileError.message : String(fileError)}`,
         ),
-      ]);
+      );
+      return;
     }
   } catch (_error) {
     log('error', `${LOG_PREFIX}/screenshot: Failed - ${_error}`);
+    ctx.emit(headerEvent);
     if (_error instanceof SystemError) {
-      return toolResponse([
-        headerEvent,
-        statusLine('error', `System error executing screenshot: ${_error.message}`),
-      ]);
+      ctx.emit(statusLine('error', `System error executing screenshot: ${_error.message}`));
+      return;
     }
-    return toolResponse([
-      headerEvent,
+    ctx.emit(
       statusLine(
         'error',
         `An unexpected error occurred: ${_error instanceof Error ? _error.message : String(_error)}`,
       ),
-    ]);
+    );
   }
 }
 

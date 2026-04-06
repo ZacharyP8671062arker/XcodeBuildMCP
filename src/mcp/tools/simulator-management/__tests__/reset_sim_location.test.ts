@@ -2,6 +2,40 @@ import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { schema, reset_sim_locationLogic } from '../reset_sim_location.ts';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('reset_sim_location plugin', () => {
   describe('Schema Validation', () => {
@@ -23,11 +57,13 @@ describe('reset_sim_location plugin', () => {
         output: 'Location reset successfully',
       });
 
-      const result = await reset_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        reset_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -39,11 +75,13 @@ describe('reset_sim_location plugin', () => {
         error: 'Command failed',
       });
 
-      const result = await reset_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        reset_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -52,11 +90,13 @@ describe('reset_sim_location plugin', () => {
     it('should handle exception during execution', async () => {
       const mockExecutor = createMockExecutor(new Error('Network error'));
 
-      const result = await reset_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        reset_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -77,11 +117,13 @@ describe('reset_sim_location plugin', () => {
         return mockExecutor(command, logPrefix);
       };
 
-      await reset_sim_locationLogic(
-        {
-          simulatorId: 'test-uuid-123',
-        },
-        capturingExecutor,
+      await runLogic(() =>
+        reset_sim_locationLogic(
+          {
+            simulatorId: 'test-uuid-123',
+          },
+          capturingExecutor,
+        ),
       );
 
       expect(capturedCommand).toEqual(['xcrun', 'simctl', 'location', 'test-uuid-123', 'clear']);

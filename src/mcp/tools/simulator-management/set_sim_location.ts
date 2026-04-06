@@ -6,6 +6,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -22,7 +23,7 @@ type SetSimulatorLocationParams = z.infer<typeof setSimulatorLocationSchema>;
 export async function set_sim_locationLogic(
   params: SetSimulatorLocationParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const coords = `${params.latitude},${params.longitude}`;
   const headerEvent = header('Set Location', [
     { label: 'Simulator', value: params.simulatorId },
@@ -44,24 +45,43 @@ export async function set_sim_locationLogic(
 
   log('info', `Setting simulator ${params.simulatorId} location to ${coords}`);
 
-  return withErrorHandling(
-    async () => {
-      const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'set', coords];
-      const result = await executor(command, 'Set Simulator Location', false);
+  const ctx = getHandlerContext();
 
-      if (!result.success) {
-        log(
-          'error',
-          `Failed to set simulator location: ${result.error} (simulator: ${params.simulatorId})`,
-        );
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Failed to set simulator location: ${result.error}`),
-        ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'set', coords];
+        const result = await executor(command, 'Set Simulator Location', false);
+
+        if (!result.success) {
+          log(
+            'error',
+            `Failed to set simulator location: ${result.error} (simulator: ${params.simulatorId})`,
+          );
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Failed to set simulator location: ${result.error}`),
+          ]);
+        }
+
+        log('info', `Set simulator ${params.simulatorId} location to ${coords}`);
+        return toolResponse([headerEvent, statusLine('success', 'Location set successfully')]);
+      })();
+
+      if (!response) {
+        return;
       }
 
-      log('info', `Set simulator ${params.simulatorId} location to ${coords}`);
-      return toolResponse([headerEvent, statusLine('success', 'Location set successfully')]);
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

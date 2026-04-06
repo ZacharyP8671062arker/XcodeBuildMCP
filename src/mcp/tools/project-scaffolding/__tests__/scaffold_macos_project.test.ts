@@ -12,7 +12,40 @@ import {
   initConfigStore,
   type RuntimeConfigOverrides,
 } from '../../../../utils/config-store.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 const cwd = '/repo';
 
@@ -159,14 +192,16 @@ describe('scaffold_macos_project plugin', () => {
       (TemplateManager as any).getTemplatePath = OriginalTemplateManager.getTemplatePath;
       (TemplateManager as any).cleanup = OriginalTemplateManager.cleanup;
 
-      await scaffold_macos_projectLogic(
-        {
-          projectName: 'TestMacApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        trackingExecutor,
-        mockFileSystemExecutor,
+      await runLogic(() =>
+        scaffold_macos_projectLogic(
+          {
+            projectName: 'TestMacApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+          },
+          trackingExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(capturedCommands).not.toContainEqual(
@@ -183,15 +218,17 @@ describe('scaffold_macos_project plugin', () => {
 
   describe('Handler Behavior (Complete Literal Returns)', () => {
     it('should return success response for valid scaffold macOS project request', async () => {
-      const result = await scaffold_macos_projectLogic(
-        {
-          projectName: 'TestMacApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-          bundleIdentifier: 'com.test.macapp',
-        },
-        createNoopExecutor(),
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_macos_projectLogic(
+          {
+            projectName: 'TestMacApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+            bundleIdentifier: 'com.test.macapp',
+          },
+          createNoopExecutor(),
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -217,14 +254,16 @@ describe('scaffold_macos_project plugin', () => {
     });
 
     it('should return success response with customizeNames false', async () => {
-      const result = await scaffold_macos_projectLogic(
-        {
-          projectName: 'TestMacApp',
-          outputPath: '/tmp/test-projects',
-          customizeNames: false,
-        },
-        createNoopExecutor(),
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_macos_projectLogic(
+          {
+            projectName: 'TestMacApp',
+            outputPath: '/tmp/test-projects',
+            customizeNames: false,
+          },
+          createNoopExecutor(),
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -243,14 +282,16 @@ describe('scaffold_macos_project plugin', () => {
     });
 
     it('should return error response for invalid project name', async () => {
-      const result = await scaffold_macos_projectLogic(
-        {
-          projectName: '123InvalidName',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        createNoopExecutor(),
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_macos_projectLogic(
+          {
+            projectName: '123InvalidName',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+          },
+          createNoopExecutor(),
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -261,14 +302,16 @@ describe('scaffold_macos_project plugin', () => {
     it('should return error response for existing project files', async () => {
       mockFileSystemExecutor.existsSync = () => true;
 
-      const result = await scaffold_macos_projectLogic(
-        {
-          projectName: 'TestMacApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        createNoopExecutor(),
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_macos_projectLogic(
+          {
+            projectName: 'TestMacApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+          },
+          createNoopExecutor(),
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -279,14 +322,16 @@ describe('scaffold_macos_project plugin', () => {
     it('should return error response for template manager failure', async () => {
       templateManagerStub.setError(new Error('Template not found'));
 
-      const result = await scaffold_macos_projectLogic(
-        {
-          projectName: 'TestMacApp',
-          customizeNames: true,
-          outputPath: '/tmp/test-projects',
-        },
-        createNoopExecutor(),
-        mockFileSystemExecutor,
+      const result = await runLogic(() =>
+        scaffold_macos_projectLogic(
+          {
+            projectName: 'TestMacApp',
+            customizeNames: true,
+            outputPath: '/tmp/test-projects',
+          },
+          createNoopExecutor(),
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -297,14 +342,16 @@ describe('scaffold_macos_project plugin', () => {
 
   describe('File System Operations', () => {
     it('should create directories and process files correctly', async () => {
-      await scaffold_macos_projectLogic(
-        {
-          projectName: 'TestApp',
-          customizeNames: true,
-          outputPath: '/tmp/test',
-        },
-        createNoopExecutor(),
-        mockFileSystemExecutor,
+      await runLogic(() =>
+        scaffold_macos_projectLogic(
+          {
+            projectName: 'TestApp',
+            customizeNames: true,
+            outputPath: '/tmp/test',
+          },
+          createNoopExecutor(),
+          mockFileSystemExecutor,
+        ),
       );
 
       expect(templateManagerStub.getCalls()).toBe(

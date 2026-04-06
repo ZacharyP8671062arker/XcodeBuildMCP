@@ -10,7 +10,40 @@ import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { SystemError } from '../../../../utils/errors.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, screenshotLogic } from '../../ui-automation/screenshot.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('screenshot plugin', () => {
   beforeEach(() => {
@@ -75,14 +108,16 @@ describe('screenshot plugin', () => {
         v4: () => 'mock-uuid-123',
       };
 
-      await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        capturingExecutor,
-        mockFileSystemExecutor,
-        mockPathDeps,
-        mockUuidDeps,
+      await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          capturingExecutor,
+          mockFileSystemExecutor,
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(capturedCommands).toHaveLength(5);
@@ -152,14 +187,16 @@ describe('screenshot plugin', () => {
         v4: () => 'different-uuid-456',
       };
 
-      await screenshotLogic(
-        {
-          simulatorId: 'another-uuid',
-        },
-        capturingExecutor,
-        mockFileSystemExecutor,
-        mockPathDeps,
-        mockUuidDeps,
+      await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'another-uuid',
+          },
+          capturingExecutor,
+          mockFileSystemExecutor,
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(capturedCommands).toHaveLength(5);
@@ -220,12 +257,14 @@ describe('screenshot plugin', () => {
         readFile: async () => 'fake-image-data',
       });
 
-      await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        capturingExecutor,
-        mockFileSystemExecutor,
+      await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          capturingExecutor,
+          mockFileSystemExecutor,
+        ),
       );
 
       // Should execute all commands in sequence: screenshot, list devices, orientation detection, optimization, dimensions
@@ -278,14 +317,16 @@ describe('screenshot plugin', () => {
         v4: () => 'mock-uuid-123',
       };
 
-      const result = await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        mockExecutor,
-        mockFileSystemExecutor,
-        mockPathDeps,
-        mockUuidDeps,
+      const result = await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          mockExecutor,
+          mockFileSystemExecutor,
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(result.isError).toBeUndefined();
@@ -327,14 +368,16 @@ describe('screenshot plugin', () => {
         v4: () => 'mock-uuid-123',
       };
 
-      const result = await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
-        mockPathDeps,
-        mockUuidDeps,
+      const result = await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          mockExecutor,
+          createMockFileSystemExecutor(),
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -366,14 +409,16 @@ describe('screenshot plugin', () => {
         v4: () => 'mock-uuid-123',
       };
 
-      const result = await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        mockExecutor,
-        mockFileSystemExecutor,
-        mockPathDeps,
-        mockUuidDeps,
+      const result = await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          mockExecutor,
+          mockFileSystemExecutor,
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -422,14 +467,16 @@ describe('screenshot plugin', () => {
         v4: () => 'mock-uuid-123',
       };
 
-      await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        capturingExecutor,
-        mockFileSystemExecutor,
-        mockPathDeps,
-        mockUuidDeps,
+      await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          capturingExecutor,
+          mockFileSystemExecutor,
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(capturedArgs).toHaveLength(5);
@@ -487,14 +534,16 @@ describe('screenshot plugin', () => {
         v4: () => 'mock-uuid-123',
       };
 
-      const result = await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
-        mockPathDeps,
-        mockUuidDeps,
+      const result = await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          mockExecutor,
+          createMockFileSystemExecutor(),
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -514,14 +563,16 @@ describe('screenshot plugin', () => {
         v4: () => 'mock-uuid-123',
       };
 
-      const result = await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
-        mockPathDeps,
-        mockUuidDeps,
+      const result = await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          mockExecutor,
+          createMockFileSystemExecutor(),
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -541,14 +592,16 @@ describe('screenshot plugin', () => {
         v4: () => 'mock-uuid-123',
       };
 
-      const result = await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        mockExecutor,
-        createMockFileSystemExecutor(),
-        mockPathDeps,
-        mockUuidDeps,
+      const result = await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          mockExecutor,
+          createMockFileSystemExecutor(),
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -578,14 +631,16 @@ describe('screenshot plugin', () => {
         v4: () => 'mock-uuid-123',
       };
 
-      const result = await screenshotLogic(
-        {
-          simulatorId: 'test-uuid',
-        },
-        mockExecutor,
-        mockFileSystemExecutor,
-        mockPathDeps,
-        mockUuidDeps,
+      const result = await runLogic(() =>
+        screenshotLogic(
+          {
+            simulatorId: 'test-uuid',
+          },
+          mockExecutor,
+          mockFileSystemExecutor,
+          mockPathDeps,
+          mockUuidDeps,
+        ),
       );
 
       expect(result.isError).toBe(true);

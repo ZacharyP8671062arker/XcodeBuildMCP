@@ -18,6 +18,7 @@ import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { getSnapshotUiWarning } from './shared/snapshot-ui-state.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
@@ -50,7 +51,7 @@ export async function touchLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const toolName = 'touch';
 
   const { simulatorId, x, y, down, up, delay } = params;
@@ -88,20 +89,42 @@ export async function touchLogic(
     `${LOG_PREFIX}/${toolName}: Starting ${actionText} at (${x}, ${y}) on ${simulatorId}`,
   );
 
-  return withErrorHandling(
-    async () => {
-      await executeAxeCommand(commandArgs, simulatorId, 'touch', executor, axeHelpers);
-      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+  const ctx = getHandlerContext();
 
-      const coordinateWarning = getSnapshotUiWarning(simulatorId);
-      const warnings = [guard.warningText, coordinateWarning].filter(
-        (w): w is string => typeof w === 'string' && w.length > 0,
-      );
-      return toolResponse([
-        headerEvent,
-        statusLine('success', `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`),
-        ...warnings.map((w) => statusLine('warning', w)),
-      ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        await executeAxeCommand(commandArgs, simulatorId, 'touch', executor, axeHelpers);
+        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+
+        const coordinateWarning = getSnapshotUiWarning(simulatorId);
+        const warnings = [guard.warningText, coordinateWarning].filter(
+          (w): w is string => typeof w === 'string' && w.length > 0,
+        );
+        return toolResponse([
+          headerEvent,
+          statusLine(
+            'success',
+            `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`,
+          ),
+          ...warnings.map((w) => statusLine('warning', w)),
+        ]);
+      })();
+
+      if (!response) {
+        return;
+      }
+
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

@@ -3,7 +3,7 @@ import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
@@ -15,28 +15,47 @@ type OpenSimParams = z.infer<typeof openSimSchema>;
 export async function open_simLogic(
   _params: OpenSimParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   log('info', 'Starting open simulator request');
 
   const headerEvent = header('Open Simulator');
 
-  return withErrorHandling(
-    async () => {
-      const command = ['open', '-a', 'Simulator'];
-      const result = await executor(command, 'Open Simulator', false);
+  const ctx = getHandlerContext();
 
-      if (!result.success) {
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Open simulator operation failed: ${result.error}`),
-        ]);
+  return withErrorHandling(
+    ctx,
+    async () => {
+      const response = await (async (): Promise<ToolResponse> => {
+        const command = ['open', '-a', 'Simulator'];
+        const result = await executor(command, 'Open Simulator', false);
+
+        if (!result.success) {
+          return toolResponse([
+            headerEvent,
+            statusLine('error', `Open simulator operation failed: ${result.error}`),
+          ]);
+        }
+
+        return toolResponse([headerEvent, statusLine('success', 'Simulator opened successfully')], {
+          nextStepParams: {
+            boot_sim: { simulatorId: 'UUID_FROM_LIST_SIMS' },
+          },
+        });
+      })();
+
+      if (!response) {
+        return;
       }
 
-      return toolResponse([headerEvent, statusLine('success', 'Simulator opened successfully')], {
-        nextStepParams: {
-          boot_sim: { simulatorId: 'UUID_FROM_LIST_SIMS' },
-        },
-      });
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

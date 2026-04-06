@@ -3,9 +3,7 @@ import path from 'node:path';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { log } from '../../../utils/logging/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
-import { createTypedTool } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
@@ -18,7 +16,8 @@ type SwiftPackageCleanParams = z.infer<typeof swiftPackageCleanSchema>;
 export async function swift_package_cleanLogic(
   params: SwiftPackageCleanParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<void> {
+  const ctx = getHandlerContext();
   const resolvedPath = path.resolve(params.packagePath);
   const swiftArgs = ['package', '--package-path', resolvedPath, 'clean'];
 
@@ -26,22 +25,22 @@ export async function swift_package_cleanLogic(
 
   const headerEvent = header('Swift Package Clean', [{ label: 'Package', value: resolvedPath }]);
 
-  return withErrorHandling(
+  await withErrorHandling(
+    ctx,
     async () => {
       const result = await executor(['swift', ...swiftArgs], 'Swift Package Clean', false);
       if (!result.success) {
         const errorMessage = result.error || result.output || 'Unknown error';
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Swift package clean failed: ${errorMessage}`),
-        ]);
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('error', `Swift package clean failed: ${errorMessage}`));
+        return;
       }
 
-      return toolResponse([
-        headerEvent,
-        ...(result.output ? [section('Output', [result.output])] : []),
-        statusLine('success', 'Swift package cleaned successfully'),
-      ]);
+      ctx.emit(headerEvent);
+      if (result.output) {
+        ctx.emit(section('Output', [result.output]));
+      }
+      ctx.emit(statusLine('success', 'Swift package cleaned successfully'));
     },
     {
       header: headerEvent,

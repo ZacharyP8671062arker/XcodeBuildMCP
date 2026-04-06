@@ -9,6 +9,40 @@ import {
 import { sessionStore } from '../../../../utils/session-store.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { schema, handler, install_app_simLogic } from '../install_app_sim.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
 
 describe('install_app_sim tool', () => {
   beforeEach(() => {
@@ -74,13 +108,15 @@ describe('install_app_sim tool', () => {
         existsSync: () => true,
       });
 
-      await install_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          appPath: '/path/to/app.app',
-        },
-        mockExecutor,
-        mockFileSystem,
+      await runLogic(() =>
+        install_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            appPath: '/path/to/app.app',
+          },
+          mockExecutor,
+          mockFileSystem,
+        ),
       );
 
       expect(executorCalls).toEqual([
@@ -113,13 +149,15 @@ describe('install_app_sim tool', () => {
         existsSync: () => true,
       });
 
-      await install_app_simLogic(
-        {
-          simulatorId: 'different-uuid-456',
-          appPath: '/different/path/MyApp.app',
-        },
-        mockExecutor,
-        mockFileSystem,
+      await runLogic(() =>
+        install_app_simLogic(
+          {
+            simulatorId: 'different-uuid-456',
+            appPath: '/different/path/MyApp.app',
+          },
+          mockExecutor,
+          mockFileSystem,
+        ),
       );
 
       expect(executorCalls).toEqual([
@@ -143,13 +181,15 @@ describe('install_app_sim tool', () => {
         existsSync: () => false,
       });
 
-      const result = await install_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          appPath: '/path/to/app.app',
-        },
-        createNoopExecutor(),
-        mockFileSystem,
+      const result = await runLogic(() =>
+        install_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            appPath: '/path/to/app.app',
+          },
+          createNoopExecutor(),
+          mockFileSystem,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -190,13 +230,15 @@ describe('install_app_sim tool', () => {
         existsSync: () => true,
       });
 
-      const result = await install_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          appPath: '/path/to/app.app',
-        },
-        mockExecutor,
-        mockFileSystem,
+      const result = await runLogic(() =>
+        install_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            appPath: '/path/to/app.app',
+          },
+          mockExecutor,
+          mockFileSystem,
+        ),
       );
 
       const text = result.content.map((c) => c.text).join('\n');
@@ -239,13 +281,15 @@ describe('install_app_sim tool', () => {
         existsSync: () => true,
       });
 
-      const result = await install_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          appPath: '/path/to/app.app',
-        },
-        mockExecutor,
-        mockFileSystem,
+      const result = await runLogic(() =>
+        install_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            appPath: '/path/to/app.app',
+          },
+          mockExecutor,
+          mockFileSystem,
+        ),
       );
 
       const text = result.content.map((c) => c.text).join('\n');
@@ -272,13 +316,15 @@ describe('install_app_sim tool', () => {
         existsSync: () => true,
       });
 
-      const result = await install_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          appPath: '/path/to/app.app',
-        },
-        mockExecutor,
-        mockFileSystem,
+      const result = await runLogic(() =>
+        install_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            appPath: '/path/to/app.app',
+          },
+          mockExecutor,
+          mockFileSystem,
+        ),
       );
 
       const text = result.content.map((c) => c.text).join('\n');
@@ -294,13 +340,15 @@ describe('install_app_sim tool', () => {
         existsSync: () => true,
       });
 
-      const result = await install_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          appPath: '/path/to/app.app',
-        },
-        mockExecutor,
-        mockFileSystem,
+      const result = await runLogic(() =>
+        install_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            appPath: '/path/to/app.app',
+          },
+          mockExecutor,
+          mockFileSystem,
+        ),
       );
 
       const text = result.content.map((c) => c.text).join('\n');
@@ -316,13 +364,15 @@ describe('install_app_sim tool', () => {
         existsSync: () => true,
       });
 
-      const result = await install_app_simLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          appPath: '/path/to/app.app',
-        },
-        mockExecutor,
-        mockFileSystem,
+      const result = await runLogic(() =>
+        install_app_simLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            appPath: '/path/to/app.app',
+          },
+          mockExecutor,
+          mockFileSystem,
+        ),
       );
 
       const text = result.content.map((c) => c.text).join('\n');

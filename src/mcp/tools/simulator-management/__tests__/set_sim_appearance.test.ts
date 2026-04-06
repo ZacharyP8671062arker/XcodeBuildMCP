@@ -1,6 +1,41 @@
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { schema, handler, set_sim_appearanceLogic } from '../set_sim_appearance.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+
+const runLogic = async (logic: () => Promise<unknown>) => {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+
+  if (
+    response &&
+    typeof response === 'object' &&
+    'content' in (response as Record<string, unknown>)
+  ) {
+    return response as {
+      content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+      isError?: boolean;
+      nextStepParams?: unknown;
+    };
+  }
+
+  const text = result.text();
+  const textContent = text.length > 0 ? [{ type: 'text' as const, text }] : [];
+  const imageContent = result.attachments.map((attachment) => ({
+    type: 'image' as const,
+    data: attachment.data,
+    mimeType: attachment.mimeType,
+  }));
+
+  return {
+    content: [...textContent, ...imageContent],
+    isError: result.isError() ? true : undefined,
+    nextStepParams: result.nextStepParams,
+    attachments: result.attachments,
+    text,
+  };
+};
+
 import {
   createMockCommandResponse,
   createMockExecutor,
@@ -33,12 +68,14 @@ describe('set_sim_appearance plugin', () => {
         error: '',
       });
 
-      const result = await set_sim_appearanceLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          mode: 'dark',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        set_sim_appearanceLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            mode: 'dark',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBeFalsy();
@@ -50,12 +87,14 @@ describe('set_sim_appearance plugin', () => {
         error: 'Invalid device: invalid-uuid',
       });
 
-      const result = await set_sim_appearanceLogic(
-        {
-          simulatorId: 'invalid-uuid',
-          mode: 'light',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        set_sim_appearanceLogic(
+          {
+            simulatorId: 'invalid-uuid',
+            mode: 'light',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -73,12 +112,14 @@ describe('set_sim_appearance plugin', () => {
     it('should handle exception during execution', async () => {
       const mockExecutor = createMockExecutor(new Error('Network error'));
 
-      const result = await set_sim_appearanceLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          mode: 'dark',
-        },
-        mockExecutor,
+      const result = await runLogic(() =>
+        set_sim_appearanceLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            mode: 'dark',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(result.isError).toBe(true);
@@ -97,12 +138,14 @@ describe('set_sim_appearance plugin', () => {
         );
       };
 
-      await set_sim_appearanceLogic(
-        {
-          simulatorId: 'test-uuid-123',
-          mode: 'dark',
-        },
-        mockExecutor,
+      await runLogic(() =>
+        set_sim_appearanceLogic(
+          {
+            simulatorId: 'test-uuid-123',
+            mode: 'dark',
+          },
+          mockExecutor,
+        ),
       );
 
       expect(commandCalls).toEqual([

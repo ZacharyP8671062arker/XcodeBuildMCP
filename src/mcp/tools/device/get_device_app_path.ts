@@ -13,6 +13,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { mapDevicePlatform } from './build-settings.ts';
@@ -60,7 +61,7 @@ const publicSchemaObject = baseSchemaObject.omit({
 export async function get_device_app_pathLogic(
   params: GetDeviceAppPathParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const platform = mapDevicePlatform(params.platform);
   const configuration = params.configuration ?? 'Debug';
 
@@ -90,40 +91,59 @@ export async function get_device_app_pathLogic(
 
   log('info', `Getting app path for scheme ${params.scheme} on platform ${platform}`);
 
+  const ctx = getHandlerContext();
+
   return withErrorHandling(
+    ctx,
     async () => {
-      let appPath: string;
-      try {
-        appPath = await resolveAppPathFromBuildSettings(
+      const response = await (async (): Promise<ToolResponse> => {
+        let appPath: string;
+        try {
+          appPath = await resolveAppPathFromBuildSettings(
+            {
+              projectPath: params.projectPath,
+              workspacePath: params.workspacePath,
+              scheme: params.scheme,
+              configuration,
+              platform,
+            },
+            executor,
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return toolResponse(buildErrorEvents(message));
+        }
+
+        return toolResponse(
+          [
+            headerEvent,
+            statusLine('success', 'Success'),
+            detailTree([{ label: 'App Path', value: appPath }]),
+          ],
           {
-            projectPath: params.projectPath,
-            workspacePath: params.workspacePath,
-            scheme: params.scheme,
-            configuration,
-            platform,
+            nextStepParams: {
+              get_app_bundle_id: { appPath },
+              install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+              launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
+            },
+            suppressCliStream: true,
           },
-          executor,
         );
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return toolResponse(buildErrorEvents(message));
+      })();
+
+      if (!response) {
+        return;
       }
 
-      return toolResponse(
-        [
-          headerEvent,
-          statusLine('success', 'Success'),
-          detailTree([{ label: 'App Path', value: appPath }]),
-        ],
-        {
-          nextStepParams: {
-            get_app_bundle_id: { appPath },
-            install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-            launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
-          },
-          suppressCliStream: true,
-        },
-      );
+      const events = response._meta?.events;
+      if (Array.isArray(events)) {
+        for (const event of events) {
+          ctx.emit(event);
+        }
+      }
+      if (response.nextStepParams) {
+        ctx.nextStepParams = response.nextStepParams;
+      }
     },
     {
       header: headerEvent,

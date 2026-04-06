@@ -84,7 +84,13 @@ describe('DefaultToolInvoker CLI routing', () => {
       },
     );
 
-    expect(directHandler).toHaveBeenCalledWith({ value: 'hello' });
+    expect(directHandler).toHaveBeenCalledWith(
+      { value: 'hello' },
+      expect.objectContaining({
+        emit: expect.any(Function),
+        attach: expect.any(Function),
+      }),
+    );
     expect(daemonClientMock.isRunning).not.toHaveBeenCalled();
     expect(daemonClientMock.invokeTool).not.toHaveBeenCalled();
     expect(response.content[0].text).toBe('direct-result');
@@ -535,6 +541,56 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     expect(text).toContain('Stop capture and retrieve logs');
     expect(text).toContain('stop-simulator-log-capture');
     expect(text).toContain('session-123');
+  });
+
+  it('renders failure next steps for ordinary error responses with replayable events', async () => {
+    const directHandler = vi.fn().mockResolvedValue({
+      isError: true,
+      content: [{ type: 'text', text: 'failed' }],
+      _meta: {
+        events: [
+          {
+            type: 'status-line',
+            level: 'error',
+            message: 'failed',
+          },
+        ],
+      },
+    } satisfies ToolResponse);
+
+    const catalog = createToolCatalog([
+      makeTool({
+        id: 'list_devices',
+        cliName: 'list',
+        mcpName: 'list_devices',
+        workflow: 'device',
+        stateful: false,
+        nextStepTemplates: [
+          {
+            label: 'Try building for device',
+            toolId: 'build_device',
+            when: 'failure',
+          },
+        ],
+        handler: directHandler,
+      }),
+      makeTool({
+        id: 'build_device',
+        cliName: 'build-device',
+        mcpName: 'build_device',
+        workflow: 'device',
+        stateful: false,
+        handler: vi.fn().mockResolvedValue(textResponse('build')),
+      }),
+    ]);
+
+    const invoker = new DefaultToolInvoker(catalog);
+    const response = await invoker.invoke('list', {}, { runtime: 'cli' });
+
+    expect(response.nextSteps).toBeUndefined();
+    const text = response.content.map((item) => (item.type === 'text' ? item.text : '')).join('\n');
+    expect(text).toContain('Try building for device');
+    expect(text).toContain('build-device');
   });
 
   it('suppresses manifest next steps for structured xcodebuild failures', async () => {

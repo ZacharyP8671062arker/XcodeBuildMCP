@@ -6,11 +6,12 @@
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ToolSchemaShape } from '../plugin-types.ts';
+import type { ToolHandlerContext } from '../../rendering/types.ts';
 import { getPackageRoot } from './load-manifest.ts';
 
 export interface ImportedToolModule {
   schema: ToolSchemaShape;
-  handler: (params: Record<string, unknown>) => Promise<unknown>;
+  handler: (params: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<unknown>;
 }
 
 const moduleCache = new Map<string, ImportedToolModule>();
@@ -49,7 +50,10 @@ export async function importToolModule(moduleId: string): Promise<ImportedToolMo
 
   const result: ImportedToolModule = {
     schema: mod.schema as ToolSchemaShape,
-    handler: mod.handler as (params: Record<string, unknown>) => Promise<unknown>,
+    handler: mod.handler as (
+      params: Record<string, unknown>,
+      ctx?: ToolHandlerContext,
+    ) => Promise<unknown>,
   };
 
   moduleCache.set(moduleId, result);

@@ -10,6 +10,29 @@ import type { ToolManifestEntry } from '../core/manifest/schema.ts';
 import { postProcessToolResponse } from '../runtime/tool-invoker.ts';
 import { createToolCatalog } from '../runtime/tool-catalog.ts';
 import type { ToolDefinition } from '../runtime/types.ts';
+import type { ToolHandlerContext } from '../rendering/types.ts';
+import { createRenderSession } from '../rendering/render.ts';
+
+function isToolResponse(value: ToolResponse | void): value is ToolResponse {
+  return typeof value === 'object' && value !== null && 'content' in value;
+}
+
+function finalizeRenderedToolResponse(
+  response: ToolResponse | void,
+  session: ReturnType<typeof createRenderSession>,
+  ctx: ToolHandlerContext,
+): ToolResponse {
+  if (isToolResponse(response)) {
+    return response;
+  }
+
+  const text = session.finalize();
+  return {
+    content: text ? [{ type: 'text' as const, text }] : [],
+    isError: session.isError() || undefined,
+    nextStepParams: ctx.nextStepParams,
+  };
+}
 
 const CLI_PATH = path.resolve(process.cwd(), 'build/cli.js');
 
@@ -100,7 +123,7 @@ async function importSnapshotToolModule(toolModulePath: string) {
 
   try {
     return (await import(sourceModuleUrl)) as {
-      handler: (params: Record<string, unknown>) => Promise<ToolResponse>;
+      handler: (params: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<ToolResponse>;
     };
   } catch {
     return importToolModule(toolModulePath);
@@ -150,7 +173,20 @@ export async function createSnapshotHarness(): Promise<SnapshotHarness> {
     args: Record<string, unknown>,
   ): Promise<SnapshotResult> {
     const toolModule = await importSnapshotToolModule(toolModulePath);
-    const raw = (await toolModule.handler(args)) as ToolResponse;
+    const session = createRenderSession('text');
+    const ctx: ToolHandlerContext = {
+      emit: (event) => {
+        session.emit(event);
+      },
+      attach: (image) => {
+        session.attach(image);
+      },
+    };
+    const raw = finalizeRenderedToolResponse(
+      (await toolModule.handler(args, ctx)) as ToolResponse | void,
+      session,
+      ctx,
+    );
     const { tool, catalog } = buildMinimalToolCatalog(
       manifestEntry,
       toolModule.handler as ToolDefinition['handler'],

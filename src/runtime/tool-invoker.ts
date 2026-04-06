@@ -18,11 +18,34 @@ import {
 } from '../utils/xcodebuild-output.ts';
 import { renderNextStepsSection } from '../utils/responses/next-steps-renderer.ts';
 import type { RuntimeKind } from './types.ts';
+import type { ToolHandlerContext } from '../rendering/types.ts';
+import { createRenderSession } from '../rendering/render.ts';
 
 type BuiltTemplateNextStep = {
   step: NextStep;
   templateToolId?: string;
 };
+
+function isToolResponse(value: ToolResponse | void): value is ToolResponse {
+  return typeof value === 'object' && value !== null && 'content' in value;
+}
+
+function finalizeRenderedToolResponse(
+  response: ToolResponse | void,
+  session: ReturnType<typeof createRenderSession>,
+  ctx: ToolHandlerContext,
+): ToolResponse {
+  if (isToolResponse(response)) {
+    return response;
+  }
+
+  const text = session.finalize();
+  return {
+    content: text ? [{ type: 'text' as const, text }] : [],
+    isError: session.isError() || undefined,
+    nextStepParams: ctx.nextStepParams,
+  };
+}
 
 function buildTemplateNextSteps(
   tool: ToolDefinition,
@@ -180,8 +203,7 @@ export function postProcessToolResponse(params: {
   const { tool, response, catalog, runtime, applyTemplateNextSteps = true } = params;
 
   const isError = response.isError === true;
-  const suppressNextStepsForStructuredFailure =
-    isError && (isPendingXcodebuildResponse(response) || Array.isArray(response._meta?.events));
+  const suppressNextStepsForStructuredFailure = isError && isPendingXcodebuildResponse(response);
   const responseForNextSteps = suppressNextStepsForStructuredFailure
     ? {
         ...response,
@@ -430,7 +452,17 @@ export class DefaultToolInvoker implements ToolInvoker {
 
     // Direct invocation (CLI stateless or daemon internal)
     try {
-      const response = await tool.handler(args);
+      const session = opts.renderSession ?? createRenderSession('text');
+      const ctx: ToolHandlerContext = {
+        emit: (event) => {
+          session.emit(event);
+        },
+        attach: (image) => {
+          session.attach(image);
+        },
+      };
+      const rawResponse = await tool.handler(args, ctx);
+      const response = finalizeRenderedToolResponse(rawResponse, session, ctx);
       captureInvocationMetric('completed');
       return postProcessToolResponse({
         ...postProcessParams,

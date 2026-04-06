@@ -1,5 +1,8 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import * as z from 'zod';
 import type { ToolResponse } from '../types/common.ts';
+import type { ToolHandlerContext } from '../rendering/types.ts';
+import { createRenderSession } from '../rendering/render.ts';
 import type { CommandExecutor } from './execution/index.ts';
 import { toolResponse } from './tool-response.ts';
 import { statusLine } from './tool-event-builders.ts';
@@ -8,15 +11,79 @@ import { sessionStore, type SessionDefaults } from './session-store.ts';
 import { isSessionDefaultsOptOutEnabled } from './environment.ts';
 import { mergeSessionDefaultArgs } from './session-default-args.ts';
 
+export const handlerContextStorage = new AsyncLocalStorage<ToolHandlerContext>();
+
+export function getHandlerContext(): ToolHandlerContext {
+  const ctx = handlerContextStorage.getStore();
+  if (!ctx) {
+    throw new Error('getHandlerContext() called outside of a tool handler invocation');
+  }
+  return ctx;
+}
+
+function isToolResponse(value: ToolResponse | void): value is ToolResponse {
+  return typeof value === 'object' && value !== null && 'content' in value;
+}
+
+function isToolHandlerContext(value: unknown): value is ToolHandlerContext {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'emit' in value &&
+    typeof value.emit === 'function' &&
+    'attach' in value &&
+    typeof value.attach === 'function'
+  );
+}
+
+function toResponse(
+  session: ReturnType<typeof createRenderSession>,
+  ctx: ToolHandlerContext,
+): ToolResponse {
+  const text = session.finalize();
+  return {
+    content: text ? [{ type: 'text' as const, text }] : [],
+    isError: session.isError() || undefined,
+    nextStepParams: ctx.nextStepParams,
+  };
+}
+
 function createValidatedHandler<TParams, TContext>(
   schema: z.ZodType<TParams, unknown>,
-  logicFunction: (params: TParams, context: TContext) => Promise<ToolResponse>,
+  logicFunction: (params: TParams, context: TContext) => Promise<ToolResponse | void>,
   getContext: () => TContext,
-): (args: Record<string, unknown>) => Promise<ToolResponse> {
-  return async (args: Record<string, unknown>): Promise<ToolResponse> => {
+): (
+  args: Record<string, unknown>,
+  incomingCtx?: ToolHandlerContext,
+) => Promise<ToolResponse | void> {
+  return async (
+    args: Record<string, unknown>,
+    providedContext?: TContext | ToolHandlerContext,
+  ): Promise<ToolResponse | void> => {
+    const session = createRenderSession('text');
+    const hasProvidedHandlerContext = isToolHandlerContext(providedContext);
+    const ctx: ToolHandlerContext = hasProvidedHandlerContext
+      ? providedContext
+      : {
+          emit: (event) => {
+            session.emit(event);
+          },
+          attach: (image) => {
+            session.attach(image);
+          },
+        };
+    const context =
+      providedContext !== undefined && !hasProvidedHandlerContext ? providedContext : getContext();
+
     try {
       const validatedParams = schema.parse(args);
-      return logicFunction(validatedParams, getContext());
+      const resolved = await handlerContextStorage.run(ctx, () =>
+        logicFunction(validatedParams, context),
+      );
+      if (isToolResponse(resolved) || hasProvidedHandlerContext) {
+        return resolved;
+      }
+      return toResponse(session, ctx);
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;
@@ -30,17 +97,17 @@ function createValidatedHandler<TParams, TContext>(
 
 export function createTypedTool<TParams>(
   schema: z.ZodType<TParams, unknown>,
-  logicFunction: (params: TParams, executor: CommandExecutor) => Promise<ToolResponse>,
+  logicFunction: (params: TParams, executor: CommandExecutor) => Promise<ToolResponse | void>,
   getExecutor: () => CommandExecutor,
-): (args: Record<string, unknown>) => Promise<ToolResponse> {
+): (args: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<ToolResponse | void> {
   return createValidatedHandler(schema, logicFunction, getExecutor);
 }
 
 export function createTypedToolWithContext<TParams, TContext>(
   schema: z.ZodType<TParams, unknown>,
-  logicFunction: (params: TParams, context: TContext) => Promise<ToolResponse>,
+  logicFunction: (params: TParams, context: TContext) => Promise<ToolResponse | void>,
   getContext: () => TContext,
-): (args: Record<string, unknown>) => Promise<ToolResponse> {
+): (args: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<ToolResponse | void> {
   return createValidatedHandler(schema, logicFunction, getContext);
 }
 
@@ -80,11 +147,11 @@ export function getSessionAwareToolSchemaShape(opts: {
 
 export function createSessionAwareTool<TParams>(opts: {
   internalSchema: z.ZodType<TParams, unknown>;
-  logicFunction: (params: TParams, executor: CommandExecutor) => Promise<ToolResponse>;
+  logicFunction: (params: TParams, executor: CommandExecutor) => Promise<ToolResponse | void>;
   getExecutor: () => CommandExecutor;
   requirements?: SessionRequirement[];
   exclusivePairs?: (keyof SessionDefaults)[][];
-}): (rawArgs: Record<string, unknown>) => Promise<ToolResponse> {
+}): (rawArgs: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<ToolResponse | void> {
   return createSessionAwareHandler({
     internalSchema: opts.internalSchema,
     logicFunction: opts.logicFunction,
@@ -96,21 +163,21 @@ export function createSessionAwareTool<TParams>(opts: {
 
 export function createSessionAwareToolWithContext<TParams, TContext>(opts: {
   internalSchema: z.ZodType<TParams, unknown>;
-  logicFunction: (params: TParams, context: TContext) => Promise<ToolResponse>;
+  logicFunction: (params: TParams, context: TContext) => Promise<ToolResponse | void>;
   getContext: () => TContext;
   requirements?: SessionRequirement[];
   exclusivePairs?: (keyof SessionDefaults)[][];
-}): (rawArgs: Record<string, unknown>) => Promise<ToolResponse> {
+}): (rawArgs: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<ToolResponse | void> {
   return createSessionAwareHandler(opts);
 }
 
 function createSessionAwareHandler<TParams, TContext>(opts: {
   internalSchema: z.ZodType<TParams, unknown>;
-  logicFunction: (params: TParams, context: TContext) => Promise<ToolResponse>;
+  logicFunction: (params: TParams, context: TContext) => Promise<ToolResponse | void>;
   getContext: () => TContext;
   requirements?: SessionRequirement[];
   exclusivePairs?: (keyof SessionDefaults)[][];
-}): (rawArgs: Record<string, unknown>) => Promise<ToolResponse> {
+}): (rawArgs: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<ToolResponse | void> {
   const {
     internalSchema,
     logicFunction,
@@ -119,7 +186,25 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
     exclusivePairs = [],
   } = opts;
 
-  return async (rawArgs: Record<string, unknown>): Promise<ToolResponse> => {
+  return async (
+    rawArgs: Record<string, unknown>,
+    providedContext?: TContext | ToolHandlerContext,
+  ): Promise<ToolResponse | void> => {
+    const session = createRenderSession('text');
+    const hasProvidedHandlerContext = isToolHandlerContext(providedContext);
+    const ctx: ToolHandlerContext = hasProvidedHandlerContext
+      ? providedContext
+      : {
+          emit: (event) => {
+            session.emit(event);
+          },
+          attach: (image) => {
+            session.attach(image);
+          },
+        };
+    const context =
+      providedContext !== undefined && !hasProvidedHandlerContext ? providedContext : getContext();
+
     try {
       const sanitizedArgs: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(rawArgs)) {
@@ -179,7 +264,13 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
       }
 
       const validated = internalSchema.parse(merged);
-      return logicFunction(validated, getContext());
+      const resolved = await handlerContextStorage.run(ctx, () =>
+        logicFunction(validated, context),
+      );
+      if (isToolResponse(resolved) || hasProvidedHandlerContext) {
+        return resolved;
+      }
+      return toResponse(session, ctx);
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;

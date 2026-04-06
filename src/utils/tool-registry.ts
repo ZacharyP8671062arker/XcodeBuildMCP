@@ -12,6 +12,29 @@ import type { PredicateContext } from '../visibility/predicate-types.ts';
 import { selectWorkflowsForMcp, isToolExposedForRuntime } from '../visibility/exposure.ts';
 import { getConfig } from './config-store.ts';
 import { recordInternalErrorMetric, recordToolInvocationMetric } from './sentry.ts';
+import type { ToolHandlerContext } from '../rendering/types.ts';
+import { createRenderSession } from '../rendering/render.ts';
+
+function isToolResponse(value: ToolResponse | void): value is ToolResponse {
+  return typeof value === 'object' && value !== null && 'content' in value;
+}
+
+function finalizeRenderedToolResponse(
+  response: ToolResponse | void,
+  session: ReturnType<typeof createRenderSession>,
+  ctx: ToolHandlerContext,
+): ToolResponse {
+  if (isToolResponse(response)) {
+    return response;
+  }
+
+  const text = session.finalize();
+  return {
+    content: text ? [{ type: 'text' as const, text }] : [],
+    isError: session.isError() || undefined,
+    nextStepParams: ctx.nextStepParams,
+  };
+}
 
 export interface RuntimeToolInfo {
   enabledWorkflows: string[];
@@ -243,7 +266,20 @@ export async function applyWorkflowSelectionFromManifest(
           async (args: unknown): Promise<ToolResponse> => {
             const startedAt = Date.now();
             try {
-              const response = await toolModule.handler(args as Record<string, unknown>);
+              const session = createRenderSession('text');
+              const ctx: ToolHandlerContext = {
+                emit: (event) => {
+                  session.emit(event);
+                },
+                attach: (image) => {
+                  session.attach(image);
+                },
+              };
+              const rawResponse = (await toolModule.handler(
+                args as Record<string, unknown>,
+                ctx,
+              )) as ToolResponse | void;
+              const response = finalizeRenderedToolResponse(rawResponse, session, ctx);
               const catalog = registryState.catalog;
               const catalogTool = catalog?.getByMcpName(toolName);
               const postProcessedResponse =

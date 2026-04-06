@@ -11,6 +11,11 @@ export function toolResponse(events: PipelineEvent[], options?: ToolResponseOpti
   const { renderers, mcpRenderer } = resolveRenderers();
   const hasCliRenderer = renderers.length > 1;
   const skipCliStream = hasCliRenderer && options?.suppressCliStream === true;
+  const meta: Record<string, unknown> = {};
+
+  if (events.length > 0) {
+    meta.events = [...events];
+  }
 
   for (const event of events) {
     for (const renderer of renderers) {
@@ -30,10 +35,16 @@ export function toolResponse(events: PipelineEvent[], options?: ToolResponseOpti
       (e.type === 'summary' && e.status === 'FAILED'),
   );
 
+  if (!skipCliStream && hasCliRenderer) {
+    meta.streamedEventCount = events.length;
+    meta.streamedContentCount = mcpRenderer.getContent().length;
+    meta.pipelineStreamMode = 'complete';
+  }
+
   return {
     content: mcpRenderer.getContent(),
     isError: hasError || undefined,
     nextStepParams: options?.nextStepParams,
-    ...(!skipCliStream && hasCliRenderer ? { _meta: { pipelineStreamMode: 'complete' } } : {}),
+    ...(Object.keys(meta).length > 0 ? { _meta: meta } : {}),
   };
 }

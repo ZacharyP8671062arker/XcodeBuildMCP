@@ -1,6 +1,7 @@
 import type { ToolResponse, NextStepParamsMap } from '../types/common.ts';
 import type { PipelineEvent } from '../types/pipeline-events.ts';
 import { resolveRenderers } from './renderers/index.ts';
+import { handlerContextStorage } from './typed-tool-factory.ts';
 
 export interface ToolResponseOptions {
   nextStepParams?: NextStepParamsMap;
@@ -10,7 +11,9 @@ export interface ToolResponseOptions {
 export function toolResponse(events: PipelineEvent[], options?: ToolResponseOptions): ToolResponse {
   const { renderers, mcpRenderer } = resolveRenderers();
   const hasCliRenderer = renderers.length > 1;
-  const skipCliStream = hasCliRenderer && options?.suppressCliStream === true;
+  const insideHandlerContext = handlerContextStorage.getStore() !== undefined;
+  const skipCliStream =
+    hasCliRenderer && (options?.suppressCliStream === true || insideHandlerContext);
   const meta: Record<string, unknown> = {};
 
   if (events.length > 0) {

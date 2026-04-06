@@ -3,6 +3,7 @@ import type { HeaderEvent, PipelineEvent } from '../../types/pipeline-events.ts'
 import { createMcpRenderer } from './mcp-renderer.ts';
 import { createCliTextRenderer } from './cli-text-renderer.ts';
 import { createCliJsonlRenderer } from './cli-jsonl-renderer.ts';
+import { handlerContextStorage } from '../typed-tool-factory.ts';
 
 export interface PipelineRenderer {
   onEvent(event: PipelineEvent): void;

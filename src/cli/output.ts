@@ -1,4 +1,6 @@
 import type { ToolResponse, OutputStyle } from '../types/common.ts';
+import type { PipelineEvent } from '../types/pipeline-events.ts';
+import { createCliTextRenderer } from '../utils/renderers/cli-text-renderer.ts';
 import { formatCliTextLine } from '../utils/terminal-output.ts';
 
 export type OutputFormat = 'text' | 'json' | 'raw';
@@ -37,6 +39,57 @@ function isCompletePipelineStream(response: ToolResponse): boolean {
     response._meta?.xcodebuildStreamMode === 'complete' ||
     response._meta?.pipelineStreamMode === 'complete'
   );
+}
+
+const CLI_RENDERABLE_EVENT_TYPES = new Set<PipelineEvent['type']>([
+  'header',
+  'status-line',
+  'summary',
+  'section',
+  'detail-tree',
+  'table',
+  'file-ref',
+  'next-steps',
+  'build-stage',
+  'compiler-warning',
+  'compiler-error',
+  'test-discovery',
+  'test-progress',
+  'test-failure',
+]);
+
+function isCliRenderableEvent(event: unknown): event is PipelineEvent {
+  if (typeof event !== 'object' || event === null || !('type' in event)) {
+    return false;
+  }
+
+  return CLI_RENDERABLE_EVENT_TYPES.has((event as { type: PipelineEvent['type'] }).type);
+}
+
+function getRenderableResponseEvents(response: ToolResponse): PipelineEvent[] | null {
+  const events = response._meta?.events;
+  if (!Array.isArray(events) || events.length === 0) {
+    return null;
+  }
+
+  return events.every(isCliRenderableEvent) ? (events as PipelineEvent[]) : null;
+}
+
+function renderToolResponseEvents(events: readonly PipelineEvent[]): boolean {
+  if (events.length === 0) {
+    return false;
+  }
+
+  const renderer = createCliTextRenderer({ interactive: process.stdout.isTTY === true });
+  for (const event of events) {
+    renderer.onEvent(event);
+  }
+  renderer.finalize();
+  return true;
+}
+
+function responseHasNextStepsEvent(events: readonly PipelineEvent[]): boolean {
+  return events.some((event) => event.type === 'next-steps');
 }
 
 /**
@@ -90,22 +143,41 @@ export function printToolResponse(
       writeLine(JSON.stringify(response, null, 2));
     }
   } else {
-    const hasStreamedEvents = Array.isArray(response._meta?.events);
-    const streamedContentCount =
-      typeof response._meta?.streamedContentCount === 'number'
-        ? response._meta.streamedContentCount
+    const renderableEvents = getRenderableResponseEvents(response);
+    const streamedEventCount =
+      typeof response._meta?.streamedEventCount === 'number'
+        ? response._meta.streamedEventCount
         : 0;
 
-    if (hasStreamedEvents && process.stdout.isTTY === true) {
-      const printedAny = printToolResponseText(response, streamedContentCount);
-      if (!printedAny && style !== 'minimal') {
+    if (renderableEvents) {
+      renderToolResponseEvents(renderableEvents.slice(streamedEventCount));
+
+      if (style !== 'minimal' && !responseHasNextStepsEvent(renderableEvents)) {
         const nextStepsText = extractRenderedNextSteps(response);
         if (nextStepsText.length > 0) {
           writeLine(nextStepsText);
         }
       }
+
+      printToolResponseMedia(response);
     } else {
-      printToolResponseText(response);
+      const hasStreamedEvents = Array.isArray(response._meta?.events);
+      const streamedContentCount =
+        typeof response._meta?.streamedContentCount === 'number'
+          ? response._meta.streamedContentCount
+          : 0;
+
+      if (hasStreamedEvents && process.stdout.isTTY === true) {
+        const printedAny = printToolResponseText(response, streamedContentCount);
+        if (!printedAny && style !== 'minimal') {
+          const nextStepsText = extractRenderedNextSteps(response);
+          if (nextStepsText.length > 0) {
+            writeLine(nextStepsText);
+          }
+        }
+      } else {
+        printToolResponseText(response);
+      }
     }
   }
 
@@ -132,15 +204,33 @@ function printToolResponseText(response: ToolResponse, skipItems: number = 0): b
       }
       printed = true;
     } else if (item.type === 'image') {
-      // For images, show a placeholder with metadata
-      const sizeKb = Math.round((item.data.length * 3) / 4 / 1024);
-      writeLine(`[Image: ${item.mimeType}, ~${sizeKb}KB base64]`);
-      writeLine('  Use --output json to get the full image data');
-      printed = true;
+      printed = printResponseImageItem(item.data, item.mimeType) || printed;
     }
   }
 
   return printed;
+}
+
+function printToolResponseMedia(response: ToolResponse, skipItems: number = 0): boolean {
+  let printed = false;
+  const content = response.content ?? [];
+
+  for (const [index, item] of content.entries()) {
+    if (index < skipItems || item.type !== 'image') {
+      continue;
+    }
+
+    printed = printResponseImageItem(item.data, item.mimeType) || printed;
+  }
+
+  return printed;
+}
+
+function printResponseImageItem(data: string, mimeType: string): boolean {
+  const sizeKb = Math.round((data.length * 3) / 4 / 1024);
+  writeLine(`[Image: ${mimeType}, ~${sizeKb}KB base64]`);
+  writeLine('  Use --output json to get the full image data');
+  return true;
 }
 
 /**

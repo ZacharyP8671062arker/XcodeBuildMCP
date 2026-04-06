@@ -1,5 +1,6 @@
 import type { ToolCatalog, ToolDefinition, ToolInvoker, InvokeOptions } from './types.ts';
 import type { NextStep, NextStepParams, NextStepParamsMap, ToolResponse } from '../types/common.ts';
+import type { PipelineEvent } from '../types/pipeline-events.ts';
 import { toolResponse } from '../utils/tool-response.ts';
 import { statusLine } from '../utils/tool-event-builders.ts';
 import { DaemonClient } from '../cli/daemon-client.ts';
@@ -40,10 +41,12 @@ function finalizeRenderedToolResponse(
   }
 
   const text = session.finalize();
+  const events = [...session.getEvents()];
   return {
     content: text ? [{ type: 'text' as const, text }] : [],
     isError: session.isError() || undefined,
     nextStepParams: ctx.nextStepParams,
+    ...(events.length > 0 ? { _meta: { events } } : {}),
   };
 }
 
@@ -244,6 +247,19 @@ export function postProcessToolResponse(params: {
         nextSteps: normalized.nextSteps,
       })
     : renderNextStepsIntoContent(normalized, runtime);
+
+  if (
+    Array.isArray(finalized._meta?.events) &&
+    finalized.nextSteps &&
+    finalized.nextSteps.length > 0
+  ) {
+    const nextStepsEvt: PipelineEvent = {
+      type: 'next-steps',
+      timestamp: new Date().toISOString(),
+      steps: finalized.nextSteps,
+    };
+    finalized._meta!.events = [...(finalized._meta!.events as PipelineEvent[]), nextStepsEvt];
+  }
 
   const { nextSteps: _ns, nextStepParams: _nsp, ...result } = finalized;
   return result;

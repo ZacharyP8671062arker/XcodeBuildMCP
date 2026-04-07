@@ -222,8 +222,5 @@ export function finalizeInlineXcodebuild(options: FinalizeInlineXcodebuildOption
   return {
     ...pipelineResult,
     events: [...pipelineResult.events, ...fallbackEvents],
-    ...(pipelineResult.mcpContent
-      ? { mcpContent: [...pipelineResult.mcpContent, ...fallbackContent] }
-      : {}),
   };
 }

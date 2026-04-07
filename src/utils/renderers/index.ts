@@ -1,9 +1,5 @@
 import path from 'node:path';
 import type { HeaderEvent, PipelineEvent } from '../../types/pipeline-events.ts';
-import { createMcpRenderer } from './mcp-renderer.ts';
-import { createCliTextRenderer } from './cli-text-renderer.ts';
-import { createCliJsonlRenderer } from './cli-jsonl-renderer.ts';
-import { handlerContextStorage } from '../typed-tool-factory.ts';
 
 export interface PipelineRenderer {
   onEvent(event: PipelineEvent): void;
@@ -19,27 +15,4 @@ export function deriveDiagnosticBaseDir(event: HeaderEvent): string | null {
   return null;
 }
 
-export function resolveRenderers(): {
-  renderers: PipelineRenderer[];
-  mcpRenderer: ReturnType<typeof createMcpRenderer>;
-} {
-  const mcpRenderer = createMcpRenderer();
-  const renderers: PipelineRenderer[] = [mcpRenderer];
-
-  const runtime = process.env.XCODEBUILDMCP_RUNTIME;
-  const outputFormat = process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT;
-
-  if (runtime === 'cli' && process.env.XCODEBUILDMCP_VERBOSE !== '1') {
-    if (outputFormat === 'json') {
-      renderers.push(createCliJsonlRenderer());
-    } else {
-      renderers.push(createCliTextRenderer({ interactive: process.stdout.isTTY === true }));
-    }
-  }
-
-  return { renderers, mcpRenderer };
-}
-
-export { createMcpRenderer } from './mcp-renderer.ts';
 export { createCliTextRenderer } from './cli-text-renderer.ts';
-export { createCliJsonlRenderer } from './cli-jsonl-renderer.ts';

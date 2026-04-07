@@ -3,12 +3,9 @@ import type {
   XcodebuildStage,
   PipelineEvent,
 } from '../types/pipeline-events.ts';
-import type { ToolResponseContent } from '../types/common.ts';
 import { createXcodebuildEventParser } from './xcodebuild-event-parser.ts';
 import { createXcodebuildRunState } from './xcodebuild-run-state.ts';
 import type { XcodebuildRunState } from './xcodebuild-run-state.ts';
-import { resolveRenderers } from './renderers/index.ts';
-import type { PipelineRenderer } from './renderers/index.ts';
 import { displayPath } from './build-preflight.ts';
 import { resolveEffectiveDerivedDataPath } from './derived-data-path.ts';
 import { formatDeviceId } from './device-name-resolver.ts';
@@ -27,7 +24,6 @@ export interface PipelineOptions {
 export interface PipelineResult {
   state: XcodebuildRunState;
   events: PipelineEvent[];
-  mcpContent?: ToolResponseContent[];
 }
 
 export interface PipelineFinalizeOptions {
@@ -187,22 +183,14 @@ export function startBuildPipeline(
 }
 
 export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPipeline {
-  const renderers: PipelineRenderer[] = [];
-  let getMcpContent: (() => ToolResponseContent[]) | undefined;
   if (!options.emit) {
-    const resolved = resolveRenderers();
-    renderers.push(...resolved.renderers);
-    getMcpContent = () => resolved.mcpRenderer.getContent();
+    throw new Error(
+      'Pipeline requires an emit callback. Use startBuildPipeline() or pass emit explicitly.',
+    );
   }
   const logCapture = createLogCapture(options.toolName);
   const debugCapture = createParserDebugCapture(options.toolName);
-  const emit =
-    options.emit ??
-    ((event: PipelineEvent) => {
-      for (const renderer of renderers) {
-        renderer.onEvent(event);
-      }
-    });
+  const emit = options.emit;
 
   const runState = createXcodebuildRunState({
     operation: options.operation,
@@ -275,16 +263,9 @@ export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPi
         tailEvents,
       });
 
-      if (!options.emit) {
-        for (const renderer of renderers) {
-          renderer.finalize();
-        }
-      }
-
       return {
         state: finalState,
         events: finalState.events,
-        ...(getMcpContent ? { mcpContent: getMcpContent() } : {}),
       };
     },
 

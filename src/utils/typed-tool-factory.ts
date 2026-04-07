@@ -4,7 +4,7 @@ import type { ToolResponse } from '../types/common.ts';
 import type { ToolHandlerContext } from '../rendering/types.ts';
 import { createRenderSession } from '../rendering/render.ts';
 import type { CommandExecutor } from './execution/index.ts';
-import { toolResponse } from './tool-response.ts';
+import { eventsToToolResponse } from './events-to-tool-response.ts';
 import { statusLine } from './tool-event-builders.ts';
 
 import { sessionStore, type SessionDefaults } from './session-store.ts';
@@ -87,7 +87,9 @@ function createValidatedHandler<TParams, TContext>(
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;
-        return toolResponse([statusLine('error', `Parameter validation failed: ${details}`)]);
+        return eventsToToolResponse([
+          statusLine('error', `Parameter validation failed: ${details}`),
+        ]);
       }
 
       throw error;
@@ -216,7 +218,7 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
       for (const pair of exclusivePairs) {
         const provided = pair.filter((k) => Object.prototype.hasOwnProperty.call(sanitizedArgs, k));
         if (provided.length >= 2) {
-          return toolResponse([
+          return eventsToToolResponse([
             statusLine(
               'error',
               `Parameter validation failed: Invalid parameters:\nMutually exclusive parameters provided: ${provided.join(', ')}. Provide only one.`,
@@ -244,7 +246,7 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
               setHint,
               optOutEnabled: isSessionDefaultsOptOutEnabled(),
             });
-            return toolResponse([statusLine('error', `${title}: ${body}`)]);
+            return eventsToToolResponse([statusLine('error', `${title}: ${body}`)]);
           }
         } else if ('oneOf' in req) {
           const satisfied = req.oneOf.some((k) => merged[k] != null);
@@ -258,7 +260,7 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
               setHint: `Set with: ${setHints}`,
               optOutEnabled: isSessionDefaultsOptOutEnabled(),
             });
-            return toolResponse([statusLine('error', `${title}: ${body}`)]);
+            return eventsToToolResponse([statusLine('error', `${title}: ${body}`)]);
           }
         }
       }
@@ -274,7 +276,9 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;
-        return toolResponse([statusLine('error', `Parameter validation failed: ${details}`)]);
+        return eventsToToolResponse([
+          statusLine('error', `Parameter validation failed: ${details}`),
+        ]);
       }
       throw error;
     }

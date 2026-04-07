@@ -1,7 +1,7 @@
 import type { ToolCatalog, ToolDefinition, ToolInvoker, InvokeOptions } from './types.ts';
 import type { NextStep, NextStepParams, NextStepParamsMap, ToolResponse } from '../types/common.ts';
 import type { PipelineEvent } from '../types/pipeline-events.ts';
-import { toolResponse } from '../utils/tool-response.ts';
+import { eventsToToolResponse } from '../utils/events-to-tool-response.ts';
 import { statusLine } from '../utils/tool-event-builders.ts';
 import { DaemonClient } from '../cli/daemon-client.ts';
 import { ensureDaemonRunning, DEFAULT_DAEMON_STARTUP_TIMEOUT_MS } from '../cli/daemon-control.ts';
@@ -307,7 +307,7 @@ export class DefaultToolInvoker implements ToolInvoker {
     const resolved = this.catalog.resolve(toolName);
 
     if (resolved.ambiguous) {
-      return toolResponse([
+      return eventsToToolResponse([
         statusLine(
           'error',
           `Ambiguous tool name: Multiple tools match '${toolName}'. Use one of:\n- ${resolved.ambiguous.join('\n- ')}`,
@@ -316,7 +316,7 @@ export class DefaultToolInvoker implements ToolInvoker {
     }
 
     if (resolved.notFound || !resolved.tool) {
-      return toolResponse([
+      return eventsToToolResponse([
         statusLine(
           'error',
           `Tool not found: Unknown tool '${toolName}'. Run 'xcodebuildmcp tools' to see available tools.`,
@@ -360,7 +360,7 @@ export class DefaultToolInvoker implements ToolInvoker {
       const error = new Error('SocketPathMissing');
       context.captureInfraErrorMetric(error);
       context.captureInvocationMetric('infra_error');
-      return toolResponse([
+      return eventsToToolResponse([
         statusLine(
           'error',
           'Socket path required: No socket path configured for daemon communication.',
@@ -387,7 +387,7 @@ export class DefaultToolInvoker implements ToolInvoker {
         );
         context.captureInfraErrorMetric(error);
         context.captureInvocationMetric('infra_error');
-        return toolResponse([
+        return eventsToToolResponse([
           statusLine(
             'error',
             `Daemon auto-start failed: ${error instanceof Error ? error.message : String(error)}\n\nYou can try starting the daemon manually:\n  xcodebuildmcp daemon start`,
@@ -412,7 +412,7 @@ export class DefaultToolInvoker implements ToolInvoker {
       );
       context.captureInfraErrorMetric(error);
       context.captureInvocationMetric('infra_error');
-      return toolResponse([
+      return eventsToToolResponse([
         statusLine(
           'error',
           `${context.errorTitle}: ${error instanceof Error ? error.message : String(error)}`,
@@ -506,7 +506,7 @@ export class DefaultToolInvoker implements ToolInvoker {
       captureInfraErrorMetric(error);
       captureInvocationMetric('infra_error');
       const message = error instanceof Error ? error.message : String(error);
-      return toolResponse([statusLine('error', `Tool execution failed: ${message}`)]);
+      return eventsToToolResponse([statusLine('error', `Tool execution failed: ${message}`)]);
     }
   }
 }

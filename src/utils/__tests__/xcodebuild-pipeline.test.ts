@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { createXcodebuildPipeline } from '../xcodebuild-pipeline.ts';
 import { STAGE_RANK } from '../../types/pipeline-events.ts';
+import type { PipelineEvent } from '../../types/pipeline-events.ts';
+import { renderEvents } from '../../rendering/render.ts';
 
 describe('xcodebuild-pipeline', () => {
   const originalEnv = { ...process.env };
@@ -15,10 +17,12 @@ describe('xcodebuild-pipeline', () => {
   });
 
   it('produces MCP content from xcodebuild test output', () => {
+    const emittedEvents: PipelineEvent[] = [];
     const pipeline = createXcodebuildPipeline({
       operation: 'TEST',
       toolName: 'test_sim',
       params: { scheme: 'MyApp' },
+      emit: (event) => emittedEvents.push(event),
     });
 
     pipeline.emitEvent({
@@ -41,17 +45,14 @@ describe('xcodebuild-pipeline', () => {
     expect(result.state.milestones.map((m) => m.stage)).toContain('RESOLVING_PACKAGES');
     expect(result.state.milestones.map((m) => m.stage)).toContain('COMPILING');
 
-    // MCP content should have text entries
-    expect(result.mcpContent.length).toBeGreaterThan(0);
-    const texts = result.mcpContent
-      .filter((c) => c.type === 'text')
-      .map((c) => (c as { text: string }).text);
-    expect(texts.some((t) => t.includes('Test'))).toBe(true);
-    expect(texts.some((t) => t.includes('Resolving packages'))).toBe(true);
+    // Rendered text should contain relevant content
+    const text = renderEvents(emittedEvents, 'text');
+    expect(text).toContain('Test');
+    expect(text).toContain('Resolving packages');
 
     // Events array should contain all events
-    expect(result.events.length).toBeGreaterThan(0);
-    const eventTypes = result.events.map((e) => e.type);
+    expect(emittedEvents.length).toBeGreaterThan(0);
+    const eventTypes = emittedEvents.map((e) => e.type);
     expect(eventTypes).toContain('header');
     expect(eventTypes).toContain('build-stage');
     expect(eventTypes).toContain('test-progress');
@@ -59,10 +60,12 @@ describe('xcodebuild-pipeline', () => {
   });
 
   it('handles build output with warnings and errors', () => {
+    const emittedEvents: PipelineEvent[] = [];
     const pipeline = createXcodebuildPipeline({
       operation: 'BUILD',
       toolName: 'build_sim',
       params: { scheme: 'MyApp' },
+      emit: (event) => emittedEvents.push(event),
     });
 
     pipeline.onStdout('CompileSwift normal arm64 /tmp/App.swift\n');
@@ -78,10 +81,12 @@ describe('xcodebuild-pipeline', () => {
 
   it('supports multi-phase with minimumStage', () => {
     // Phase 1: build-for-testing
+    const phase1Events: PipelineEvent[] = [];
     const phase1 = createXcodebuildPipeline({
       operation: 'TEST',
       toolName: 'test_sim',
       params: {},
+      emit: (event) => phase1Events.push(event),
     });
 
     phase1.onStdout('Resolve Package Graph\n');
@@ -98,11 +103,13 @@ describe('xcodebuild-pipeline', () => {
       | 'COMPILING'
       | undefined;
 
+    const phase2Events: PipelineEvent[] = [];
     const phase2 = createXcodebuildPipeline({
       operation: 'TEST',
       toolName: 'test_sim',
       params: {},
       minimumStage: minStage,
+      emit: (event) => phase2Events.push(event),
     });
 
     // These should be suppressed
@@ -122,10 +129,12 @@ describe('xcodebuild-pipeline', () => {
   });
 
   it('emitEvent passes tool-originated events through the pipeline', () => {
+    const emittedEvents: PipelineEvent[] = [];
     const pipeline = createXcodebuildPipeline({
       operation: 'TEST',
       toolName: 'test_sim',
       params: {},
+      emit: (event) => emittedEvents.push(event),
     });
 
     pipeline.emitEvent({
@@ -139,7 +148,7 @@ describe('xcodebuild-pipeline', () => {
 
     const result = pipeline.finalize(true, 100);
 
-    const discoveryEvents = result.events.filter((e) => e.type === 'test-discovery');
+    const discoveryEvents = emittedEvents.filter((e) => e.type === 'test-discovery');
     expect(discoveryEvents).toHaveLength(1);
   });
 
@@ -147,34 +156,24 @@ describe('xcodebuild-pipeline', () => {
     process.env.XCODEBUILDMCP_RUNTIME = 'cli';
     process.env.XCODEBUILDMCP_CLI_OUTPUT_FORMAT = 'json';
 
-    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const emittedEvents: PipelineEvent[] = [];
+    const pipeline = createXcodebuildPipeline({
+      operation: 'BUILD',
+      toolName: 'build_sim',
+      params: {},
+      emit: (event) => emittedEvents.push(event),
+    });
 
-    try {
-      const pipeline = createXcodebuildPipeline({
-        operation: 'BUILD',
-        toolName: 'build_sim',
-        params: {},
-      });
+    pipeline.onStdout('CompileSwift normal arm64 /tmp/App.swift\n');
+    pipeline.finalize(true, 100);
 
-      pipeline.onStdout('CompileSwift normal arm64 /tmp/App.swift\n');
-      pipeline.finalize(true, 100);
+    expect(emittedEvents.length).toBeGreaterThan(0);
 
-      const jsonlCalls = writeSpy.mock.calls.filter(
-        (call) => typeof call[0] === 'string' && call[0].endsWith('\n'),
-      );
-      expect(jsonlCalls.length).toBeGreaterThan(0);
-
-      // Each JSONL line should be valid JSON
-      for (const call of jsonlCalls) {
-        const line = (call[0] as string).trim();
-        if (line) {
-          const parsed = JSON.parse(line);
-          expect(parsed).toHaveProperty('type');
-          expect(parsed).toHaveProperty('timestamp');
-        }
-      }
-    } finally {
-      writeSpy.mockRestore();
+    // Each emitted event should be valid JSON-serializable with required fields
+    for (const event of emittedEvents) {
+      const parsed = JSON.parse(JSON.stringify(event));
+      expect(parsed).toHaveProperty('type');
+      expect(parsed).toHaveProperty('timestamp');
     }
   });
 });

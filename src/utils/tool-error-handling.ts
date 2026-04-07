@@ -2,7 +2,7 @@ import type { ToolResponse } from '../types/common.ts';
 import type { ToolHandlerContext } from '../rendering/types.ts';
 import type { HeaderEvent, PipelineEvent } from '../types/pipeline-events.ts';
 import { toErrorMessage } from './errors.ts';
-import { toolResponse } from './tool-response.ts';
+import { eventsToToolResponse } from './events-to-tool-response.ts';
 import { statusLine } from './tool-event-builders.ts';
 import { log } from './logging/index.ts';
 
@@ -110,6 +110,6 @@ export async function withErrorHandling(
       return;
     }
 
-    return toolResponse([headerEvent, statusLine('error', errorMsg)]);
+    return eventsToToolResponse([headerEvent, statusLine('error', errorMsg)]);
   }
 }

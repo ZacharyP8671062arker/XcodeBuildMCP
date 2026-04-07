@@ -148,6 +148,38 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(/(?<=Workspace root: )<ROOT>\/[^\n]+/g, '<PATH>');
   normalized = normalized.replace(/(?<=Scan path: )<ROOT>\/[^\n]+/g, '<PATH>');
 
+  // Doctor-specific sanitization for volatile system information
+  normalized = normalized.replace(/  version: v[\d.]+/g, '  version: <NODE_VERSION>');
+  normalized = normalized.replace(/(├|└)\s+release: [\d.]+/g, '$1 release: <OS_RELEASE>');
+  normalized = normalized.replace(/(├|└)\s+cpus: .+/g, '$1 cpus: <CPUS>');
+  normalized = normalized.replace(/(├|└)\s+memory: .+/g, '$1 memory: <MEMORY>');
+  normalized = normalized.replace(/(├|└)\s+tmpdir: \/var\/folders\/[^\n]+/g, '$1 tmpdir: <TMPDIR>');
+  normalized = normalized.replace(/(├|└)\s+homedir: [^\n]+/g, '$1 homedir: <HOME>');
+  normalized = normalized.replace(/  Server Version: [\d.]+[^\n]*/g, '  Server Version: <VERSION>');
+  normalized = normalized.replace(/  tmpdir: \/var\/folders\/[^\n]+/g, '  tmpdir: <TMPDIR>');
+  normalized = normalized.replace(/  TMPDIR: \/var\/folders\/[^\n]+/g, '  TMPDIR: <TMPDIR>');
+  normalized = normalized.replace(
+    /  version: Xcode [\d.]+ - Build version \w+/g,
+    '  version: <XCODE_VERSION>',
+  );
+  normalized = normalized.replace(/  path: \/Applications\/Xcode[^\n]+/g, '  path: <XCODE_PATH>');
+  normalized = normalized.replace(
+    /  selectedXcode: \/Applications\/Xcode[^\n]+/g,
+    '  selectedXcode: <XCODE_PATH>',
+  );
+  normalized = normalized.replace(/  xcrunVersion: xcrun version .+/g, '  xcrunVersion: <VERSION>');
+  normalized = normalized.replace(/  axe: [\d.]+[^\n]*/g, '  axe: <VERSION>');
+  normalized = normalized.replace(/  mise: [\d.]+[^\n]*/g, '  mise: <VERSION>');
+  normalized = normalized.replace(
+    /  mcpbridge path: \/Applications\/Xcode[^\n]+/g,
+    '  mcpbridge path: <XCODE_PATH>',
+  );
+  normalized = normalized.replace(/  Total Unique Tools: \d+/g, '  Total Unique Tools: <COUNT>');
+  normalized = normalized.replace(/  Workflow Count: \d+/g, '  Workflow Count: <COUNT>');
+  normalized = normalized.replace(/  (\w[\w-]*): \d+ tools$/gm, '  $1: <N> tools');
+  // Sanitize the entire PATH section (volatile across environments)
+  normalized = normalized.replace(/\nPATH\n(?:  [^\n]+\n)*/g, '\nPATH\n  <PATH_ENTRIES>\n');
+
   normalized = normalized.replace(/\n{3,}/g, '\n\n');
   normalized = normalized.replace(TRAILING_WHITESPACE_REGEX, '');
   normalized = normalized.replace(/\n*$/, '\n');

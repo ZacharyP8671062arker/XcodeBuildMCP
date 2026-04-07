@@ -2,21 +2,21 @@
 ⚙️ XcodeBuildMCP Doctor
 
    Generated: <TIMESTAMP>
-   Server Version: 2.3.0
+   Server Version: <VERSION>
    Output Mode: Redacted (default)
 
   ├ platform: darwin
-  ├ release: 25.3.0
+  ├ release: <OS_RELEASE>
   ├ arch: arm64
-  ├ cpus: 12 x Apple M4 Pro
-  ├ memory: 24 GB
+  ├ cpus: <CPUS>
+  ├ memory: <MEMORY>
   ├ hostname: <redacted>
   ├ username: <redacted>
-  ├ homedir: /Users/<redacted>
-  └ tmpdir: /var/folders/_t/2njffz894t57qpp76v1sw__h0000gn/T
+  ├ homedir: <HOME>
+  └ tmpdir: <TMPDIR>
 
 Node.js Information
-  version: v22.21.1
+  version: <NODE_VERSION>
   execPath: <EXEC_PATH>
   pid: <PID>
   ppid: <PID>
@@ -30,21 +30,21 @@ Process Tree
    <PID> (ppid <PID>): <PROCESS>
 
 Xcode Information
-  version: Xcode 26.4 - Build version 17E192
-  path: /Applications/Xcode-26.4.0.app/Contents/Developer
-  selectedXcode: /Applications/Xcode-26.4.0.app/Contents/Developer/usr/bin/xcodebuild
-  xcrunVersion: xcrun version 72.
+  version: <XCODE_VERSION>
+  path: <XCODE_PATH>
+  selectedXcode: <XCODE_PATH>
+  xcrunVersion: <VERSION>
 
 Dependencies
-  axe: 0.0.0-staging.11
-  mise: 2025.6.1 macos-arm64 (2025-06-09)
+  axe: <VERSION>
+  mise: <VERSION>
 
 Environment Variables
   INCREMENTAL_BUILDS_ENABLED: (not set)
   DEVELOPER_DIR: (not set)
   HOME: /Users/<redacted>
   USER: <redacted>
-  TMPDIR: /var/folders/_t/2njffz894t57qpp76v1sw__h0000gn/T/
+  TMPDIR: <TMPDIR>
   NODE_ENV: test
   SENTRY_DISABLED: (not set)
   AXE_PATH: (not set)
@@ -54,42 +54,7 @@ Environment Variables
   XCODEBUILDMCP_SILENCE_LOGS: true
 
 PATH
-  /Users/<redacted>/.bin
-  /Users/<redacted>/bin
-  /Users/<redacted>/.local/share/sentry-devenv/bin
-  /Users/<redacted>/.antigravity/antigravity/bin
-  /Users/<redacted>/.local/bin
-  /Users/<redacted>/.opencode/bin
-  /Users/<redacted>/.codeium/windsurf/bin
-  /opt/homebrew/bin
-  /Users/<redacted>/perl5/bin
-  /Users/<redacted>/.nvm/versions/node/<NODE_VERSION>/bin
-  /Users/<redacted>/Developer/xcodemake
-  /Users/<redacted>/.npm-global/bin
-  /Users/<redacted>/.rbenv/shims
-  /Users/<redacted>/.dotfiles/bin
-  /usr/local/bin
-  /usr/local/sbin
-  /Users/<redacted>/.oh-my-zsh/bin
-  /opt/homebrew/sbin
-  /System/Cryptexes/App/usr/bin
-  /usr/bin
-  /bin
-  /usr/sbin
-  /sbin
-  /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin
-  /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin
-  /var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin
-  /opt/pmk/env/global/bin
-  /Library/Apple/usr/bin
-  /usr/local/MacGPG2/bin
-  /Users/<redacted>/.cargo/bin
-  /Users/<redacted>/.lmstudio/bin
-  /Users/<redacted>/go/bin
-  /Users/<redacted>/.claude/plugins/marketplaces/sentry-skills/plugins/sentry-skills/bin
-  /Users/<redacted>/.claude/plugins/marketplaces/claude-plugins-official/plugins/code-simplifier/bin
-  /Users/<redacted>/.claude/plugins/cache/claude-plugins-official/sentry/1.0.0/bin
-  /Users/<redacted>/.claude/plugins/marketplaces/claude-plugins-official/plugins/swift-lsp/bin
+  <PATH_ENTRIES>
 
 UI Automation (axe)
   Available: Yes
@@ -111,23 +76,23 @@ Debugger Backend (DAP)
   Selected backend: dap
 
 Manifest Tool Inventory
-  Total Unique Tools: 77
-  Workflow Count: 15
-  coverage: 2 tools
-  debugging: 8 tools
-  device: 15 tools
-  doctor: 1 tools
-  macos: 13 tools
-  project-discovery: 5 tools
-  project-scaffolding: 2 tools
-  session-management: 5 tools
-  simulator-management: 8 tools
-  simulator: 20 tools
-  swift-package: 8 tools
-  ui-automation: 11 tools
-  utilities: 1 tools
-  workflow-discovery: 1 tools
-  xcode-ide: 5 tools
+  Total Unique Tools: <COUNT>
+  Workflow Count: <COUNT>
+  coverage: <N> tools
+  debugging: <N> tools
+  device: <N> tools
+  doctor: <N> tools
+  macos: <N> tools
+  project-discovery: <N> tools
+  project-scaffolding: <N> tools
+  session-management: <N> tools
+  simulator-management: <N> tools
+  simulator: <N> tools
+  swift-package: <N> tools
+  ui-automation: <N> tools
+  utilities: <N> tools
+  workflow-discovery: <N> tools
+  xcode-ide: <N> tools
 
 Runtime Tool Registration
   Enabled Workflows: 0
@@ -136,7 +101,7 @@ Runtime Tool Registration
 
 Xcode IDE Bridge (mcpbridge)
   Workflow enabled: No
-  mcpbridge path: /Applications/Xcode-26.4.0.app/Contents/Developer/usr/bin/mcpbridge
+  mcpbridge path: <XCODE_PATH>
   Xcode running: (unknown)
   Connected: No
   Bridge PID: (none)

@@ -91,7 +91,7 @@ export async function test_simLogic(
   params: TestSimulatorParams,
   executor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   if (params.simulatorId && params.useLatestOS !== undefined) {
     log(
       'warn',

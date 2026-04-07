@@ -67,7 +67,7 @@ export async function testMacosLogic(
   params: TestMacosParams,
   executor: CommandExecutor = getDefaultCommandExecutor(),
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const configuration = params.configuration ?? 'Debug';
 
   const preflight = await resolveTestPreflight(

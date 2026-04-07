@@ -4,9 +4,15 @@ import {
   createMockExecutor,
   createMockCommandResponse,
 } from '../../../../test-utils/mock-executors.ts';
+import { runToolLogic } from '../../../../test-utils/test-helpers.ts';
 import { schema, handler, swift_package_testLogic } from '../swift_package_test.ts';
 import { allText } from '../../../../test-utils/test-helpers.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
+
+const runSwiftPackageTestLogic = (
+  params: Parameters<typeof swift_package_testLogic>[0],
+  executor: Parameters<typeof swift_package_testLogic>[1],
+) => runToolLogic(() => swift_package_testLogic(params, executor));
 
 describe('swift_package_test plugin', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -71,7 +77,7 @@ describe('swift_package_test plugin', () => {
         });
       };
 
-      await swift_package_testLogic(
+      await runSwiftPackageTestLogic(
         {
           packagePath: '/test/package',
         },
@@ -93,7 +99,7 @@ describe('swift_package_test plugin', () => {
         });
       };
 
-      await swift_package_testLogic(
+      await runSwiftPackageTestLogic(
         {
           packagePath: '/test/package',
           testProduct: 'MyTests',
@@ -133,9 +139,12 @@ describe('swift_package_test plugin', () => {
         output: 'All tests passed.',
       });
 
-      const result = await swift_package_testLogic({ packagePath: '/test/package' }, mockExecutor);
+      const { result } = await runSwiftPackageTestLogic(
+        { packagePath: '/test/package' },
+        mockExecutor,
+      );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should return error response for test failure', async () => {
@@ -144,9 +153,12 @@ describe('swift_package_test plugin', () => {
         error: '2 tests failed',
       });
 
-      const result = await swift_package_testLogic({ packagePath: '/test/package' }, mockExecutor);
+      const { result } = await runSwiftPackageTestLogic(
+        { packagePath: '/test/package' },
+        mockExecutor,
+      );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
     });
 
     it('should handle spawn error', async () => {
@@ -154,10 +166,13 @@ describe('swift_package_test plugin', () => {
         throw new Error('spawn ENOENT');
       };
 
-      const result = await swift_package_testLogic({ packagePath: '/test/package' }, mockExecutor);
+      const { result } = await runSwiftPackageTestLogic(
+        { packagePath: '/test/package' },
+        mockExecutor,
+      );
 
-      expect(result.isError).toBe(true);
-      const text = allText(result);
+      expect(result.isError()).toBe(true);
+      const text = result.text();
       expect(text).toContain('Failed to execute swift test');
       expect(text).toContain('spawn ENOENT');
     });
@@ -165,13 +180,13 @@ describe('swift_package_test plugin', () => {
     it('should return error for invalid configuration', async () => {
       const mockExecutor = createMockExecutor({ success: true, output: '' });
 
-      const result = await swift_package_testLogic(
+      const { result } = await runSwiftPackageTestLogic(
         { packagePath: '/test/package', configuration: 'invalid' as 'debug' },
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
-      const text = allText(result);
+      expect(result.isError()).toBe(true);
+      const text = result.text();
       expect(text).toContain('Invalid configuration');
     });
   });

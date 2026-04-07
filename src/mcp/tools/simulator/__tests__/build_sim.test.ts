@@ -5,10 +5,18 @@ import {
   createMockExecutor,
   createMockCommandResponse,
 } from '../../../../test-utils/mock-executors.ts';
-import { expectPendingBuildResponse } from '../../../../test-utils/test-helpers.ts';
+import {
+  expectPendingBuildResponse,
+  runToolLogic,
+} from '../../../../test-utils/test-helpers.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 
 import { schema, handler, build_simLogic } from '../build_sim.ts';
+
+const runBuildSimLogic = (
+  params: Parameters<typeof build_simLogic>[0],
+  executor: Parameters<typeof build_simLogic>[1],
+) => runToolLogic(() => build_simLogic(params, executor));
 
 describe('build_sim tool', () => {
   beforeEach(() => {
@@ -67,7 +75,7 @@ describe('build_sim tool', () => {
     it('should handle empty workspacePath parameter', async () => {
       const mockExecutor = createMockExecutor({ success: true, output: 'BUILD SUCCEEDED' });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '',
           scheme: 'MyScheme',
@@ -93,7 +101,7 @@ describe('build_sim tool', () => {
     it('should handle empty scheme parameter', async () => {
       const mockExecutor = createMockExecutor({ success: true, output: 'BUILD SUCCEEDED' });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: '',
@@ -140,7 +148,7 @@ describe('build_sim tool', () => {
         error: 'For iOS Simulator platform, either simulatorId or simulatorName must be provided',
       });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -149,7 +157,7 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });
   });
@@ -182,7 +190,7 @@ describe('build_sim tool', () => {
     it('should generate correct build command with minimal parameters (workspace)', async () => {
       const callHistory: Array<{ command: string[]; logPrefix?: string }> = [];
 
-      await build_simLogic(
+      await runBuildSimLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -215,7 +223,7 @@ describe('build_sim tool', () => {
     it('should generate correct build command with minimal parameters (project)', async () => {
       const callHistory: Array<{ command: string[]; logPrefix?: string }> = [];
 
-      await build_simLogic(
+      await runBuildSimLogic(
         {
           projectPath: '/path/to/MyProject.xcodeproj',
           scheme: 'MyScheme',
@@ -248,7 +256,7 @@ describe('build_sim tool', () => {
     it('should generate correct build command with all optional parameters', async () => {
       const callHistory: Array<{ command: string[]; logPrefix?: string }> = [];
 
-      await build_simLogic(
+      await runBuildSimLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -286,7 +294,7 @@ describe('build_sim tool', () => {
     it('should handle paths with spaces in command generation', async () => {
       const callHistory: Array<{ command: string[]; logPrefix?: string }> = [];
 
-      await build_simLogic(
+      await runBuildSimLogic(
         {
           workspacePath: '/Users/dev/My Project/MyProject.xcworkspace',
           scheme: 'My Scheme',
@@ -319,7 +327,7 @@ describe('build_sim tool', () => {
     it('should generate correct build command with useLatestOS set to true', async () => {
       const callHistory: Array<{ command: string[]; logPrefix?: string }> = [];
 
-      await build_simLogic(
+      await runBuildSimLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -353,7 +361,7 @@ describe('build_sim tool', () => {
     it('should infer watchOS platform from simulator name', async () => {
       const callHistory: Array<{ command: string[]; logPrefix?: string }> = [];
 
-      await build_simLogic(
+      await runBuildSimLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyWatchScheme',
@@ -388,7 +396,7 @@ describe('build_sim tool', () => {
     it('should handle successful build', async () => {
       const mockExecutor = createMockExecutor({ success: true, output: 'BUILD SUCCEEDED' });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -397,14 +405,14 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_sim_app_path');
     });
 
     it('should handle successful build with all optional parameters', async () => {
       const mockExecutor = createMockExecutor({ success: true, output: 'BUILD SUCCEEDED' });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -418,7 +426,7 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_sim_app_path');
     });
 
@@ -429,7 +437,7 @@ describe('build_sim tool', () => {
         error: 'Build failed: Compilation error',
       });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -438,7 +446,7 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });
 
@@ -448,7 +456,7 @@ describe('build_sim tool', () => {
         output: 'warning: deprecated method used\nBUILD SUCCEEDED',
       });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -457,7 +465,7 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_sim_app_path');
     });
 
@@ -467,7 +475,7 @@ describe('build_sim tool', () => {
         error: 'spawn xcodebuild ENOENT',
       });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -476,7 +484,7 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });
 
@@ -487,7 +495,7 @@ describe('build_sim tool', () => {
         error: 'Build failed',
       });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -496,14 +504,14 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });
 
     it('should use default configuration when not provided', async () => {
       const mockExecutor = createMockExecutor({ success: true, output: 'BUILD SUCCEEDED' });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -512,7 +520,7 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_sim_app_path');
     });
   });
@@ -521,7 +529,7 @@ describe('build_sim tool', () => {
     it('should handle catch block exceptions', async () => {
       const mockExecutor = createMockExecutor({ success: true, output: 'BUILD SUCCEEDED' });
 
-      const result = await build_simLogic(
+      const { result } = await runBuildSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -530,7 +538,7 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_sim_app_path');
     });
   });

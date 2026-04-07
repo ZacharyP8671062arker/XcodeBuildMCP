@@ -1,4 +1,4 @@
-import type { NextStep, ToolResponse, ToolResponseContent } from '../types/common.ts';
+import type { ToolResponseContent } from '../types/common.ts';
 import type {
   BuildRunResultNoticeData,
   BuildRunStepNoticeData,
@@ -7,40 +7,23 @@ import type {
   PipelineEvent,
   XcodebuildOperation,
 } from '../types/pipeline-events.ts';
-import type { StartedPipeline } from './xcodebuild-pipeline.ts';
+import type { PipelineResult, StartedPipeline } from './xcodebuild-pipeline.ts';
 import { displayPath } from './build-preflight.ts';
+import { statusLine } from './tool-event-builders.ts';
 
-interface PipelineOutputMetaExtras {
-  [key: string]: unknown;
-}
+export type ErrorFallbackPolicy = 'always' | 'if-no-structured-diagnostics';
 
-type XcodebuildStreamMode = 'complete' | 'legacy';
-
-interface PendingXcodebuildState {
-  kind: 'pending-xcodebuild';
+interface FinalizeInlineXcodebuildOptions {
   started: StartedPipeline;
-  emitSummary: boolean;
-  extras: PipelineOutputMetaExtras;
-  fallbackContent: ToolResponseContent[];
-  tailEvents: PipelineEvent[];
-  errorFallbackPolicy: ErrorFallbackPolicy;
-  includeBuildLogFileRef: boolean;
-  includeParserDebugFileRef: boolean;
-}
-
-function createPipelineOutputMeta(
-  events: PipelineEvent[],
-  streamedContentCount: number,
-  extras: PipelineOutputMetaExtras = {},
-  streamMode: XcodebuildStreamMode = 'legacy',
-): Record<string, unknown> {
-  return {
-    ...extras,
-    events,
-    streamedContentCount,
-    streamedEventCount: events.length,
-    xcodebuildStreamMode: streamMode,
-  };
+  succeeded: boolean;
+  durationMs: number;
+  responseContent?: ToolResponseContent[];
+  emit?: (event: PipelineEvent) => void;
+  emitSummary?: boolean;
+  tailEvents?: PipelineEvent[];
+  errorFallbackPolicy?: ErrorFallbackPolicy;
+  includeBuildLogFileRef?: boolean;
+  includeParserDebugFileRef?: boolean;
 }
 
 function createStructuredErrorEvent(
@@ -73,6 +56,15 @@ function formatBuildRunStepLabel(step: string): string {
     default:
       return 'Running step';
   }
+}
+
+function extractTextContent(
+  content: ToolResponseContent[] | undefined,
+): Array<{ type: 'text'; text: string }> {
+  return (content ?? []).filter(
+    (item): item is { type: 'text'; text: string } =>
+      item.type === 'text' && typeof item.text === 'string' && item.text.trim().length > 0,
+  );
 }
 
 export function createNoticeEvent(
@@ -118,9 +110,7 @@ export function createBuildRunResultEvents(data: BuildRunResultNoticeData): Pipe
     message: 'Build & Run complete',
   });
 
-  const items: Array<{ label: string; value: string }> = [
-    { label: 'App Path', value: data.appPath },
-  ];
+  const items: Array<{ label: string; value: string }> = [{ label: 'App Path', value: data.appPath }];
 
   if (data.bundleId) {
     items.push({ label: 'Bundle ID', value: data.bundleId });
@@ -159,18 +149,6 @@ export function createBuildRunResultEvents(data: BuildRunResultNoticeData): Pipe
   return events;
 }
 
-function createNextStepsEvent(steps: NextStep[]): PipelineEvent | null {
-  if (steps.length === 0) {
-    return null;
-  }
-
-  return {
-    type: 'next-steps',
-    timestamp: new Date().toISOString(),
-    steps,
-  };
-}
-
 export function emitPipelineNotice(
   started: StartedPipeline,
   operation: XcodebuildOperation,
@@ -202,97 +180,50 @@ export function emitPipelineError(
   started.pipeline.emitEvent(createStructuredErrorEvent(operation, message));
 }
 
-type ErrorFallbackPolicy = 'always' | 'if-no-structured-diagnostics';
-
-interface PendingXcodebuildResponseOptions {
-  extras?: PipelineOutputMetaExtras;
-  emitSummary?: boolean;
-  tailEvents?: PipelineEvent[];
-  errorFallbackPolicy?: ErrorFallbackPolicy;
-  includeBuildLogFileRef?: boolean;
-  includeParserDebugFileRef?: boolean;
-}
-
-export function createPendingXcodebuildResponse(
-  started: StartedPipeline,
-  response: ToolResponse,
-  options: PendingXcodebuildResponseOptions = {},
-): ToolResponse {
-  return {
-    ...response,
-    content: [],
-    _meta: {
-      ...(response._meta ?? {}),
-      pendingXcodebuild: {
-        kind: 'pending-xcodebuild',
-        started,
-        emitSummary: options.emitSummary ?? true,
-        extras: options.extras ?? {},
-        fallbackContent: response.isError ? response.content : [],
-        tailEvents: options.tailEvents ?? [],
-        errorFallbackPolicy: options.errorFallbackPolicy ?? 'always',
-        includeBuildLogFileRef: options.includeBuildLogFileRef ?? true,
-        includeParserDebugFileRef: options.includeParserDebugFileRef ?? false,
-      } satisfies PendingXcodebuildState,
-    },
-  };
-}
-
-export function isPendingXcodebuildResponse(response: ToolResponse): boolean {
+export function isPendingXcodebuildResponse(response: {
+  _meta?: Record<string, unknown>;
+}): boolean {
   const pending = response._meta?.pendingXcodebuild;
   return (
     typeof pending === 'object' &&
     pending !== null &&
-    (pending as PendingXcodebuildState).kind === 'pending-xcodebuild'
+    (pending as { kind?: string }).kind === 'pending-xcodebuild'
   );
 }
 
-function getPendingXcodebuildState(response: ToolResponse): PendingXcodebuildState {
-  if (!isPendingXcodebuildResponse(response)) {
-    throw new Error('Response is not a pending xcodebuild response');
-  }
-
-  return response._meta?.pendingXcodebuild as PendingXcodebuildState;
-}
-
-export function finalizePendingXcodebuildResponse(
-  response: ToolResponse,
-  options: { nextSteps?: NextStep[] } = {},
-): ToolResponse {
-  const pending = getPendingXcodebuildState(response);
-  const durationMs = Math.max(0, Date.now() - pending.started.startedAt);
-  const nextStepsEvent =
-    !response.isError && options.nextSteps ? createNextStepsEvent(options.nextSteps) : null;
-  const tailEvents = [...pending.tailEvents];
-  if (nextStepsEvent) {
-    tailEvents.push(nextStepsEvent);
-  }
-  const pipelineResult = pending.started.pipeline.finalize(!response.isError, durationMs, {
-    emitSummary: pending.emitSummary,
-    tailEvents,
-    includeBuildLogFileRef: pending.includeBuildLogFileRef,
-    includeParserDebugFileRef: pending.includeParserDebugFileRef,
+export function finalizeInlineXcodebuild(
+  options: FinalizeInlineXcodebuildOptions,
+): PipelineResult {
+  const pipelineResult = options.started.pipeline.finalize(options.succeeded, options.durationMs, {
+    emitSummary: options.emitSummary,
+    tailEvents: options.tailEvents,
+    includeBuildLogFileRef: options.includeBuildLogFileRef,
+    includeParserDebugFileRef: options.includeParserDebugFileRef ?? false,
   });
 
+  const fallbackContent = extractTextContent(options.responseContent);
   const hasStructuredDiagnostics =
     pipelineResult.state.errors.length > 0 || pipelineResult.state.testFailures.length > 0;
-  const fallbackContent =
-    response.isError &&
-    pending.errorFallbackPolicy === 'if-no-structured-diagnostics' &&
-    hasStructuredDiagnostics
-      ? []
-      : pending.fallbackContent;
+  const errorFallbackPolicy = options.errorFallbackPolicy ?? 'if-no-structured-diagnostics';
+  const shouldEmitFallback =
+    !options.succeeded &&
+    fallbackContent.length > 0 &&
+    (errorFallbackPolicy === 'always' || !hasStructuredDiagnostics);
+
+  if (!shouldEmitFallback) {
+    return pipelineResult;
+  }
+
+  const fallbackEvents = fallbackContent.map((item) => statusLine('error', item.text));
+  for (const event of fallbackEvents) {
+    options.emit?.(event);
+  }
 
   return {
-    ...response,
-    content: response.isError
-      ? [...pipelineResult.mcpContent, ...fallbackContent]
-      : pipelineResult.mcpContent,
-    _meta: createPipelineOutputMeta(
-      pipelineResult.events,
-      pipelineResult.mcpContent.length,
-      pending.extras,
-      'complete',
-    ),
+    ...pipelineResult,
+    events: [...pipelineResult.events, ...fallbackEvents],
+    ...(pipelineResult.mcpContent
+      ? { mcpContent: [...pipelineResult.mcpContent, ...fallbackContent] }
+      : {}),
   };
 }

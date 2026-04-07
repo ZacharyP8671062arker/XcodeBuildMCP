@@ -5,9 +5,12 @@ import {
   createMockExecutor,
   createMockFileSystemExecutor,
 } from '../../../../test-utils/mock-executors.ts';
+import {
+  expectPendingBuildResponse,
+  runToolLogic,
+} from '../../../../test-utils/test-helpers.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, testMacosLogic } from '../test_macos.ts';
-import { isPendingXcodebuildResponse } from '../../../../utils/xcodebuild-output.ts';
 
 const mockFs = () =>
   createMockFileSystemExecutor({
@@ -16,6 +19,12 @@ const mockFs = () =>
     tmpdir: () => '/tmp',
     stat: async () => ({ isDirectory: () => false, mtimeMs: 0 }),
   });
+
+const runTestMacosLogic = (
+  params: Parameters<typeof testMacosLogic>[0],
+  executor: Parameters<typeof testMacosLogic>[1],
+  fileSystemExecutor: Parameters<typeof testMacosLogic>[2],
+) => runToolLogic(() => testMacosLogic(params, executor, fileSystemExecutor));
 
 describe('test_macos plugin (unified)', () => {
   beforeEach(() => {
@@ -105,7 +114,7 @@ describe('test_macos plugin (unified)', () => {
         output: 'Test Suite All Tests passed',
       });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -114,8 +123,8 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should allow only workspacePath', async () => {
@@ -124,7 +133,7 @@ describe('test_macos plugin (unified)', () => {
         output: 'Test Suite All Tests passed',
       });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/workspace.xcworkspace',
           scheme: 'MyScheme',
@@ -133,8 +142,8 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
   });
 
@@ -145,7 +154,7 @@ describe('test_macos plugin (unified)', () => {
         output: 'Test Suite All Tests passed',
       });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/workspace.xcworkspace',
           scheme: 'MyScheme',
@@ -155,8 +164,8 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should return pending response with project when xcodebuild succeeds', async () => {
@@ -165,7 +174,7 @@ describe('test_macos plugin (unified)', () => {
         output: 'Test Suite All Tests passed',
       });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -175,8 +184,8 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should use default configuration when not provided', async () => {
@@ -185,7 +194,7 @@ describe('test_macos plugin (unified)', () => {
         output: 'Test Suite All Tests passed',
       });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/workspace.xcworkspace',
           scheme: 'MyScheme',
@@ -194,8 +203,8 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should handle optional parameters correctly', async () => {
@@ -204,7 +213,7 @@ describe('test_macos plugin (unified)', () => {
         output: 'Test Suite All Tests passed',
       });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/workspace.xcworkspace',
           scheme: 'MyScheme',
@@ -217,8 +226,8 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should handle successful test execution with minimal parameters', async () => {
@@ -227,7 +236,7 @@ describe('test_macos plugin (unified)', () => {
         output: 'Test Suite All Tests passed',
       });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyApp',
@@ -236,8 +245,8 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should return pending response on successful test', async () => {
@@ -259,7 +268,7 @@ describe('test_macos plugin (unified)', () => {
         });
       };
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -277,8 +286,8 @@ describe('test_macos plugin (unified)', () => {
       expect(commandCalls[0].command).toContain('test');
       expect(commandCalls[0].logPrefix).toBe('Test Run');
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should return pending response on test failure', async () => {
@@ -299,7 +308,7 @@ describe('test_macos plugin (unified)', () => {
         });
       };
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -309,8 +318,8 @@ describe('test_macos plugin (unified)', () => {
       );
 
       expect(callCount).toBe(1);
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBe(true);
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBe(true);
     });
 
     it('should return pending response with optional parameters', async () => {
@@ -328,7 +337,7 @@ describe('test_macos plugin (unified)', () => {
           exitCode: 0,
         });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -341,8 +350,8 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should handle build failure with pending response', async () => {
@@ -360,7 +369,7 @@ describe('test_macos plugin (unified)', () => {
           exitCode: 65,
         });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -369,8 +378,8 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBe(true);
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBe(true);
     });
 
     it('should return error response when executor throws an exception', async () => {
@@ -380,7 +389,7 @@ describe('test_macos plugin (unified)', () => {
         shouldThrow: new Error('Network error'),
       });
 
-      const result = await testMacosLogic(
+      const { result } = await runTestMacosLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -389,7 +398,7 @@ describe('test_macos plugin (unified)', () => {
         mockFs(),
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
     });
   });
 });

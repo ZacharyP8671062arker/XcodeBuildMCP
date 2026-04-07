@@ -8,6 +8,7 @@ import { addProcess } from './active-processes.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { acquireDaemonActivity } from '../../../daemon/activity-registry.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
@@ -17,7 +18,7 @@ import { createXcodebuildPipeline } from '../../../utils/xcodebuild-pipeline.ts'
 import type { StartedPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import {
   createBuildRunResultEvents,
-  createPendingXcodebuildResponse,
+  finalizeInlineXcodebuild,
 } from '../../../utils/xcodebuild-output.ts';
 import { displayPath } from '../../../utils/build-preflight.ts';
 
@@ -77,7 +78,8 @@ async function resolveExecutablePath(
 export async function swift_package_runLogic(
   params: SwiftPackageRunParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
   const resolvedPath = path.resolve(params.packagePath);
   const timeout = Math.min(params.timeout ?? 30, 300) * 1000; // Convert to ms, max 5 minutes
 
@@ -114,6 +116,7 @@ export async function swift_package_runLogic(
   log('info', `Running swift ${swiftArgs.join(' ')}`);
 
   return withErrorHandling(
+    ctx,
     async () => {
       if (params.background) {
         const command = ['swift', ...swiftArgs];
@@ -149,20 +152,22 @@ export async function swift_package_runLogic(
             releaseActivity: acquireDaemonActivity('swift-package.background-process'),
           });
 
-          return toolResponse([
-            headerEvent,
+          ctx.emit(headerEvent);
+          ctx.emit(
             statusLine('success', `Started executable in background (PID: ${result.process.pid})`),
+          );
+          ctx.emit(
             section('Next Steps', [
               `Use swift_package_stop with PID ${result.process.pid} to terminate when needed.`,
             ]),
-          ]);
+          );
+          return;
         }
 
-        return toolResponse([
-          headerEvent,
-          statusLine('success', 'Started executable in background'),
-          section('Next Steps', ['PID not available for this execution.']),
-        ]);
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('success', 'Started executable in background'));
+        ctx.emit(section('Next Steps', ['PID not available for this execution.']));
+        return;
       }
 
       const command = ['swift', ...swiftArgs];
@@ -171,6 +176,7 @@ export async function swift_package_runLogic(
         operation: 'BUILD',
         toolName: 'build_run_spm',
         params: {},
+        emit: ctx.emit,
       });
 
       pipeline.emitEvent(headerEvent);
@@ -201,14 +207,15 @@ export async function swift_package_runLogic(
 
       if (isTimedOutResult(result)) {
         const timeoutSeconds = timeout / 1000;
-        return toolResponse([
-          headerEvent,
-          statusLine('warning', `Process timed out after ${timeoutSeconds} seconds.`),
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('warning', `Process timed out after ${timeoutSeconds} seconds.`));
+        ctx.emit(
           section('Details', [
             'Process execution exceeded the timeout limit. Consider using background mode for long-running executables.',
             result.output || '(no output so far)',
           ]),
-        ]);
+        );
+        return;
       }
 
       const capturedOutput = stdoutChunks.join('').trim();
@@ -240,9 +247,11 @@ export async function swift_package_runLogic(
         ...(capturedOutput ? [section('Output', [capturedOutput])] : []),
       ];
 
-      const response: ToolResponse = { content: [], isError: !result.success };
-
-      return createPendingXcodebuildResponse(started, response, {
+      finalizeInlineXcodebuild({
+        started,
+        emit: ctx.emit,
+        succeeded: result.success,
+        durationMs: Date.now() - started.startedAt,
         tailEvents,
         emitSummary: true,
         errorFallbackPolicy: 'if-no-structured-diagnostics',

@@ -82,7 +82,40 @@ export function createMockToolHandlerContext(): {
   };
 }
 
-export function expectPendingBuildResponse(result: ToolResponse, nextStepToolId?: string): void {
+export async function runToolLogic<T>(logic: () => Promise<T>): Promise<{
+  response: T;
+  result: MockToolHandlerResult;
+}> {
+  const { result, run } = createMockToolHandlerContext();
+  const response = await run(logic);
+  return { response, result };
+}
+
+function isMockToolHandlerResult(
+  result: ToolResponse | MockToolHandlerResult,
+): result is MockToolHandlerResult {
+  return 'events' in result && Array.isArray(result.events) && typeof result.text === 'function';
+}
+
+export function expectPendingBuildResponse(
+  result: ToolResponse | MockToolHandlerResult,
+  nextStepToolId?: string,
+): void {
+  if (isMockToolHandlerResult(result)) {
+    expect(result.events.some((event) => event.type === 'summary')).toBe(true);
+
+    if (nextStepToolId) {
+      expect(result.nextStepParams).toEqual(
+        expect.objectContaining({
+          [nextStepToolId]: expect.any(Object),
+        }),
+      );
+    } else {
+      expect(result.nextStepParams).toBeUndefined();
+    }
+    return;
+  }
+
   expect(result.content).toEqual([]);
   expect(result._meta).toEqual(
     expect.objectContaining({

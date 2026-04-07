@@ -15,11 +15,12 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { inferPlatform } from '../../../utils/infer-platform.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
-import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
+import { finalizeInlineXcodebuild } from '../../../utils/xcodebuild-output.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 
 const baseOptions = {
@@ -80,7 +81,8 @@ export type BuildSimulatorParams = z.infer<typeof buildSimulatorSchema>;
 export async function build_simLogic(
   params: BuildSimulatorParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
   const configuration = params.configuration ?? 'Debug';
   const useLatestOS = params.useLatestOS ?? true;
   const projectType = params.projectPath ? 'project' : 'workspace';
@@ -159,23 +161,25 @@ export async function build_simLogic(
     started.pipeline,
   );
 
-  return createPendingXcodebuildResponse(
+  finalizeInlineXcodebuild({
     started,
-    buildResult.isError
-      ? buildResult
-      : {
-          ...buildResult,
-          nextStepParams: {
-            get_sim_app_path: {
-              ...(params.simulatorId
-                ? { simulatorId: params.simulatorId }
-                : { simulatorName: params.simulatorName ?? '' }),
-              scheme: params.scheme,
-              platform: String(detectedPlatform),
-            },
-          },
-        },
-  );
+    emit: ctx.emit,
+    succeeded: !buildResult.isError,
+    durationMs: Date.now() - started.startedAt,
+    responseContent: buildResult.content,
+  });
+
+  if (!buildResult.isError) {
+    ctx.nextStepParams = {
+      get_sim_app_path: {
+        ...(params.simulatorId
+          ? { simulatorId: params.simulatorId }
+          : { simulatorName: params.simulatorName ?? '' }),
+        scheme: params.scheme,
+        platform: String(detectedPlatform),
+      },
+    };
+  }
 }
 
 const publicSchemaObject = baseSchemaObject.omit({

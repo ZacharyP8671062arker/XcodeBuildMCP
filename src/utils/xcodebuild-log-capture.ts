@@ -1,9 +1,24 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { LOG_DIR } from './log-paths.ts';
 
-function ensureLogDir(): void {
-  fs.mkdirSync(LOG_DIR, { recursive: true });
+const FALLBACK_LOG_DIR = path.join(os.tmpdir(), 'XcodeBuildMCP', 'logs');
+
+function resolveWritableLogDir(): string {
+  const candidates = [LOG_DIR, FALLBACK_LOG_DIR];
+
+  for (const candidate of candidates) {
+    try {
+      fs.mkdirSync(candidate, { recursive: true });
+      fs.accessSync(candidate, fs.constants.W_OK);
+      return candidate;
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error(`Unable to create writable log directory in any candidate path: ${candidates.join(', ')}`);
 }
 
 function generateLogFileName(toolName: string): string {
@@ -18,8 +33,8 @@ export interface LogCapture {
 }
 
 export function createLogCapture(toolName: string): LogCapture {
-  ensureLogDir();
-  const logPath = path.join(LOG_DIR, generateLogFileName(toolName));
+  const logDir = resolveWritableLogDir();
+  const logPath = path.join(logDir, generateLogFileName(toolName));
   const fd = fs.openSync(logPath, 'w');
 
   return {
@@ -57,9 +72,9 @@ export function createParserDebugCapture(toolName: string): ParserDebugCapture {
     },
     flush(): string | null {
       if (lines.length === 0) return null;
-      ensureLogDir();
+      const logDir = resolveWritableLogDir();
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const debugPath = path.join(LOG_DIR, `${toolName}_parser-debug_${timestamp}.log`);
+      const debugPath = path.join(logDir, `${toolName}_parser-debug_${timestamp}.log`);
       fs.writeFileSync(
         debugPath,
         `Unrecognized xcodebuild output lines (${lines.length}):\n\n${lines.join('\n')}\n`,

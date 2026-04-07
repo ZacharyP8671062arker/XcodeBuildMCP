@@ -6,6 +6,10 @@ import {
   createMockCommandResponse,
   mockProcess,
 } from '../../../../test-utils/mock-executors.ts';
+import {
+  runToolLogic,
+  type MockToolHandlerResult,
+} from '../../../../test-utils/test-helpers.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, build_run_simLogic, type SimulatorLauncher } from '../build_run_sim.ts';
@@ -21,19 +25,15 @@ const mockLauncher: SimulatorLauncher = async (
   logFilePath: '/tmp/mock-logs/test.log',
 });
 
-function expectPendingBuildRunResponse(
-  result: Awaited<ReturnType<typeof build_run_simLogic>>,
-  isError: boolean,
-): void {
-  expect(result.isError).toBe(isError);
-  expect(result.content).toEqual([]);
-  expect(result._meta).toEqual(
-    expect.objectContaining({
-      pendingXcodebuild: expect.objectContaining({
-        kind: 'pending-xcodebuild',
-      }),
-    }),
-  );
+const runBuildRunSimLogic = (
+  params: Parameters<typeof build_run_simLogic>[0],
+  executor: Parameters<typeof build_run_simLogic>[1],
+  launcher?: Parameters<typeof build_run_simLogic>[2],
+) => runToolLogic(() => build_run_simLogic(params, executor, launcher));
+
+function expectPendingBuildRunResponse(result: MockToolHandlerResult, isError: boolean): void {
+  expect(result.isError()).toBe(isError);
+  expect(result.events.some((event) => event.type === 'summary')).toBe(true);
 }
 
 describe('build_run_sim tool', () => {
@@ -94,7 +94,7 @@ describe('build_run_sim tool', () => {
         });
       };
 
-      const result = await build_run_simLogic(
+      const { result } = await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -141,7 +141,7 @@ describe('build_run_sim tool', () => {
         });
       };
 
-      const result = await build_run_simLogic(
+      const { result } = await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -151,7 +151,6 @@ describe('build_run_sim tool', () => {
       );
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -161,7 +160,7 @@ describe('build_run_sim tool', () => {
         error: 'Build failed with error',
       });
 
-      const result = await build_run_simLogic(
+      const { result } = await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -171,14 +170,7 @@ describe('build_run_sim tool', () => {
       );
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
-      expect(result._meta?.pendingXcodebuild).toEqual(
-        expect.objectContaining({
-          errorFallbackPolicy: 'if-no-structured-diagnostics',
-          tailEvents: [],
-        }),
-      );
     });
 
     it('should handle successful build and run', async () => {
@@ -228,7 +220,7 @@ describe('build_run_sim tool', () => {
         }
       };
 
-      const result = await build_run_simLogic(
+      const { result } = await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -239,28 +231,25 @@ describe('build_run_sim tool', () => {
       );
 
       expectPendingBuildRunResponse(result, false);
-      expect(result.nextSteps).toBeUndefined();
-      expect(result._meta?.pendingXcodebuild).toEqual(
-        expect.objectContaining({
-          tailEvents: [
-            expect.objectContaining({
-              type: 'status-line',
-              level: 'success',
-              message: 'Build & Run complete',
-            }),
-            expect.objectContaining({
-              type: 'detail-tree',
-              items: expect.arrayContaining([
-                expect.objectContaining({ label: 'App Path', value: '/path/to/build/MyApp.app' }),
-                expect.objectContaining({ label: 'Bundle ID', value: 'io.sentry.MyApp' }),
-                expect.objectContaining({
-                  label: 'Build Logs',
-                  value: expect.stringContaining('build_run_sim_'),
-                }),
-              ]),
-            }),
-          ],
-        }),
+      expect(result.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'status-line',
+            level: 'success',
+            message: 'Build & Run complete',
+          }),
+          expect.objectContaining({
+            type: 'detail-tree',
+            items: expect.arrayContaining([
+              expect.objectContaining({ label: 'App Path', value: '/path/to/build/MyApp.app' }),
+              expect.objectContaining({ label: 'Bundle ID', value: 'io.sentry.MyApp' }),
+              expect.objectContaining({
+                label: 'Build Logs',
+                value: expect.stringContaining('build_run_sim_'),
+              }),
+            ]),
+          }),
+        ]),
       );
     });
 
@@ -310,7 +299,7 @@ describe('build_run_sim tool', () => {
         }
       };
 
-      const result = await build_run_simLogic(
+      const { result } = await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -320,7 +309,6 @@ describe('build_run_sim tool', () => {
       );
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -340,7 +328,7 @@ describe('build_run_sim tool', () => {
         return Promise.reject(new Error('spawn xcodebuild ENOENT'));
       };
 
-      const result = await build_run_simLogic(
+      const { response, result } = await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/workspace',
           scheme: 'MyScheme',
@@ -349,12 +337,9 @@ describe('build_run_sim tool', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
-      expect(result.content.length).toBeGreaterThan(0);
-      const text = result.content
-        .filter((c) => c.type === 'text')
-        .map((c) => c.text)
-        .join('\n');
+      expect(response).toBeUndefined();
+      expect(result.isError()).toBe(true);
+      const text = result.text();
       expect(text).toContain('Error during simulator build and run');
     });
   });
@@ -376,7 +361,7 @@ describe('build_run_sim tool', () => {
     it('should generate correct simctl list command with minimal parameters', async () => {
       const callHistory: Array<{ command: string[]; logPrefix?: string }> = [];
 
-      await build_run_simLogic(
+      await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -433,7 +418,7 @@ describe('build_run_sim tool', () => {
         });
       };
 
-      await build_run_simLogic(
+      await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -496,7 +481,7 @@ describe('build_run_sim tool', () => {
         });
       };
 
-      await build_run_simLogic(
+      await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyScheme',
@@ -545,7 +530,7 @@ describe('build_run_sim tool', () => {
     it('should handle paths with spaces in command generation', async () => {
       const callHistory: Array<{ command: string[]; logPrefix?: string }> = [];
 
-      await build_run_simLogic(
+      await runBuildRunSimLogic(
         {
           workspacePath: '/Users/dev/My Project/MyProject.xcworkspace',
           scheme: 'My Scheme',
@@ -577,7 +562,7 @@ describe('build_run_sim tool', () => {
     it('should infer tvOS platform from simulator name for build command', async () => {
       const callHistory: Array<{ command: string[]; logPrefix?: string }> = [];
 
-      await build_run_simLogic(
+      await runBuildRunSimLogic(
         {
           workspacePath: '/path/to/MyProject.xcworkspace',
           scheme: 'MyTVScheme',
@@ -638,7 +623,7 @@ describe('build_run_sim tool', () => {
         error: 'Build failed',
       });
 
-      const result = await build_run_simLogic(
+      const { result } = await runBuildRunSimLogic(
         {
           projectPath: '/path/project.xcodeproj',
           scheme: 'MyScheme',
@@ -655,7 +640,7 @@ describe('build_run_sim tool', () => {
         error: 'Build failed',
       });
 
-      const result = await build_run_simLogic(
+      const { result } = await runBuildRunSimLogic(
         {
           workspacePath: '/path/workspace.xcworkspace',
           scheme: 'MyScheme',

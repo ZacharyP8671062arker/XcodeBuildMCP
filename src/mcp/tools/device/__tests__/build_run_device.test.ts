@@ -5,23 +5,23 @@ import {
   createMockFileSystemExecutor,
   createMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
+import {
+  runToolLogic,
+  type MockToolHandlerResult,
+} from '../../../../test-utils/test-helpers.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, build_run_deviceLogic } from '../build_run_device.ts';
 
-function expectPendingBuildRunResponse(
-  result: Awaited<ReturnType<typeof build_run_deviceLogic>>,
-  isError: boolean,
-): void {
-  expect(result.isError).toBe(isError);
-  expect(result.content).toEqual([]);
-  expect(result._meta).toEqual(
-    expect.objectContaining({
-      pendingXcodebuild: expect.objectContaining({
-        kind: 'pending-xcodebuild',
-      }),
-    }),
-  );
+const runBuildRunDeviceLogic = (
+  params: Parameters<typeof build_run_deviceLogic>[0],
+  executor: Parameters<typeof build_run_deviceLogic>[1],
+  fileSystemExecutor: Parameters<typeof build_run_deviceLogic>[2],
+) => runToolLogic(() => build_run_deviceLogic(params, executor, fileSystemExecutor));
+
+function expectPendingBuildRunResponse(result: MockToolHandlerResult, isError: boolean): void {
+  expect(result.isError()).toBe(isError);
+  expect(result.events.some((event) => event.type === 'summary')).toBe(true);
 }
 
 describe('build_run_device tool', () => {
@@ -64,7 +64,7 @@ describe('build_run_device tool', () => {
         error: 'Build failed with error',
       });
 
-      const result = await build_run_deviceLogic(
+      const { result } = await runBuildRunDeviceLogic(
         {
           projectPath: '/tmp/MyApp.xcodeproj',
           scheme: 'MyApp',
@@ -75,14 +75,7 @@ describe('build_run_device tool', () => {
       );
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
-      expect(result._meta?.pendingXcodebuild).toEqual(
-        expect.objectContaining({
-          errorFallbackPolicy: 'if-no-structured-diagnostics',
-          tailEvents: [],
-        }),
-      );
     });
 
     it('handles build settings failure as pending error', async () => {
@@ -93,7 +86,7 @@ describe('build_run_device tool', () => {
         return createMockCommandResponse({ success: true, output: 'OK' });
       };
 
-      const result = await build_run_deviceLogic(
+      const { result } = await runBuildRunDeviceLogic(
         {
           projectPath: '/tmp/MyApp.xcodeproj',
           scheme: 'MyApp',
@@ -104,7 +97,6 @@ describe('build_run_device tool', () => {
       );
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -128,7 +120,7 @@ describe('build_run_device tool', () => {
         return createMockCommandResponse({ success: true, output: 'OK' });
       };
 
-      const result = await build_run_deviceLogic(
+      const { result } = await runBuildRunDeviceLogic(
         {
           projectPath: '/tmp/MyApp.xcodeproj',
           scheme: 'MyApp',
@@ -139,7 +131,6 @@ describe('build_run_device tool', () => {
       );
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -163,7 +154,7 @@ describe('build_run_device tool', () => {
         return createMockCommandResponse({ success: true, output: 'OK' });
       };
 
-      const result = await build_run_deviceLogic(
+      const { result } = await runBuildRunDeviceLogic(
         {
           projectPath: '/tmp/MyApp.xcodeproj',
           scheme: 'MyApp',
@@ -174,7 +165,6 @@ describe('build_run_device tool', () => {
       );
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
     });
 
@@ -194,7 +184,7 @@ describe('build_run_device tool', () => {
         return createMockCommandResponse({ success: true, output: 'OK' });
       };
 
-      const result = await build_run_deviceLogic(
+      const { result } = await runBuildRunDeviceLogic(
         {
           projectPath: '/tmp/MyApp.xcodeproj',
           scheme: 'MyApp',
@@ -212,24 +202,22 @@ describe('build_run_device tool', () => {
       expect(result.nextStepParams).toMatchObject({
         stop_app_device: { deviceId: 'DEVICE-UDID', processId: 1234 },
       });
-      expect(result._meta?.pendingXcodebuild).toEqual(
-        expect.objectContaining({
-          tailEvents: [
-            expect.objectContaining({
-              type: 'status-line',
-              level: 'success',
-              message: 'Build & Run complete',
-            }),
-            expect.objectContaining({
-              type: 'detail-tree',
-              items: expect.arrayContaining([
-                expect.objectContaining({ label: 'App Path', value: '/tmp/build/MyApp.app' }),
-                expect.objectContaining({ label: 'Bundle ID', value: 'io.sentry.MyApp' }),
-                expect.objectContaining({ label: 'Process ID', value: '1234' }),
-              ]),
-            }),
-          ],
-        }),
+      expect(result.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'status-line',
+            level: 'success',
+            message: 'Build & Run complete',
+          }),
+          expect.objectContaining({
+            type: 'detail-tree',
+            items: expect.arrayContaining([
+              expect.objectContaining({ label: 'App Path', value: '/tmp/build/MyApp.app' }),
+              expect.objectContaining({ label: 'Bundle ID', value: 'io.sentry.MyApp' }),
+              expect.objectContaining({ label: 'Process ID', value: '1234' }),
+            ]),
+          }),
+        ]),
       );
     });
 
@@ -249,7 +237,7 @@ describe('build_run_device tool', () => {
         return createMockCommandResponse({ success: true, output: 'OK' });
       };
 
-      const result = await build_run_deviceLogic(
+      const { result } = await runBuildRunDeviceLogic(
         {
           projectPath: '/tmp/MyApp.xcodeproj',
           scheme: 'MyApp',
@@ -265,16 +253,20 @@ describe('build_run_device tool', () => {
       expectPendingBuildRunResponse(result, false);
       expect(result.nextStepParams?.stop_app_device).toBeUndefined();
 
-      const tailEvents = (
-        result._meta?.pendingXcodebuild as {
-          tailEvents: Array<{ type: string; items?: Array<{ label: string; value: string }> }>;
-        }
-      ).tailEvents;
-      expect(tailEvents).toHaveLength(2);
-      expect(tailEvents[0].type).toBe('status-line');
-      const detailTree = tailEvents[1];
-      expect(detailTree.type).toBe('detail-tree');
-      expect(detailTree.items?.some((item) => item.label === 'Process ID')).toBe(false);
+      const completionEvent = result.events.find(
+        (event) =>
+          event.type === 'status-line' &&
+          event.level === 'success' &&
+          event.message === 'Build & Run complete',
+      );
+      expect(completionEvent).toBeDefined();
+
+      const detailTree = result.events.findLast(
+        (event): event is { type: 'detail-tree'; items: Array<{ label: string; value: string }> } =>
+          event.type === 'detail-tree',
+      );
+      expect(detailTree).toBeDefined();
+      expect(detailTree?.items.some((item) => item.label === 'Process ID')).toBe(false);
     });
 
     it('uses generic destination for build-settings lookup', async () => {
@@ -303,7 +295,7 @@ describe('build_run_device tool', () => {
         return createMockCommandResponse({ success: true, output: 'OK' });
       };
 
-      const result = await build_run_deviceLogic(
+      const { result } = await runBuildRunDeviceLogic(
         {
           projectPath: '/tmp/MyWatchApp.xcodeproj',
           scheme: 'MyWatchApp',
@@ -342,7 +334,7 @@ describe('build_run_device tool', () => {
         return Promise.reject(new Error('spawn xcodebuild ENOENT'));
       };
 
-      const result = await build_run_deviceLogic(
+      const { response, result } = await runBuildRunDeviceLogic(
         {
           projectPath: '/tmp/MyApp.xcodeproj',
           scheme: 'MyApp',
@@ -352,8 +344,8 @@ describe('build_run_device tool', () => {
         createMockFileSystemExecutor(),
       );
 
+      expect(response).toBeUndefined();
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
     });
   });

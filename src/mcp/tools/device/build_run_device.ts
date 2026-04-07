@@ -6,6 +6,7 @@
 
 import * as z from 'zod';
 import type { ToolResponse, SharedBuildParams, NextStepParamsMap } from '../../../types/common.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
@@ -16,6 +17,7 @@ import {
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { extractBundleIdFromAppPath } from '../../../utils/bundle-id.ts';
@@ -26,9 +28,9 @@ import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 import {
   createBuildRunResultEvents,
-  createPendingXcodebuildResponse,
   emitPipelineError,
   emitPipelineNotice,
+  finalizeInlineXcodebuild,
 } from '../../../utils/xcodebuild-output.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { resolveDeviceName } from '../../../utils/device-name-resolver.ts';
@@ -65,14 +67,17 @@ export type BuildRunDeviceParams = z.infer<typeof buildRunDeviceSchema>;
 
 function bailWithError(
   started: ReturnType<typeof startBuildPipeline>,
+  emit: (event: PipelineEvent) => void,
   logMessage: string,
   pipelineMessage: string,
-): ToolResponse {
+): void {
   log('error', logMessage);
   emitPipelineError(started, 'BUILD', pipelineMessage);
-  return createPendingXcodebuildResponse(started, {
-    content: [],
-    isError: true,
+  finalizeInlineXcodebuild({
+    started,
+    emit,
+    succeeded: false,
+    durationMs: Date.now() - started.startedAt,
   });
 }
 
@@ -80,10 +85,12 @@ export async function build_run_deviceLogic(
   params: BuildRunDeviceParams,
   executor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
   const platform = mapDevicePlatform(params.platform);
 
   return withErrorHandling(
+    ctx,
     async () => {
       const configuration = params.configuration ?? 'Debug';
 
@@ -141,9 +148,15 @@ export async function build_run_deviceLogic(
       );
 
       if (buildResult.isError) {
-        return createPendingXcodebuildResponse(started, buildResult, {
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
+          responseContent: buildResult.content,
           errorFallbackPolicy: 'if-no-structured-diagnostics',
         });
+        return;
       }
 
       // Resolve app path
@@ -170,6 +183,7 @@ export async function build_run_deviceLogic(
         const errorMessage = error instanceof Error ? error.message : String(error);
         return bailWithError(
           started,
+          ctx.emit,
           'Build succeeded, but failed to get app path to launch.',
           `Failed to get app path to launch: ${errorMessage}`,
         );
@@ -193,6 +207,7 @@ export async function build_run_deviceLogic(
         const errorMessage = error instanceof Error ? error.message : String(error);
         return bailWithError(
           started,
+          ctx.emit,
           `Failed to extract bundle ID: ${errorMessage}`,
           `Failed to extract bundle ID: ${errorMessage}`,
         );
@@ -209,6 +224,7 @@ export async function build_run_deviceLogic(
         const errorMessage = installResult.error ?? 'Failed to install app';
         return bailWithError(
           started,
+          ctx.emit,
           `Failed to install app on device: ${errorMessage}`,
           `Failed to install app on device: ${errorMessage}`,
         );
@@ -236,6 +252,7 @@ export async function build_run_deviceLogic(
         const errorMessage = launchResult.error ?? 'Failed to launch app';
         return bailWithError(
           started,
+          ctx.emit,
           `Failed to launch app on device: ${errorMessage}`,
           `Failed to launch app on device: ${errorMessage}`,
         );
@@ -254,27 +271,24 @@ export async function build_run_deviceLogic(
         };
       }
 
-      return createPendingXcodebuildResponse(
+      finalizeInlineXcodebuild({
         started,
-        {
-          content: [],
-          isError: false,
-          nextStepParams,
-        },
-        {
-          tailEvents: createBuildRunResultEvents({
-            scheme: params.scheme,
-            platform: String(platform),
-            target: `${platform} Device`,
-            appPath,
-            bundleId,
-            processId,
-            launchState: 'requested',
-            buildLogPath: started.pipeline.logPath,
-          }),
-          includeBuildLogFileRef: false,
-        },
-      );
+        emit: ctx.emit,
+        succeeded: true,
+        durationMs: Date.now() - started.startedAt,
+        tailEvents: createBuildRunResultEvents({
+          scheme: params.scheme,
+          platform: String(platform),
+          target: `${platform} Device`,
+          appPath,
+          bundleId,
+          processId,
+          launchState: 'requested',
+          buildLogPath: started.pipeline.logPath,
+        }),
+        includeBuildLogFileRef: false,
+      });
+      ctx.nextStepParams = nextStepParams;
     },
     {
       header: header('Build & Run Device'),

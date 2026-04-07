@@ -5,8 +5,14 @@ import {
   createNoopExecutor,
   createMockCommandResponse,
 } from '../../../../test-utils/mock-executors.ts';
+import { runToolLogic } from '../../../../test-utils/test-helpers.ts';
 import { schema, handler, swift_package_runLogic } from '../swift_package_run.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
+
+const runSwiftPackageRunLogic = (
+  params: Parameters<typeof swift_package_runLogic>[0],
+  executor: Parameters<typeof swift_package_runLogic>[1],
+) => runToolLogic(() => swift_package_runLogic(params, executor));
 
 describe('swift_package_run plugin', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -83,7 +89,7 @@ describe('swift_package_run plugin', () => {
         );
       };
 
-      await swift_package_runLogic(
+      await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
         },
@@ -107,7 +113,7 @@ describe('swift_package_run plugin', () => {
         );
       };
 
-      await swift_package_runLogic(
+      await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
           configuration: 'release',
@@ -139,7 +145,7 @@ describe('swift_package_run plugin', () => {
         );
       };
 
-      await swift_package_runLogic(
+      await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
           executableName: 'MyApp',
@@ -170,7 +176,7 @@ describe('swift_package_run plugin', () => {
         );
       };
 
-      await swift_package_runLogic(
+      await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
           arguments: ['arg1', 'arg2'],
@@ -203,7 +209,7 @@ describe('swift_package_run plugin', () => {
         );
       };
 
-      await swift_package_runLogic(
+      await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
           parseAsLibrary: true,
@@ -235,7 +241,7 @@ describe('swift_package_run plugin', () => {
         );
       };
 
-      await swift_package_runLogic(
+      await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
           executableName: 'MyApp',
@@ -275,7 +281,7 @@ describe('swift_package_run plugin', () => {
         );
       };
 
-      const result = await swift_package_runLogic(
+      const { result } = await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
           background: true,
@@ -285,7 +291,7 @@ describe('swift_package_run plugin', () => {
 
       expect(executorCalls.length).toBeGreaterThan(0);
       expect(executorCalls[0].detached).toBe(true);
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = result.text();
       expect(text).toContain('Started executable in background');
     });
   });
@@ -305,7 +311,7 @@ describe('swift_package_run plugin', () => {
         success: true,
         output: '',
       });
-      const result = await swift_package_runLogic(
+      const { result } = await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
           background: true,
@@ -313,7 +319,7 @@ describe('swift_package_run plugin', () => {
         mockExecutor,
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = result.text();
       expect(text).toContain('Started executable in background');
     });
 
@@ -323,14 +329,14 @@ describe('swift_package_run plugin', () => {
         output: 'Hello, World!',
       });
 
-      const result = await swift_package_runLogic(
+      const { result } = await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
         },
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should return error response for failed execution', async () => {
@@ -340,28 +346,28 @@ describe('swift_package_run plugin', () => {
         error: 'Compilation failed',
       });
 
-      const result = await swift_package_runLogic(
+      const { result } = await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
         },
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
     });
 
     it('should handle executor error', async () => {
       const mockExecutor = createMockExecutor(new Error('Command not found'));
 
-      const result = await swift_package_runLogic(
+      const { result } = await runSwiftPackageRunLogic(
         {
           packagePath: '/test/package',
         },
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
-      const text = result.content.map((c) => c.text).join('\n');
+      expect(result.isError()).toBe(true);
+      const text = result.text();
       expect(text).toContain('Failed to execute swift run');
       expect(text).toContain('Command not found');
     });

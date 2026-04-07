@@ -2,9 +2,17 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
-import { expectPendingBuildResponse } from '../../../../test-utils/test-helpers.ts';
+import {
+  expectPendingBuildResponse,
+  runToolLogic,
+} from '../../../../test-utils/test-helpers.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, buildMacOSLogic } from '../build_macos.ts';
+
+const runBuildMacOS = (
+  params: Parameters<typeof buildMacOSLogic>[0],
+  executor: Parameters<typeof buildMacOSLogic>[1],
+) => runToolLogic(() => buildMacOSLogic(params, executor));
 
 function createSpyExecutor(): {
   capturedCommand: string[];
@@ -86,7 +94,7 @@ describe('build_macos plugin', () => {
         output: 'BUILD SUCCEEDED',
       });
 
-      const result = await buildMacOSLogic(
+      const { result } = await runBuildMacOS(
         {
           projectPath: '/path/to/MyProject.xcodeproj',
           scheme: 'MyScheme',
@@ -94,7 +102,7 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_mac_app_path');
     });
 
@@ -104,7 +112,7 @@ describe('build_macos plugin', () => {
         error: 'error: Compilation error in main.swift',
       });
 
-      const result = await buildMacOSLogic(
+      const { result } = await runBuildMacOS(
         {
           projectPath: '/path/to/MyProject.xcodeproj',
           scheme: 'MyScheme',
@@ -112,7 +120,7 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });
 
@@ -122,7 +130,7 @@ describe('build_macos plugin', () => {
         output: 'BUILD SUCCEEDED',
       });
 
-      const result = await buildMacOSLogic(
+      const { result } = await runBuildMacOS(
         {
           projectPath: '/path/to/MyProject.xcodeproj',
           scheme: 'MyScheme',
@@ -135,7 +143,7 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_mac_app_path');
     });
 
@@ -144,7 +152,7 @@ describe('build_macos plugin', () => {
         throw new Error('Network error');
       };
 
-      const result = await buildMacOSLogic(
+      const { result } = await runBuildMacOS(
         {
           projectPath: '/path/to/MyProject.xcodeproj',
           scheme: 'MyScheme',
@@ -152,7 +160,7 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });
 
@@ -161,7 +169,7 @@ describe('build_macos plugin', () => {
         throw new Error('Spawn error');
       };
 
-      const result = await buildMacOSLogic(
+      const { result } = await runBuildMacOS(
         {
           projectPath: '/path/to/MyProject.xcodeproj',
           scheme: 'MyScheme',
@@ -169,7 +177,7 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });
   });
@@ -178,7 +186,7 @@ describe('build_macos plugin', () => {
     it('should generate correct xcodebuild command with minimal parameters', async () => {
       const spy = createSpyExecutor();
 
-      await buildMacOSLogic(
+      await runBuildMacOS(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -206,7 +214,7 @@ describe('build_macos plugin', () => {
     it('should generate correct xcodebuild command with all parameters', async () => {
       const spy = createSpyExecutor();
 
-      await buildMacOSLogic(
+      await runBuildMacOS(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -240,7 +248,7 @@ describe('build_macos plugin', () => {
     it('should generate correct xcodebuild command with only derivedDataPath', async () => {
       const spy = createSpyExecutor();
 
-      await buildMacOSLogic(
+      await runBuildMacOS(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -269,7 +277,7 @@ describe('build_macos plugin', () => {
     it('should generate correct xcodebuild command with arm64 architecture only', async () => {
       const spy = createSpyExecutor();
 
-      await buildMacOSLogic(
+      await runBuildMacOS(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -298,7 +306,7 @@ describe('build_macos plugin', () => {
     it('should handle paths with spaces in command generation', async () => {
       const spy = createSpyExecutor();
 
-      await buildMacOSLogic(
+      await runBuildMacOS(
         {
           projectPath: '/Users/dev/My Project/MyProject.xcodeproj',
           scheme: 'MyScheme',
@@ -326,7 +334,7 @@ describe('build_macos plugin', () => {
     it('should generate correct xcodebuild workspace command with minimal parameters', async () => {
       const spy = createSpyExecutor();
 
-      await buildMacOSLogic(
+      await runBuildMacOS(
         {
           workspacePath: '/path/to/workspace.xcworkspace',
           scheme: 'MyScheme',
@@ -375,7 +383,7 @@ describe('build_macos plugin', () => {
         output: 'BUILD SUCCEEDED',
       });
 
-      const result = await buildMacOSLogic(
+      const { result } = await runBuildMacOS(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -383,7 +391,7 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should succeed with valid workspacePath', async () => {
@@ -392,7 +400,7 @@ describe('build_macos plugin', () => {
         output: 'BUILD SUCCEEDED',
       });
 
-      const result = await buildMacOSLogic(
+      const { result } = await runBuildMacOS(
         {
           workspacePath: '/path/to/workspace.xcworkspace',
           scheme: 'MyScheme',
@@ -400,7 +408,7 @@ describe('build_macos plugin', () => {
         mockExecutor,
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
     });
   });
 });

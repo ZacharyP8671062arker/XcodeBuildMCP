@@ -14,10 +14,11 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
-import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
+import { finalizeInlineXcodebuild } from '../../../utils/xcodebuild-output.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 
 // Unified schema: XOR between projectPath and workspacePath
@@ -60,7 +61,8 @@ const publicSchemaObject = baseSchemaObject.omit({
 export async function buildDeviceLogic(
   params: BuildDeviceParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
   const processedParams = {
     ...params,
     configuration: params.configuration ?? 'Debug',
@@ -106,19 +108,21 @@ export async function buildDeviceLogic(
     started.pipeline,
   );
 
-  return createPendingXcodebuildResponse(
+  finalizeInlineXcodebuild({
     started,
-    buildResult.isError
-      ? buildResult
-      : {
-          ...buildResult,
-          nextStepParams: {
-            get_device_app_path: {
-              scheme: params.scheme,
-            },
-          },
-        },
-  );
+    emit: ctx.emit,
+    succeeded: !buildResult.isError,
+    durationMs: Date.now() - started.startedAt,
+    responseContent: buildResult.content,
+  });
+
+  if (!buildResult.isError) {
+    ctx.nextStepParams = {
+      get_device_app_path: {
+        scheme: params.scheme,
+      },
+    };
+  }
 }
 
 export const schema = getSessionAwareToolSchemaShape({

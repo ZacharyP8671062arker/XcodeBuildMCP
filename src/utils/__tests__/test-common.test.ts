@@ -1,22 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMockCommandResponse } from '../../test-utils/mock-executors.ts';
+import {
+  expectPendingBuildResponse,
+  runToolLogic,
+  type MockToolHandlerResult,
+} from '../../test-utils/test-helpers.ts';
 import { handleTestLogic, resolveTestProgressEnabled } from '../test-common.ts';
 import { XcodePlatform } from '../xcode.ts';
-import {
-  isPendingXcodebuildResponse,
-  finalizePendingXcodebuildResponse,
-} from '../xcodebuild-output.ts';
-import type { ToolResponse } from '../../types/common.ts';
 
-function expectPendingTestResponse(result: ToolResponse, isError: boolean): void {
-  expect(result.isError).toBe(isError);
-  expect(result.content).toEqual([]);
-  expect(isPendingXcodebuildResponse(result)).toBe(true);
+function expectPendingTestResponse(result: MockToolHandlerResult, isError: boolean): void {
+  expect(result.isError()).toBe(isError);
+  expectPendingBuildResponse(result);
 }
 
-function finalizeAndGetText(result: ToolResponse): string {
-  const finalized = finalizePendingXcodebuildResponse(result);
-  return finalized.content.map((item) => item.text).join('\n');
+function finalizeAndGetText(result: MockToolHandlerResult): string {
+  return result.text();
 }
 
 describe('resolveTestProgressEnabled', () => {
@@ -91,29 +89,31 @@ describe('handleTestLogic (pipeline)', () => {
       });
     };
 
-    const result = await handleTestLogic(
-      {
-        projectPath: '/tmp/App.xcodeproj',
-        scheme: 'App',
-        configuration: 'Debug',
-        platform: XcodePlatform.macOS,
-        progress: true,
-      },
-      executor,
-      {
-        preflight: {
+    const { result } = await runToolLogic(() =>
+      handleTestLogic(
+        {
+          projectPath: '/tmp/App.xcodeproj',
           scheme: 'App',
           configuration: 'Debug',
-          destinationName: 'iPhone 17 Pro',
-          projectPath: '/tmp/App.xcodeproj',
-          selectors: { onlyTesting: [], skipTesting: [] },
-          targets: [],
-          warnings: [],
-          totalTests: 1,
-          completeness: 'complete',
+          platform: XcodePlatform.macOS,
+          progress: true,
         },
-        toolName: 'test_macos',
-      },
+        executor,
+        {
+          preflight: {
+            scheme: 'App',
+            configuration: 'Debug',
+            destinationName: 'iPhone 17 Pro',
+            projectPath: '/tmp/App.xcodeproj',
+            selectors: { onlyTesting: [], skipTesting: [] },
+            targets: [],
+            warnings: [],
+            totalTests: 1,
+            completeness: 'complete',
+          },
+          toolName: 'test_macos',
+        },
+      ),
     );
 
     expectPendingTestResponse(result, true);
@@ -166,54 +166,56 @@ describe('handleTestLogic (pipeline)', () => {
       });
     };
 
-    const result = await handleTestLogic(
-      {
-        projectPath: '/tmp/App.xcodeproj',
-        scheme: 'App',
-        configuration: 'Debug',
-        platform: XcodePlatform.iOSSimulator,
-        simulatorId: 'SIM-UUID',
-        progress: true,
-      },
-      executor,
-      {
-        preflight: {
+    const { result } = await runToolLogic(() =>
+      handleTestLogic(
+        {
+          projectPath: '/tmp/App.xcodeproj',
           scheme: 'App',
           configuration: 'Debug',
-          destinationName: 'iPhone 17 Pro',
-          projectPath: '/tmp/App.xcodeproj',
-          selectors: {
-            onlyTesting: [{ raw: 'AppTests', target: 'AppTests' }],
-            skipTesting: [],
-          },
-          targets: [
-            {
-              name: 'AppTests',
-              warnings: [],
-              files: [
-                {
-                  path: '/tmp/AppTests.swift',
-                  tests: [
-                    {
-                      targetName: 'AppTests',
-                      typeName: 'AppTests',
-                      methodName: 'testFailure',
-                      framework: 'xctest',
-                      displayName: 'AppTests/AppTests/testFailure',
-                      line: 1,
-                      parameterized: false,
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-          warnings: [],
-          totalTests: 1,
-          completeness: 'complete',
+          platform: XcodePlatform.iOSSimulator,
+          simulatorId: 'SIM-UUID',
+          progress: true,
         },
-        toolName: 'test_sim',
-      },
+        executor,
+        {
+          preflight: {
+            scheme: 'App',
+            configuration: 'Debug',
+            destinationName: 'iPhone 17 Pro',
+            projectPath: '/tmp/App.xcodeproj',
+            selectors: {
+              onlyTesting: [{ raw: 'AppTests', target: 'AppTests' }],
+              skipTesting: [],
+            },
+            targets: [
+              {
+                name: 'AppTests',
+                warnings: [],
+                files: [
+                  {
+                    path: '/tmp/AppTests.swift',
+                    tests: [
+                      {
+                        targetName: 'AppTests',
+                        typeName: 'AppTests',
+                        methodName: 'testFailure',
+                        framework: 'xctest',
+                        displayName: 'AppTests/AppTests/testFailure',
+                        line: 1,
+                        parameterized: false,
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+            warnings: [],
+            totalTests: 1,
+            completeness: 'complete',
+          },
+          toolName: 'test_sim',
+        },
+      ),
     );
 
     expect(commands).toHaveLength(2);
@@ -267,29 +269,31 @@ describe('handleTestLogic (pipeline)', () => {
       });
     };
 
-    const result = await handleTestLogic(
-      {
-        projectPath: '/tmp/App.xcodeproj',
-        scheme: 'App',
-        configuration: 'Debug',
-        platform: XcodePlatform.macOS,
-        progress: true,
-      },
-      executor,
-      {
-        preflight: {
+    const { result } = await runToolLogic(() =>
+      handleTestLogic(
+        {
+          projectPath: '/tmp/App.xcodeproj',
           scheme: 'App',
           configuration: 'Debug',
-          destinationName: 'iPhone 17 Pro',
-          projectPath: '/tmp/App.xcodeproj',
-          selectors: { onlyTesting: [], skipTesting: [] },
-          targets: [],
-          warnings: [],
-          totalTests: 1,
-          completeness: 'complete',
+          platform: XcodePlatform.macOS,
+          progress: true,
         },
-        toolName: 'test_macos',
-      },
+        executor,
+        {
+          preflight: {
+            scheme: 'App',
+            configuration: 'Debug',
+            destinationName: 'iPhone 17 Pro',
+            projectPath: '/tmp/App.xcodeproj',
+            selectors: { onlyTesting: [], skipTesting: [] },
+            targets: [],
+            warnings: [],
+            totalTests: 1,
+            completeness: 'complete',
+          },
+          toolName: 'test_macos',
+        },
+      ),
     );
 
     expectPendingTestResponse(result, true);

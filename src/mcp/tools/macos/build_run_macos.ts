@@ -8,6 +8,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
@@ -16,9 +17,9 @@ import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 import {
   createBuildRunResultEvents,
-  createPendingXcodebuildResponse,
   emitPipelineError,
   emitPipelineNotice,
+  finalizeInlineXcodebuild,
 } from '../../../utils/xcodebuild-output.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { launchMacApp } from '../../../utils/macos-steps.ts';
@@ -63,8 +64,10 @@ export type BuildRunMacOSParams = z.infer<typeof buildRunMacOSSchema>;
 export async function buildRunMacOSLogic(
   params: BuildRunMacOSParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
   return withErrorHandling(
+    ctx,
     async () => {
       const configuration = params.configuration ?? 'Debug';
 
@@ -103,9 +106,15 @@ export async function buildRunMacOSLogic(
       );
 
       if (buildResult.isError) {
-        return createPendingXcodebuildResponse(started, buildResult, {
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
+          responseContent: buildResult.content,
           errorFallbackPolicy: 'if-no-structured-diagnostics',
         });
+        return;
       }
 
       let appPath: string;
@@ -131,10 +140,13 @@ export async function buildRunMacOSLogic(
         const errorMessage = error instanceof Error ? error.message : String(error);
         log('error', 'Build succeeded, but failed to get app path to launch.');
         emitPipelineError(started, 'BUILD', `Failed to get app path to launch: ${errorMessage}`);
-        return createPendingXcodebuildResponse(started, {
-          content: [],
-          isError: true,
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
         });
+        return;
       }
 
       log('info', `App path determined as: ${appPath}`);
@@ -159,10 +171,13 @@ export async function buildRunMacOSLogic(
           'BUILD',
           `Failed to launch app ${appPath}: ${macLaunchResult.error}`,
         );
-        return createPendingXcodebuildResponse(started, {
-          content: [],
-          isError: true,
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
         });
+        return;
       }
 
       log('info', `macOS app launched successfully: ${appPath}`);
@@ -174,26 +189,23 @@ export async function buildRunMacOSLogic(
       const bundleId = macLaunchResult.bundleId;
       const processId = macLaunchResult.processId;
 
-      return createPendingXcodebuildResponse(
+      finalizeInlineXcodebuild({
         started,
-        {
-          content: [],
-          isError: false,
-        },
-        {
-          tailEvents: createBuildRunResultEvents({
-            scheme: params.scheme,
-            platform: 'macOS',
-            target: 'macOS',
-            appPath,
-            bundleId,
-            processId,
-            launchState: 'requested',
-            buildLogPath: started.pipeline.logPath,
-          }),
-          includeBuildLogFileRef: false,
-        },
-      );
+        emit: ctx.emit,
+        succeeded: true,
+        durationMs: Date.now() - started.startedAt,
+        tailEvents: createBuildRunResultEvents({
+          scheme: params.scheme,
+          platform: 'macOS',
+          target: 'macOS',
+          appPath,
+          bundleId,
+          processId,
+          launchState: 'requested',
+          buildLogPath: started.pipeline.logPath,
+        }),
+        includeBuildLogFileRef: false,
+      });
     },
     {
       header: header('Build & Run macOS'),

@@ -14,18 +14,23 @@ import { resolveEffectiveDerivedDataPath } from './derived-data-path.ts';
 import { formatDeviceId } from './device-name-resolver.ts';
 import { createLogCapture, createParserDebugCapture } from './xcodebuild-log-capture.ts';
 import { log as appLog } from './logging/index.ts';
+import {
+  getHandlerContext,
+  handlerContextStorage,
+} from './typed-tool-factory.ts';
 
 export interface PipelineOptions {
   operation: XcodebuildOperation;
   toolName: string;
   params: Record<string, unknown>;
   minimumStage?: XcodebuildStage;
+  emit?: (event: PipelineEvent) => void;
 }
 
 export interface PipelineResult {
   state: XcodebuildRunState;
-  mcpContent: ToolResponseContent[];
   events: PipelineEvent[];
+  mcpContent?: ToolResponseContent[];
 }
 
 export interface PipelineFinalizeOptions {
@@ -160,7 +165,16 @@ function buildHeaderParams(
 export function startBuildPipeline(
   options: PipelineOptions & { message: string },
 ): StartedPipeline {
-  const pipeline = createXcodebuildPipeline(options);
+  const emit =
+    options.emit ??
+    (() => {
+      try {
+        return getHandlerContext().emit;
+      } catch {
+        return handlerContextStorage.getStore()?.emit;
+      }
+    })();
+  const pipeline = createXcodebuildPipeline({ ...options, emit });
 
   pipeline.emitEvent({
     type: 'header',
@@ -176,18 +190,25 @@ export function startBuildPipeline(
 }
 
 export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPipeline {
-  const { renderers, mcpRenderer } = resolveRenderers();
+  const renderers: PipelineRenderer[] = [];
+  let getMcpContent: (() => ToolResponseContent[]) | undefined;
+  if (!options.emit) {
+    const resolved = resolveRenderers();
+    renderers.push(...resolved.renderers);
+    getMcpContent = () => resolved.mcpRenderer.getContent();
+  }
   const logCapture = createLogCapture(options.toolName);
   const debugCapture = createParserDebugCapture(options.toolName);
+  const emit = options.emit ?? ((event: PipelineEvent) => {
+    for (const renderer of renderers) {
+      renderer.onEvent(event);
+    }
+  });
 
   const runState = createXcodebuildRunState({
     operation: options.operation,
     minimumStage: options.minimumStage,
-    onEvent: (event: PipelineEvent) => {
-      for (const renderer of renderers) {
-        renderer.onEvent(event);
-      }
-    },
+    onEvent: emit,
   });
 
   const parser = createXcodebuildEventParser({
@@ -255,14 +276,16 @@ export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPi
         tailEvents,
       });
 
-      for (const renderer of renderers) {
-        renderer.finalize();
+      if (!options.emit) {
+        for (const renderer of renderers) {
+          renderer.finalize();
+        }
       }
 
       return {
         state: finalState,
-        mcpContent: mcpRenderer.getContent(),
         events: finalState.events,
+        ...(getMcpContent ? { mcpContent: getMcpContent() } : {}),
       };
     },
 

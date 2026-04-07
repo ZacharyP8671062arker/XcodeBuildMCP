@@ -29,7 +29,8 @@ import { resolveDeviceName } from './device-name-resolver.ts';
 import { createSimulatorTwoPhaseExecutionPlan } from './simulator-test-execution.ts';
 import { startBuildPipeline } from './xcodebuild-pipeline.ts';
 import type { XcodebuildPipeline } from './xcodebuild-pipeline.ts';
-import { createPendingXcodebuildResponse } from './xcodebuild-output.ts';
+import { finalizeInlineXcodebuild } from './xcodebuild-output.ts';
+import { getHandlerContext } from './typed-tool-factory.ts';
 
 function emitXcresultFailures(pipeline: XcodebuildPipeline): void {
   const xcresultPath = pipeline.xcresultPath;
@@ -71,11 +72,12 @@ export async function handleTestLogic(
     preflight?: TestPreflightResult;
     toolName?: string;
   },
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   log(
     'info',
     `Starting test run for scheme ${params.scheme} on platform ${params.platform} (internal)`,
   );
+  const ctx = getHandlerContext();
 
   try {
     const execOpts: CommandExecOptions | undefined = params.testRunnerEnv
@@ -146,8 +148,6 @@ export async function handleTestLogic(
       logPrefix: 'Test Run',
     };
 
-    const preflightExtras = options?.preflight ? { testPreflight: options.preflight } : {};
-
     if (shouldUseTwoPhaseSimulatorExecution) {
       const executionPlan = createSimulatorTwoPhaseExecutionPlan({
         extraArgs: params.extraArgs,
@@ -166,10 +166,15 @@ export async function handleTestLogic(
       );
 
       if (buildForTestingResult.isError) {
-        return createPendingXcodebuildResponse(started, buildForTestingResult, {
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
+          responseContent: buildForTestingResult.content,
           errorFallbackPolicy: 'if-no-structured-diagnostics',
-          extras: preflightExtras,
         });
+        return;
       }
 
       pipeline.emitEvent({
@@ -192,9 +197,14 @@ export async function handleTestLogic(
 
       emitXcresultFailures(pipeline);
 
-      return createPendingXcodebuildResponse(started, testWithoutBuildingResult, {
-        extras: preflightExtras,
+      finalizeInlineXcodebuild({
+        started,
+        emit: ctx.emit,
+        succeeded: !testWithoutBuildingResult.isError,
+        durationMs: Date.now() - started.startedAt,
+        responseContent: testWithoutBuildingResult.content,
       });
+      return;
     }
 
     const singlePhaseResult = await executeXcodeBuildCommand(
@@ -209,9 +219,14 @@ export async function handleTestLogic(
 
     emitXcresultFailures(pipeline);
 
-    return createPendingXcodebuildResponse(started, singlePhaseResult, {
-      extras: preflightExtras,
+    finalizeInlineXcodebuild({
+      started,
+      emit: ctx.emit,
+      succeeded: !singlePhaseResult.isError,
+      durationMs: Date.now() - started.startedAt,
+      responseContent: singlePhaseResult.content,
     });
+    return;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log('error', `Error during test run: ${errorMessage}`);

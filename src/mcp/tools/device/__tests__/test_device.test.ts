@@ -4,9 +4,12 @@ import {
   createMockExecutor,
   createMockFileSystemExecutor,
 } from '../../../../test-utils/mock-executors.ts';
+import {
+  expectPendingBuildResponse,
+  runToolLogic,
+} from '../../../../test-utils/test-helpers.ts';
 import { schema, handler, testDeviceLogic } from '../test_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
-import { isPendingXcodebuildResponse } from '../../../../utils/xcodebuild-output.ts';
 
 const mockFs = () =>
   createMockFileSystemExecutor({
@@ -15,6 +18,12 @@ const mockFs = () =>
     tmpdir: () => '/tmp',
     stat: async () => ({ isDirectory: () => false, mtimeMs: 0 }),
   });
+
+const runTestDeviceLogic = (
+  params: Parameters<typeof testDeviceLogic>[0],
+  executor: Parameters<typeof testDeviceLogic>[1],
+  fileSystemExecutor: Parameters<typeof testDeviceLogic>[2],
+) => runToolLogic(() => testDeviceLogic(params, executor, fileSystemExecutor));
 
 describe('test_device plugin', () => {
   beforeEach(() => {
@@ -52,7 +61,7 @@ describe('test_device plugin', () => {
         output: 'Test Succeeded',
       });
 
-      const projectResult = await testDeviceLogic(
+      const { result: projectResult } = await runTestDeviceLogic(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -61,10 +70,10 @@ describe('test_device plugin', () => {
         mockExecutor,
         mockFs(),
       );
-      expect(isPendingXcodebuildResponse(projectResult)).toBe(true);
-      expect(projectResult.isError).toBeFalsy();
+      expectPendingBuildResponse(projectResult);
+      expect(projectResult.isError()).toBeFalsy();
 
-      const workspaceResult = await testDeviceLogic(
+      const { result: workspaceResult } = await runTestDeviceLogic(
         {
           workspacePath: '/path/to/workspace.xcworkspace',
           scheme: 'MyScheme',
@@ -73,8 +82,8 @@ describe('test_device plugin', () => {
         mockExecutor,
         mockFs(),
       );
-      expect(isPendingXcodebuildResponse(workspaceResult)).toBe(true);
-      expect(workspaceResult.isError).toBeFalsy();
+      expectPendingBuildResponse(workspaceResult);
+      expect(workspaceResult.isError()).toBeFalsy();
     });
   });
 
@@ -117,7 +126,7 @@ describe('test_device plugin', () => {
         output: 'Test Succeeded',
       });
 
-      const result = await testDeviceLogic(
+      const { result } = await runTestDeviceLogic(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -130,8 +139,8 @@ describe('test_device plugin', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should return pending response for test failures', async () => {
@@ -141,7 +150,7 @@ describe('test_device plugin', () => {
         error: 'error: Test failed',
       });
 
-      const result = await testDeviceLogic(
+      const { result } = await runTestDeviceLogic(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -154,8 +163,8 @@ describe('test_device plugin', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBe(true);
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBe(true);
     });
 
     it('should handle build failure with pending response', async () => {
@@ -165,7 +174,7 @@ describe('test_device plugin', () => {
         error: 'error: missing argument for parameter in call',
       });
 
-      const result = await testDeviceLogic(
+      const { result } = await runTestDeviceLogic(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -178,8 +187,8 @@ describe('test_device plugin', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBe(true);
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBe(true);
     });
 
     it('should support different platforms', async () => {
@@ -188,7 +197,7 @@ describe('test_device plugin', () => {
         output: 'Test Succeeded',
       });
 
-      const result = await testDeviceLogic(
+      const { result } = await runTestDeviceLogic(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'WatchApp',
@@ -201,8 +210,8 @@ describe('test_device plugin', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should handle optional parameters', async () => {
@@ -211,7 +220,7 @@ describe('test_device plugin', () => {
         output: 'Test Succeeded',
       });
 
-      const result = await testDeviceLogic(
+      const { result } = await runTestDeviceLogic(
         {
           projectPath: '/path/to/project.xcodeproj',
           scheme: 'MyScheme',
@@ -226,8 +235,8 @@ describe('test_device plugin', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
 
     it('should handle workspace testing successfully', async () => {
@@ -236,7 +245,7 @@ describe('test_device plugin', () => {
         output: 'Test Succeeded',
       });
 
-      const result = await testDeviceLogic(
+      const { result } = await runTestDeviceLogic(
         {
           workspacePath: '/path/to/workspace.xcworkspace',
           scheme: 'WorkspaceScheme',
@@ -249,8 +258,8 @@ describe('test_device plugin', () => {
         mockFs(),
       );
 
-      expect(isPendingXcodebuildResponse(result)).toBe(true);
-      expect(result.isError).toBeFalsy();
+      expectPendingBuildResponse(result);
+      expect(result.isError()).toBeFalsy();
     });
   });
 });

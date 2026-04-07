@@ -7,13 +7,14 @@ import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { createXcodebuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import type { StartedPipeline } from '../../../utils/xcodebuild-pipeline.ts';
-import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
+import { finalizeInlineXcodebuild } from '../../../utils/xcodebuild-output.ts';
 
 const baseSchemaObject = z.object({
   packagePath: z.string(),
@@ -34,7 +35,8 @@ type SwiftPackageBuildParams = z.infer<typeof swiftPackageBuildSchema>;
 export async function swift_package_buildLogic(
   params: SwiftPackageBuildParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
   const resolvedPath = path.resolve(params.packagePath);
   const swiftArgs = ['build', '--package-path', resolvedPath];
 
@@ -68,12 +70,14 @@ export async function swift_package_buildLogic(
     operation: 'BUILD',
     toolName: `build_spm`,
     params: {},
+    emit: ctx.emit,
   });
 
   pipeline.emitEvent(headerEvent);
   const started: StartedPipeline = { pipeline, startedAt: Date.now() };
 
   return withErrorHandling(
+    ctx,
     async () => {
       const result = await executor(['swift', ...swiftArgs], 'Swift Package Build', false, {
         onStdout: (chunk: string) => pipeline.onStdout(chunk),
@@ -82,11 +86,27 @@ export async function swift_package_buildLogic(
 
       if (!result.success) {
         const errorMessage = result.error || result.output || 'Unknown error';
-        return toolResponse([statusLine('error', `Swift package build failed: ${errorMessage}`)]);
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
+          responseContent: [
+            {
+              type: 'text',
+              text: `Swift package build failed: ${errorMessage}`,
+            },
+          ],
+        });
+        return;
       }
 
-      const response: ToolResponse = { content: [], isError: false };
-      return createPendingXcodebuildResponse(started, response);
+      finalizeInlineXcodebuild({
+        started,
+        emit: ctx.emit,
+        succeeded: true,
+        durationMs: Date.now() - started.startedAt,
+      });
     },
     {
       header: headerEvent,

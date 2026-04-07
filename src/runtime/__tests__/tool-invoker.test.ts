@@ -593,74 +593,69 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     expect(text).toContain('build-device');
   });
 
-  it('suppresses manifest next steps for structured xcodebuild failures', async () => {
+  it('suppresses failure next steps for structured xcodebuild failures emitted via handler context', async () => {
     const directHandler = vi.fn().mockResolvedValue({
       isError: true,
-      content: [],
+      content: [{ type: 'text', text: 'build failed' }],
       _meta: {
-        pendingXcodebuild: {
-          kind: 'pending-xcodebuild',
-          started: {
-            startedAt: Date.now(),
-            pipeline: {
-              finalize: vi.fn().mockReturnValue({
-                events: [
-                  {
-                    type: 'summary',
-                    timestamp: '2026-03-20T12:00:00.000Z',
-                    operation: 'BUILD',
-                    status: 'FAILED',
-                  },
-                ],
-                mcpContent: [{ type: 'text', text: '❌ Build failed.' }],
-                state: {
-                  errors: [{ type: 'error' }],
-                  testFailures: [],
-                },
-              }),
-            },
+        events: [
+          {
+            type: 'header',
+            timestamp: '2026-03-20T12:00:00.000Z',
+            operation: 'Build',
+            params: [{ label: 'Scheme', value: 'MyApp' }],
           },
-          emitSummary: true,
-          extras: {},
-          fallbackContent: [],
-          tailEvents: [],
-          errorFallbackPolicy: 'if-no-structured-diagnostics',
-        },
+          {
+            type: 'compiler-error',
+            timestamp: '2026-03-20T12:00:00.500Z',
+            operation: 'BUILD',
+            message: 'Build failed',
+            rawLine: 'Build failed',
+          },
+          {
+            type: 'summary',
+            timestamp: '2026-03-20T12:00:01.000Z',
+            status: 'FAILED',
+            operation: 'BUILD',
+            durationMs: 1000,
+          },
+        ],
       },
     } satisfies ToolResponse);
 
     const catalog = createToolCatalog([
       makeTool({
-        id: 'build_run_macos',
-        cliName: 'build-and-run',
-        mcpName: 'build_run_macos',
-        workflow: 'macos',
+        id: 'build_device',
+        cliName: 'build-device',
+        mcpName: 'build_device',
+        workflow: 'device',
         stateful: false,
-        nextStepTemplates: [{ label: 'Get built macOS app path', toolId: 'get_mac_app_path' }],
+        nextStepTemplates: [
+          {
+            label: 'Try building for device',
+            toolId: 'list_devices',
+            when: 'failure',
+          },
+        ],
         handler: directHandler,
       }),
       makeTool({
-        id: 'get_mac_app_path',
-        cliName: 'get-app-path',
-        mcpName: 'get_mac_app_path',
-        workflow: 'macos',
+        id: 'list_devices',
+        cliName: 'list-devices',
+        mcpName: 'list_devices',
+        workflow: 'device',
         stateful: false,
-        handler: vi.fn().mockResolvedValue(textResponse('path')),
+        handler: vi.fn().mockResolvedValue(textResponse('devices')),
       }),
     ]);
 
     const invoker = new DefaultToolInvoker(catalog);
-    const response = await invoker.invoke('build-and-run', {}, { runtime: 'cli' });
+    const response = await invoker.invoke('build-device', {}, { runtime: 'cli' });
 
     expect(response.nextSteps).toBeUndefined();
-    expect(
-      ((response._meta?.events ?? []) as Array<{ type: string }>).some(
-        (event) => event.type === 'next-steps',
-      ),
-    ).toBe(false);
-    expect(
-      response.content.map((item) => (item.type === 'text' ? item.text : '')).join('\n'),
-    ).not.toContain('Next steps:');
+    const text = response.content.map((item) => (item.type === 'text' ? item.text : '')).join('\n');
+    expect(text).not.toContain('Try building for device');
+    expect(text).not.toContain('list-devices');
   });
 
   it('always uses manifest templates when they exist', async () => {

@@ -14,7 +14,6 @@ import {
   type SentryToolTransport,
 } from '../utils/sentry.ts';
 import {
-  finalizePendingXcodebuildResponse,
   isPendingXcodebuildResponse,
 } from '../utils/xcodebuild-output.ts';
 import { renderNextStepsSection } from '../utils/responses/next-steps-renderer.ts';
@@ -196,6 +195,25 @@ function renderNextStepsIntoContent(response: ToolResponse, runtime: RuntimeKind
   return { ...response, content };
 }
 
+function isStructuredXcodebuildFailureResponse(response: ToolResponse): boolean {
+  if (isPendingXcodebuildResponse(response)) {
+    return true;
+  }
+
+  const events = response._meta?.events;
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  const pipelineEvents = events as PipelineEvent[];
+  const hasFailedSummary = pipelineEvents.some(
+    (event) => event.type === 'summary' && event.status === 'FAILED',
+  );
+  const hasHeader = pipelineEvents.some((event) => event.type === 'header');
+
+  return hasFailedSummary && hasHeader;
+}
+
 export function postProcessToolResponse(params: {
   tool: ToolDefinition;
   response: ToolResponse;
@@ -206,7 +224,8 @@ export function postProcessToolResponse(params: {
   const { tool, response, catalog, runtime, applyTemplateNextSteps = true } = params;
 
   const isError = response.isError === true;
-  const suppressNextStepsForStructuredFailure = isError && isPendingXcodebuildResponse(response);
+  const suppressNextStepsForStructuredFailure =
+    isError && isStructuredXcodebuildFailureResponse(response);
   const responseForNextSteps = suppressNextStepsForStructuredFailure
     ? {
         ...response,
@@ -242,11 +261,7 @@ export function postProcessToolResponse(params: {
 
   const normalized = normalizeNextSteps(withTemplates, catalog);
 
-  const finalized = isPendingXcodebuildResponse(normalized)
-    ? finalizePendingXcodebuildResponse(normalized, {
-        nextSteps: normalized.nextSteps,
-      })
-    : renderNextStepsIntoContent(normalized, runtime);
+  const finalized = renderNextStepsIntoContent(normalized, runtime);
 
   if (
     Array.isArray(finalized._meta?.events) &&

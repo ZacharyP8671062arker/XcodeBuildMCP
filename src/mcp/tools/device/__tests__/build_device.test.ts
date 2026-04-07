@@ -2,7 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
-import { expectPendingBuildResponse } from '../../../../test-utils/test-helpers.ts';
+import {
+  expectPendingBuildResponse,
+  runToolLogic,
+} from '../../../../test-utils/test-helpers.ts';
 import { schema, handler, buildDeviceLogic } from '../build_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 
@@ -100,15 +103,17 @@ describe('build_device plugin', () => {
         output: 'Build succeeded',
       });
 
-      const result = await buildDeviceLogic(
-        {
-          projectPath: '/path/to/MyProject.xcodeproj',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
+      const { result } = await runToolLogic(() =>
+        buildDeviceLogic(
+          {
+            projectPath: '/path/to/MyProject.xcodeproj',
+            scheme: 'MyScheme',
+          },
+          mockExecutor,
+        ),
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_device_app_path');
     });
 
@@ -118,27 +123,31 @@ describe('build_device plugin', () => {
         output: 'Build succeeded',
       });
 
-      const result = await buildDeviceLogic(
-        {
-          workspacePath: '/path/to/MyProject.xcworkspace',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
+      const { result } = await runToolLogic(() =>
+        buildDeviceLogic(
+          {
+            workspacePath: '/path/to/MyProject.xcworkspace',
+            scheme: 'MyScheme',
+          },
+          mockExecutor,
+        ),
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_device_app_path');
     });
 
     it('should verify workspace command generation with mock executor', async () => {
       const spy = createSpyExecutor();
 
-      await buildDeviceLogic(
-        {
-          workspacePath: '/path/to/MyProject.xcworkspace',
-          scheme: 'MyScheme',
-        },
-        spy.executor,
+      await runToolLogic(() =>
+        buildDeviceLogic(
+          {
+            workspacePath: '/path/to/MyProject.xcworkspace',
+            scheme: 'MyScheme',
+          },
+          spy.executor,
+        ),
       );
 
       expect(spy.commandCalls).toHaveLength(1);
@@ -163,12 +172,14 @@ describe('build_device plugin', () => {
     it('should verify command generation with mock executor', async () => {
       const spy = createSpyExecutor();
 
-      await buildDeviceLogic(
-        {
-          projectPath: '/path/to/MyProject.xcodeproj',
-          scheme: 'MyScheme',
-        },
-        spy.executor,
+      await runToolLogic(() =>
+        buildDeviceLogic(
+          {
+            projectPath: '/path/to/MyProject.xcodeproj',
+            scheme: 'MyScheme',
+          },
+          spy.executor,
+        ),
       );
 
       expect(spy.commandCalls).toHaveLength(1);
@@ -196,15 +207,17 @@ describe('build_device plugin', () => {
         output: 'Build succeeded',
       });
 
-      const result = await buildDeviceLogic(
-        {
-          projectPath: '/path/to/MyProject.xcodeproj',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
+      const { result } = await runToolLogic(() =>
+        buildDeviceLogic(
+          {
+            projectPath: '/path/to/MyProject.xcodeproj',
+            scheme: 'MyScheme',
+          },
+          mockExecutor,
+        ),
       );
 
-      expect(result.isError).toBeFalsy();
+      expect(result.isError()).toBeFalsy();
       expectPendingBuildResponse(result, 'get_device_app_path');
     });
 
@@ -214,30 +227,34 @@ describe('build_device plugin', () => {
         error: 'Compilation error',
       });
 
-      const result = await buildDeviceLogic(
-        {
-          projectPath: '/path/to/MyProject.xcodeproj',
-          scheme: 'MyScheme',
-        },
-        mockExecutor,
+      const { result } = await runToolLogic(() =>
+        buildDeviceLogic(
+          {
+            projectPath: '/path/to/MyProject.xcodeproj',
+            scheme: 'MyScheme',
+          },
+          mockExecutor,
+        ),
       );
 
-      expect(result.isError).toBe(true);
+      expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });
 
     it('should include optional parameters in command', async () => {
       const spy = createSpyExecutor();
 
-      await buildDeviceLogic(
-        {
-          projectPath: '/path/to/MyProject.xcodeproj',
-          scheme: 'MyScheme',
-          configuration: 'Release',
-          derivedDataPath: '/tmp/derived-data',
-          extraArgs: ['--verbose'],
-        },
-        spy.executor,
+      await runToolLogic(() =>
+        buildDeviceLogic(
+          {
+            projectPath: '/path/to/MyProject.xcodeproj',
+            scheme: 'MyScheme',
+            configuration: 'Release',
+            derivedDataPath: '/tmp/derived-data',
+            extraArgs: ['--verbose'],
+          },
+          spy.executor,
+        ),
       );
 
       expect(spy.commandCalls).toHaveLength(1);

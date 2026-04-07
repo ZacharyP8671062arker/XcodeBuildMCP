@@ -2,22 +2,21 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import { createMockExecutor, mockProcess } from '../../../../test-utils/mock-executors.ts';
+import {
+  runToolLogic,
+  type MockToolHandlerResult,
+} from '../../../../test-utils/test-helpers.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, buildRunMacOSLogic } from '../build_run_macos.ts';
 
-function expectPendingBuildRunResponse(
-  result: Awaited<ReturnType<typeof buildRunMacOSLogic>>,
-  isError: boolean,
-): void {
-  expect(result.isError).toBe(isError);
-  expect(result.content).toEqual([]);
-  expect(result._meta).toEqual(
-    expect.objectContaining({
-      pendingXcodebuild: expect.objectContaining({
-        kind: 'pending-xcodebuild',
-      }),
-    }),
-  );
+const runBuildRunMacOSLogic = (
+  params: Parameters<typeof buildRunMacOSLogic>[0],
+  executor: Parameters<typeof buildRunMacOSLogic>[1],
+) => runToolLogic(() => buildRunMacOSLogic(params, executor));
+
+function expectPendingBuildRunResponse(result: MockToolHandlerResult, isError: boolean): void {
+  expect(result.isError()).toBe(isError);
+  expect(result.events.some((event) => event.type === 'summary')).toBe(true);
 }
 
 describe('build_run_macos', () => {
@@ -115,7 +114,7 @@ describe('build_run_macos', () => {
         preferXcodebuild: false,
       };
 
-      const result = await buildRunMacOSLogic(args, mockExecutor);
+      const { result } = await runBuildRunMacOSLogic(args, mockExecutor);
 
       expect(executorCalls[0].command).toEqual([
         'xcodebuild',
@@ -135,28 +134,25 @@ describe('build_run_macos', () => {
       expect(executorCalls[0].description).toBe('macOS Build');
 
       expectPendingBuildRunResponse(result, false);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
-      expect(result._meta?.pendingXcodebuild).toEqual(
-        expect.objectContaining({
-          tailEvents: [
-            expect.objectContaining({
-              type: 'status-line',
-              level: 'success',
-              message: 'Build & Run complete',
-            }),
-            expect.objectContaining({
-              type: 'detail-tree',
-              items: expect.arrayContaining([
-                expect.objectContaining({ label: 'App Path', value: '/path/to/build/MyApp.app' }),
-                expect.objectContaining({
-                  label: 'Build Logs',
-                  value: expect.stringContaining('build_run_macos_'),
-                }),
-              ]),
-            }),
-          ],
-        }),
+      expect(result.events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'status-line',
+            level: 'success',
+            message: 'Build & Run complete',
+          }),
+          expect.objectContaining({
+            type: 'detail-tree',
+            items: expect.arrayContaining([
+              expect.objectContaining({ label: 'App Path', value: '/path/to/build/MyApp.app' }),
+              expect.objectContaining({
+                label: 'Build Logs',
+                value: expect.stringContaining('build_run_macos_'),
+              }),
+            ]),
+          }),
+        ]),
       );
     });
 
@@ -199,7 +195,7 @@ describe('build_run_macos', () => {
         preferXcodebuild: false,
       };
 
-      const result = await buildRunMacOSLogic(args, mockExecutor);
+      const { result } = await runBuildRunMacOSLogic(args, mockExecutor);
 
       expect(executorCalls[0].command).toEqual([
         'xcodebuild',
@@ -234,17 +230,10 @@ describe('build_run_macos', () => {
         preferXcodebuild: false,
       };
 
-      const result = await buildRunMacOSLogic(args, mockExecutor);
+      const { result } = await runBuildRunMacOSLogic(args, mockExecutor);
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
-      expect(result._meta?.pendingXcodebuild).toEqual(
-        expect.objectContaining({
-          errorFallbackPolicy: 'if-no-structured-diagnostics',
-          tailEvents: [],
-        }),
-      );
     });
 
     it('should handle build settings failure', async () => {
@@ -283,16 +272,10 @@ describe('build_run_macos', () => {
         preferXcodebuild: false,
       };
 
-      const result = await buildRunMacOSLogic(args, mockExecutor);
+      const { result } = await runBuildRunMacOSLogic(args, mockExecutor);
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
-      expect(result._meta?.pendingXcodebuild).toEqual(
-        expect.objectContaining({
-          tailEvents: [],
-        }),
-      );
     });
 
     it('should handle app launch failure', async () => {
@@ -338,16 +321,10 @@ describe('build_run_macos', () => {
         preferXcodebuild: false,
       };
 
-      const result = await buildRunMacOSLogic(args, mockExecutor);
+      const { result } = await runBuildRunMacOSLogic(args, mockExecutor);
 
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
-      expect(result._meta?.pendingXcodebuild).toEqual(
-        expect.objectContaining({
-          tailEvents: [],
-        }),
-      );
     });
 
     it('should handle spawn error', async () => {
@@ -373,16 +350,11 @@ describe('build_run_macos', () => {
         preferXcodebuild: false,
       };
 
-      const result = await buildRunMacOSLogic(args, mockExecutor);
+      const { response, result } = await runBuildRunMacOSLogic(args, mockExecutor);
 
+      expect(response).toBeUndefined();
       expectPendingBuildRunResponse(result, true);
-      expect(result.nextSteps).toBeUndefined();
       expect(result.nextStepParams).toBeUndefined();
-      expect(result._meta?.pendingXcodebuild).toEqual(
-        expect.objectContaining({
-          tailEvents: [],
-        }),
-      );
     });
 
     it('should use default configuration when not provided', async () => {
@@ -424,7 +396,7 @@ describe('build_run_macos', () => {
         preferXcodebuild: false,
       };
 
-      await buildRunMacOSLogic(args, mockExecutor);
+      await runBuildRunMacOSLogic(args, mockExecutor);
 
       expect(executorCalls[0].command).toEqual([
         'xcodebuild',

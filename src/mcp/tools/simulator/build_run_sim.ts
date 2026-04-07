@@ -13,6 +13,7 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
@@ -29,9 +30,9 @@ import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 import {
   createBuildRunResultEvents,
-  createPendingXcodebuildResponse,
   emitPipelineError,
   emitPipelineNotice,
+  finalizeInlineXcodebuild,
 } from '../../../utils/xcodebuild-output.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { extractBundleIdFromAppPath } from '../../../utils/bundle-id.ts';
@@ -103,7 +104,8 @@ export async function build_run_simLogic(
   params: BuildRunSimulatorParams,
   executor: CommandExecutor,
   launcher: SimulatorLauncher = launchSimulatorAppWithLogging,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
   const projectType = params.projectPath ? 'project' : 'workspace';
   const filePath = params.projectPath ?? params.workspacePath;
 
@@ -113,6 +115,7 @@ export async function build_run_simLogic(
   );
 
   return withErrorHandling(
+    ctx,
     async () => {
       if (params.simulatorId && params.useLatestOS !== undefined) {
         log(
@@ -177,10 +180,13 @@ export async function build_run_simLogic(
         const validation = await validateAvailableSimulatorId(params.simulatorId, executor);
         if (validation.error) {
           emitPipelineError(started, 'BUILD', validation.error);
-          return createPendingXcodebuildResponse(started, {
-            content: [],
-            isError: true,
+          finalizeInlineXcodebuild({
+            started,
+            emit: ctx.emit,
+            succeeded: false,
+            durationMs: Date.now() - started.startedAt,
           });
+          return;
         }
       }
 
@@ -213,9 +219,15 @@ export async function build_run_simLogic(
       );
 
       if (buildResult.isError) {
-        return createPendingXcodebuildResponse(started, buildResult, {
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
+          responseContent: buildResult.content,
           errorFallbackPolicy: 'if-no-structured-diagnostics',
         });
+        return;
       }
 
       // Resolve app path
@@ -257,10 +269,13 @@ export async function build_run_simLogic(
         const errorMessage = error instanceof Error ? error.message : String(error);
         log('error', 'Build succeeded, but failed to get app path to launch.');
         emitPipelineError(started, 'BUILD', `Failed to get app path to launch: ${errorMessage}`);
-        return createPendingXcodebuildResponse(started, {
-          content: [],
-          isError: true,
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
         });
+        return;
       }
 
       log('info', `App bundle path for run: ${appBundlePath}`);
@@ -283,10 +298,13 @@ export async function build_run_simLogic(
           'BUILD',
           `Failed to resolve simulator UUID: ${uuidResult.error}`,
         );
-        return createPendingXcodebuildResponse(started, {
-          content: [],
-          isError: true,
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
         });
+        return;
       }
 
       if (uuidResult.warning) {
@@ -301,10 +319,13 @@ export async function build_run_simLogic(
           'BUILD',
           'Failed to resolve simulator: no simulator identifier provided',
         );
-        return createPendingXcodebuildResponse(started, {
-          content: [],
-          isError: true,
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
         });
+        return;
       }
 
       // Boot simulator if needed
@@ -326,10 +347,13 @@ export async function build_run_simLogic(
             'BUILD',
             findError ?? `Failed to find simulator with UUID: ${simulatorId}`,
           );
-          return createPendingXcodebuildResponse(started, {
-            content: [],
-            isError: true,
+          finalizeInlineXcodebuild({
+            started,
+            emit: ctx.emit,
+            succeeded: false,
+            durationMs: Date.now() - started.startedAt,
           });
+          return;
         }
 
         if (targetSimulator.state !== 'Booted') {
@@ -348,10 +372,13 @@ export async function build_run_simLogic(
         const errorMessage = error instanceof Error ? error.message : String(error);
         log('error', `Failed to boot simulator: ${errorMessage}`);
         emitPipelineError(started, 'BUILD', `Failed to boot simulator: ${errorMessage}`);
-        return createPendingXcodebuildResponse(started, {
-          content: [],
-          isError: true,
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
         });
+        return;
       }
 
       emitPipelineNotice(started, 'BUILD', 'Simulator ready', 'success', {
@@ -382,10 +409,13 @@ export async function build_run_simLogic(
         const errorMessage = installResult.error ?? 'Failed to install app';
         log('error', `Failed to install app: ${errorMessage}`);
         emitPipelineError(started, 'BUILD', `Failed to install app on simulator: ${errorMessage}`);
-        return createPendingXcodebuildResponse(started, {
-          content: [],
-          isError: true,
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
         });
+        return;
       }
 
       emitPipelineNotice(started, 'BUILD', 'App installed', 'success', {
@@ -406,10 +436,13 @@ export async function build_run_simLogic(
         const errorMessage = error instanceof Error ? error.message : String(error);
         log('error', `Failed to extract bundle ID: ${errorMessage}`);
         emitPipelineError(started, 'BUILD', `Failed to extract bundle ID: ${errorMessage}`);
-        return createPendingXcodebuildResponse(started, {
-          content: [],
-          isError: true,
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
         });
+        return;
       }
 
       // Launch app
@@ -427,10 +460,13 @@ export async function build_run_simLogic(
           'BUILD',
           `Failed to launch app ${appBundlePath}: ${errorMessage}`,
         );
-        return createPendingXcodebuildResponse(started, {
-          content: [],
-          isError: true,
+        finalizeInlineXcodebuild({
+          started,
+          emit: ctx.emit,
+          succeeded: false,
+          durationMs: Date.now() - started.startedAt,
         });
+        return;
       }
 
       const processId = launchResult.processId;
@@ -440,31 +476,28 @@ export async function build_run_simLogic(
 
       log('info', `${platformName} simulator build & run succeeded.`);
 
-      return createPendingXcodebuildResponse(
+      finalizeInlineXcodebuild({
         started,
-        {
-          content: [],
-          isError: false,
-          nextStepParams: {
-            stop_app_sim: { simulatorId, bundleId },
-          },
-        },
-        {
-          tailEvents: createBuildRunResultEvents({
-            scheme: params.scheme,
-            platform: displayPlatform,
-            target: `${platformName} Simulator`,
-            appPath: appBundlePath,
-            bundleId,
-            launchState: 'requested',
-            processId,
-            buildLogPath: started.pipeline.logPath,
-            runtimeLogPath: launchResult.logFilePath,
-            osLogPath: launchResult.osLogPath,
-          }),
-          includeBuildLogFileRef: false,
-        },
-      );
+        emit: ctx.emit,
+        succeeded: true,
+        durationMs: Date.now() - started.startedAt,
+        tailEvents: createBuildRunResultEvents({
+          scheme: params.scheme,
+          platform: displayPlatform,
+          target: `${platformName} Simulator`,
+          appPath: appBundlePath,
+          bundleId,
+          launchState: 'requested',
+          processId,
+          buildLogPath: started.pipeline.logPath,
+          runtimeLogPath: launchResult.logFilePath,
+          osLogPath: launchResult.osLogPath,
+        }),
+        includeBuildLogFileRef: false,
+      });
+      ctx.nextStepParams = {
+        stop_app_sim: { simulatorId, bundleId },
+      };
     },
     {
       header: header('Build & Run Simulator'),

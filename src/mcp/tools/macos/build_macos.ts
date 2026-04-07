@@ -8,10 +8,11 @@ import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
-import { createPendingXcodebuildResponse } from '../../../utils/xcodebuild-output.ts';
+import { finalizeInlineXcodebuild } from '../../../utils/xcodebuild-output.ts';
 import { formatToolPreflight } from '../../../utils/build-preflight.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { detailTree } from '../../../utils/tool-event-builders.ts';
@@ -56,7 +57,8 @@ export type BuildMacOSParams = z.infer<typeof buildMacOSSchema>;
 export async function buildMacOSLogic(
   params: BuildMacOSParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
+  const ctx = getHandlerContext();
   log('info', `Starting macOS build for scheme ${params.scheme}`);
 
   const processedParams = {
@@ -108,7 +110,14 @@ export async function buildMacOSLogic(
   );
 
   if (buildResult.isError) {
-    return createPendingXcodebuildResponse(started, buildResult);
+    finalizeInlineXcodebuild({
+      started,
+      emit: ctx.emit,
+      succeeded: false,
+      durationMs: Date.now() - started.startedAt,
+      responseContent: buildResult.content,
+    });
+    return;
   }
 
   let bundleId: string | undefined;
@@ -140,20 +149,20 @@ export async function buildMacOSLogic(
 
   const tailEvents = bundleId ? [detailTree([{ label: 'Bundle ID', value: bundleId }])] : [];
 
-  return createPendingXcodebuildResponse(
+  finalizeInlineXcodebuild({
     started,
-    {
-      ...buildResult,
-      nextStepParams: {
-        get_mac_app_path: {
-          scheme: params.scheme,
-        },
-      },
+    emit: ctx.emit,
+    succeeded: true,
+    durationMs: Date.now() - started.startedAt,
+    responseContent: buildResult.content,
+    tailEvents,
+  });
+
+  ctx.nextStepParams = {
+    get_mac_app_path: {
+      scheme: params.scheme,
     },
-    {
-      tailEvents,
-    },
-  );
+  };
 }
 
 export const schema = getSessionAwareToolSchemaShape({

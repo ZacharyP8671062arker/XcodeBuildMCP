@@ -71,7 +71,7 @@ export async function testDeviceLogic(
   params: TestDeviceParams,
   executor: CommandExecutor = getDefaultCommandExecutor(),
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<ToolResponse> {
+): Promise<ToolResponse | void> {
   const configuration = params.configuration ?? 'Debug';
   const platform = (params.platform as XcodePlatform) || XcodePlatform.iOS;
 

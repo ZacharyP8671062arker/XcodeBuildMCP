@@ -3,13 +3,11 @@ import path from 'node:path';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { createXcodebuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
@@ -35,7 +33,7 @@ type SwiftPackageBuildParams = z.infer<typeof swiftPackageBuildSchema>;
 export async function swift_package_buildLogic(
   params: SwiftPackageBuildParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const ctx = getHandlerContext();
   const resolvedPath = path.resolve(params.packagePath);
   const swiftArgs = ['build', '--package-path', resolvedPath];
@@ -112,8 +110,9 @@ export async function swift_package_buildLogic(
       header: headerEvent,
       errorMessage: ({ message }) => `Failed to execute swift build: ${message}`,
       logMessage: ({ message }) => `Swift package build failed: ${message}`,
-      mapError: ({ message }) =>
-        toolResponse([statusLine('error', `Failed to execute swift build: ${message}`)]),
+      mapError: ({ message, emit }) => {
+        emit?.(statusLine('error', `Failed to execute swift build: ${message}`));
+      },
     },
   );
 }

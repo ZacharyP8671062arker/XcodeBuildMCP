@@ -6,15 +6,18 @@ import { toolResponse } from './tool-response.ts';
 import { statusLine } from './tool-event-builders.ts';
 import { log } from './logging/index.ts';
 
+export interface MapErrorContext {
+  error: unknown;
+  message: string;
+  headerEvent: HeaderEvent;
+  emit?: (event: PipelineEvent) => void;
+}
+
 export interface WithErrorHandlingOptions {
   header: HeaderEvent | (() => HeaderEvent);
-  errorMessage: string | ((ctx: { message: string; error: unknown }) => string);
-  logMessage?: string | ((ctx: { message: string; error: unknown }) => string);
-  mapError?: (ctx: {
-    error: unknown;
-    message: string;
-    headerEvent: HeaderEvent;
-  }) => ToolResponse | undefined;
+  errorMessage: string | ((errCtx: { message: string; error: unknown }) => string);
+  logMessage?: string | ((errCtx: { message: string; error: unknown }) => string);
+  mapError?: (errCtx: MapErrorContext) => ToolResponse | void | undefined;
 }
 
 function emitMappedErrorResponse(ctx: ToolHandlerContext, response: ToolResponse): boolean {
@@ -67,7 +70,17 @@ export async function withErrorHandling(
     const headerEvent = typeof options.header === 'function' ? options.header() : options.header;
 
     if (options.mapError) {
-      const mapped = options.mapError({ error, message, headerEvent });
+      let emitted = false;
+      const emit = ctx
+        ? (event: PipelineEvent) => {
+            ctx.emit(event);
+            emitted = true;
+          }
+        : undefined;
+      const mapped = options.mapError({ error, message, headerEvent, emit });
+      if (emitted) {
+        return;
+      }
       if (mapped) {
         if (ctx && emitMappedErrorResponse(ctx, mapped)) {
           return;

@@ -19,11 +19,11 @@ import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
+  getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { inferPlatform } from '../../../utils/infer-platform.ts';
 import { resolveTestPreflight } from '../../../utils/test-preflight.ts';
 import { resolveSimulatorIdOrName } from '../../../utils/simulator-resolver.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const baseSchemaObject = z.object({
@@ -114,13 +114,17 @@ export async function test_simLogic(
     `Inferred simulator platform for tests: ${inferred.platform} (source: ${inferred.source})`,
   );
 
+  const ctx = getHandlerContext();
+
   const simulatorResolution = await resolveSimulatorIdOrName(
     executor,
     params.simulatorId,
     params.simulatorName,
   );
   if (!simulatorResolution.success) {
-    return toolResponse([header('Test Simulator'), statusLine('error', simulatorResolution.error)]);
+    ctx.emit(header('Test Simulator'));
+    ctx.emit(statusLine('error', simulatorResolution.error));
+    return;
   }
 
   const destinationName = params.simulatorName ?? simulatorResolution.simulatorName;

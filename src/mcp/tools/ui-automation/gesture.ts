@@ -21,7 +21,6 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { executeAxeCommand, defaultAxeHelpers } from './shared/axe-command.ts';
 import type { AxeHelpers } from './shared/axe-command.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
@@ -145,23 +144,22 @@ export async function gestureLogic(
       header: headerEvent,
       errorMessage: ({ message }) => `An unexpected error occurred: ${message}`,
       logMessage: ({ error }) => `${LOG_PREFIX}/${toolName}: Failed - ${error}`,
-      mapError: ({ error, headerEvent: hdr }) => {
+      mapError: ({ error, headerEvent: hdr, emit }) => {
         if (error instanceof DependencyError) {
-          return toolResponse([hdr, statusLine('error', AXE_NOT_AVAILABLE_MESSAGE)]);
+          emit?.(hdr);
+          emit?.(statusLine('error', AXE_NOT_AVAILABLE_MESSAGE));
+          return;
         } else if (error instanceof AxeError) {
-          return toolResponse([
-            hdr,
-            statusLine('error', `Failed to execute gesture '${preset}': ${error.message}`),
-            ...(error.axeOutput ? [section('Details', [error.axeOutput])] : []),
-          ]);
+          emit?.(hdr);
+          emit?.(statusLine('error', `Failed to execute gesture '${preset}': ${error.message}`));
+          if (error.axeOutput) emit?.(section('Details', [error.axeOutput]));
+          return;
         } else if (error instanceof SystemError) {
-          return toolResponse([
-            hdr,
-            statusLine('error', `System error executing axe: ${error.message}`),
-            ...(error.originalError?.stack
-              ? [section('Stack Trace', [error.originalError.stack])]
-              : []),
-          ]);
+          emit?.(hdr);
+          emit?.(statusLine('error', `System error executing axe: ${error.message}`));
+          if (error.originalError?.stack)
+            emit?.(section('Stack Trace', [error.originalError.stack]));
+          return;
         }
         return undefined;
       },

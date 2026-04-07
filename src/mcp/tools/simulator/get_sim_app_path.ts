@@ -21,7 +21,6 @@ import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { extractQueryErrorMessages } from '../../../utils/xcodebuild-error-utils.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
@@ -180,7 +179,11 @@ export async function get_sim_app_pathLogic(
       header: headerEvent,
       errorMessage: ({ message }) => `Error retrieving app path: ${message}`,
       logMessage: ({ message }) => `Error retrieving app path: ${message}`,
-      mapError: ({ message }) => toolResponse(buildErrorEvents(message)),
+      mapError: ({ message, emit }) => {
+        for (const event of buildErrorEvents(message)) {
+          emit?.(event);
+        }
+      },
     },
   );
 }

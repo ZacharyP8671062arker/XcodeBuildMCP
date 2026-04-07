@@ -12,7 +12,6 @@ import { getDefaultFileSystemExecutor, getDefaultCommandExecutor } from '../../.
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
 import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { extractBundleIdFromAppPath } from '../../../utils/bundle-id.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
@@ -71,12 +70,13 @@ export async function get_app_bundle_idLogic(
       header: headerEvent,
       errorMessage: ({ message }) => message,
       logMessage: ({ message }) => `Error extracting app bundle ID: ${message}`,
-      mapError: ({ message, headerEvent: hdr }) =>
-        toolResponse([
-          hdr,
-          statusLine('error', message),
+      mapError: ({ message, headerEvent: hdr, emit }) => {
+        emit?.(hdr);
+        emit?.(statusLine('error', message));
+        emit?.(
           statusLine('info', 'Make sure the path points to a valid app bundle (.app directory).'),
-        ]),
+        );
+      },
     },
   );
 }

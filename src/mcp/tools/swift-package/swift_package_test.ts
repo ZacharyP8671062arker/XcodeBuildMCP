@@ -3,13 +3,11 @@ import path from 'node:path';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { log } from '../../../utils/logging/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { startBuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
@@ -37,7 +35,7 @@ type SwiftPackageTestParams = z.infer<typeof swiftPackageTestSchema>;
 export async function swift_package_testLogic(
   params: SwiftPackageTestParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const ctx = getHandlerContext();
   const resolvedPath = path.resolve(params.packagePath);
   const swiftArgs = ['test', '--package-path', resolvedPath];
@@ -51,10 +49,9 @@ export async function swift_package_testLogic(
   if (params.configuration?.toLowerCase() === 'release') {
     swiftArgs.push('-c', 'release');
   } else if (params.configuration && params.configuration.toLowerCase() !== 'debug') {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', "Invalid configuration. Use 'debug' or 'release'."),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', "Invalid configuration. Use 'debug' or 'release'."));
+    return;
   }
 
   if (params.testProduct) {

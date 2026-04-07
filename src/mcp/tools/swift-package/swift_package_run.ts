@@ -3,7 +3,6 @@ import path from 'node:path';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor, CommandResponse } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import { addProcess } from './active-processes.ts';
 import {
   createSessionAwareTool,
@@ -11,7 +10,6 @@ import {
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { acquireDaemonActivity } from '../../../daemon/activity-registry.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section, detailTree } from '../../../utils/tool-event-builders.ts';
 import { createXcodebuildPipeline } from '../../../utils/xcodebuild-pipeline.ts';
@@ -78,7 +76,7 @@ async function resolveExecutablePath(
 export async function swift_package_runLogic(
   params: SwiftPackageRunParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const ctx = getHandlerContext();
   const resolvedPath = path.resolve(params.packagePath);
   const timeout = Math.min(params.timeout ?? 30, 300) * 1000; // Convert to ms, max 5 minutes
@@ -94,10 +92,9 @@ export async function swift_package_runLogic(
   if (params.configuration?.toLowerCase() === 'release') {
     swiftArgs.push('-c', 'release');
   } else if (params.configuration && params.configuration.toLowerCase() !== 'debug') {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', "Invalid configuration. Use 'debug' or 'release'."),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', "Invalid configuration. Use 'debug' or 'release'."));
+    return;
   }
 
   if (params.parseAsLibrary) {

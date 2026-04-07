@@ -1,5 +1,6 @@
 import * as z from 'zod';
 import type { ToolResponse } from '../../../types/common.ts';
+import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -8,8 +9,8 @@ import {
   getHandlerContext,
   handlerContextStorage,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
+import { eventsToToolResponse } from '../../../utils/events-to-tool-response.ts';
 import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const listSimsSchema = z.object({
@@ -212,7 +213,10 @@ export async function list_simsLogic(
 
   const headerEvent = header('List Simulators');
 
-  const buildResponse = async (): Promise<ToolResponse> => {
+  const buildEvents = async (): Promise<{
+    events: PipelineEvent[];
+    nextStepParams?: ToolResponse['nextStepParams'];
+  }> => {
     const simulators = await listSimulators(executor);
 
     const grouped = new Map<string, ListedSimulator[]>();
@@ -242,7 +246,8 @@ export async function list_simsLogic(
       ([a], [b]) => getPlatformInfo(a).order - getPlatformInfo(b).order,
     );
 
-    const sections = [];
+    const events: PipelineEvent[] = [headerEvent];
+
     for (const [platform, runtimes] of sortedPlatforms) {
       const info = getPlatformInfo(platform);
       const lines: string[] = [];
@@ -263,7 +268,7 @@ export async function list_simsLogic(
 
       platformCounts[platform] = platformTotal;
       totalCount += platformTotal;
-      sections.push(section(`${info.label}:`, lines));
+      events.push(section(`${info.label}:`, lines));
     }
 
     const countParts = sortedPlatforms
@@ -271,13 +276,17 @@ export async function list_simsLogic(
       .join(', ');
     const summaryMsg = `${totalCount} simulators available (${countParts}).`;
 
-    const hints = section('Hints', [
-      'Use the simulator ID/UDID from above when required by other tools.',
-      "Save a default simulator with session-set-defaults { simulatorId: 'SIMULATOR_UDID' }.",
-      'Before running boot/build/run tools, set the desired simulator identifier in session defaults.',
-    ]);
+    events.push(statusLine('success', summaryMsg));
+    events.push(
+      section('Hints', [
+        'Use the simulator ID/UDID from above when required by other tools.',
+        "Save a default simulator with session-set-defaults { simulatorId: 'SIMULATOR_UDID' }.",
+        'Before running boot/build/run tools, set the desired simulator identifier in session defaults.',
+      ]),
+    );
 
-    return toolResponse([headerEvent, ...sections, statusLine('success', summaryMsg), hints], {
+    return {
+      events,
       nextStepParams: {
         boot_sim: { simulatorId: 'UUID_FROM_ABOVE' },
         open_sim: {},
@@ -288,7 +297,7 @@ export async function list_simsLogic(
           simulatorId: 'UUID_FROM_ABOVE',
         },
       },
-    });
+    };
   };
 
   const sharedOptions = {
@@ -303,7 +312,7 @@ export async function list_simsLogic(
       headerEvent: typeof headerEvent;
     }) => {
       if (message.startsWith('Failed to list simulators:')) {
-        return toolResponse([hdr, statusLine('error', message)]);
+        return eventsToToolResponse([hdr, statusLine('error', message)]);
       }
       return undefined;
     },
@@ -321,15 +330,12 @@ export async function list_simsLogic(
     await withErrorHandling(
       maybeCtx,
       async () => {
-        const response = await buildResponse();
-        const events = response._meta?.events;
-        if (Array.isArray(events)) {
-          for (const event of events) {
-            maybeCtx.emit(event);
-          }
+        const { events, nextStepParams } = await buildEvents();
+        for (const event of events) {
+          maybeCtx.emit(event);
         }
-        if (response.nextStepParams) {
-          maybeCtx.nextStepParams = response.nextStepParams;
+        if (nextStepParams) {
+          maybeCtx.nextStepParams = nextStepParams;
         }
       },
       sharedOptions,
@@ -337,7 +343,10 @@ export async function list_simsLogic(
     return undefined as unknown as ToolResponse;
   }
 
-  return withErrorHandling(buildResponse, sharedOptions);
+  return withErrorHandling(async () => {
+    const { events, nextStepParams } = await buildEvents();
+    return eventsToToolResponse(events, { nextStepParams });
+  }, sharedOptions);
 }
 
 export const schema = listSimsSchema.shape;

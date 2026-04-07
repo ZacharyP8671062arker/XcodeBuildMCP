@@ -17,8 +17,8 @@ import { detectXcodeRuntime } from '../../../utils/xcode-process.ts';
 import { type DoctorDependencies, createDoctorDependencies } from './lib/doctor.deps.ts';
 import { peekXcodeToolsBridgeManager } from '../../../integrations/xcode-tools-bridge/index.ts';
 import { getMcpBridgeAvailability } from '../../../integrations/xcode-tools-bridge/core.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { header, statusLine, section, detailTree } from '../../../utils/tool-event-builders.ts';
+import { eventsToToolResponse } from '../../../utils/events-to-tool-response.ts';
 
 const LOG_PREFIX = '[Doctor]';
 const USER_HOME_PATH_PATTERN = /\/Users\/[^/\s]+/g;
@@ -162,7 +162,7 @@ async function getXcodeToolsBridgeDoctorInfo(
 }
 
 /**
- * Run the doctor tool and return the results
+ * Run the doctor tool and return the results.
  */
 export async function runDoctor(
   params: DoctorParams,
@@ -479,15 +479,12 @@ export async function runDoctor(
 
   events.push(statusLine('success', 'Doctor diagnostics complete'));
 
-  const result = toolResponse(events);
-
-  // Restore previous silence flag
   if (prevSilence === undefined) {
     delete process.env.XCODEBUILDMCP_SILENCE_LOGS;
   } else {
     process.env.XCODEBUILDMCP_SILENCE_LOGS = prevSilence;
   }
-  return result;
+  return eventsToToolResponse(events);
 }
 
 export async function doctorLogic(
@@ -510,16 +507,6 @@ export async function doctorToolLogic(
     for (const event of events as PipelineEvent[]) {
       ctx.emit(event);
     }
-  }
-
-  for (const contentItem of response.content) {
-    if (contentItem.type === 'image') {
-      ctx.attach({ data: contentItem.data, mimeType: contentItem.mimeType });
-    }
-  }
-
-  if (response.nextStepParams) {
-    ctx.nextStepParams = response.nextStepParams;
   }
 }
 

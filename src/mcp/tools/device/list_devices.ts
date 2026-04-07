@@ -12,8 +12,8 @@ import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
+import { eventsToToolResponse } from '../../../utils/events-to-tool-response.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const listDevicesSchema = z.object({});
@@ -137,18 +137,9 @@ export async function list_devicesLogic(
   log('info', 'Starting device discovery');
   const headerEvent = header('List Devices');
 
-  const maybeCtx = (() => {
-    try {
-      return getHandlerContext();
-    } catch {
-      return handlerContextStorage.getStore();
-    }
-  })();
-
-  const buildResponse = async (): Promise<ToolResponse> => {
-    // Try modern devicectl with JSON output first (iOS 17+, Xcode 15+)
+  const buildEvents = async (): Promise<PipelineEvent[]> => {
     const tempDir = pathDeps?.tmpdir ? pathDeps.tmpdir() : tmpdir();
-    const timestamp = pathDeps?.join ? '123' : Date.now(); // Use fixed timestamp for tests
+    const timestamp = pathDeps?.join ? '123' : Date.now();
     const tempJsonPath = pathDeps?.join
       ? pathDeps.join(tempDir, `devicectl-${timestamp}.json`)
       : join(tempDir, `devicectl-${timestamp}.json`);
@@ -164,7 +155,6 @@ export async function list_devicesLogic(
 
       if (result.success) {
         useDevicectl = true;
-        // Read and parse the JSON file
         const jsonContent = fsDeps?.readFile
           ? await fsDeps.readFile(tempJsonPath, 'utf8')
           : await fs.readFile(tempJsonPath, 'utf8');
@@ -198,7 +188,6 @@ export async function list_devicesLogic(
               identifier?: string;
             };
 
-            // Skip simulators or unavailable devices
             if (
               device.visibilityClass === 'Simulator' ||
               !device.connectionProperties?.pairingState
@@ -217,7 +206,6 @@ export async function list_devicesLogic(
                 .join(' '),
             );
 
-            // Determine connection state
             const pairingState = device.connectionProperties?.pairingState ?? '';
             const tunnelState = device.connectionProperties?.tunnelState ?? '';
             const transportType = device.connectionProperties?.transportType ?? '';
@@ -255,7 +243,6 @@ export async function list_devicesLogic(
     } catch {
       log('info', 'devicectl with JSON failed, trying xctrace fallback');
     } finally {
-      // Clean up temp file
       try {
         if (fsDeps?.unlink) {
           await fsDeps.unlink(tempJsonPath);
@@ -267,7 +254,6 @@ export async function list_devicesLogic(
       }
     }
 
-    // If devicectl failed or returned no devices, fallback to xctrace
     if (!useDevicectl || devices.length === 0) {
       const result = await executor(
         ['xcrun', 'xctrace', 'list', 'devices'],
@@ -276,23 +262,23 @@ export async function list_devicesLogic(
       );
 
       if (!result.success) {
-        return toolResponse([
+        return [
           headerEvent,
           statusLine('error', `Failed to list devices: ${result.error}`),
           section('Troubleshooting', [
             'Make sure Xcode is installed and devices are connected and trusted.',
           ]),
-        ]);
+        ];
       }
 
-      return toolResponse([
+      return [
         headerEvent,
         section('Device listing (xctrace output)', [result.output]),
         statusLine(
           'info',
           'For better device information, please upgrade to Xcode 15 or later which supports the modern devicectl command.',
         ),
-      ]);
+      ];
     }
 
     const uniqueDevices = [...new Map(devices.map((d) => [d.identifier, d])).values()];
@@ -313,7 +299,7 @@ export async function list_devicesLogic(
           'For simulators, use the list_sims tool instead.',
         ]),
       );
-      return toolResponse(events);
+      return events;
     }
 
     const availableDevicesExist = uniqueDevices.some((d) => isAvailableState(d.state));
@@ -329,8 +315,7 @@ export async function list_devicesLogic(
         })),
       );
 
-      return toolResponse([
-        headerEvent,
+      events.push(
         ...platformSections,
         statusLine('success', summary),
         section('Hints', [
@@ -338,7 +323,7 @@ export async function list_devicesLogic(
           "Save a default device with session-set-defaults { deviceId: 'DEVICE_UDID' }.",
           'Before running build/run/test/UI automation tools, set the desired device identifier in session defaults.',
         ]),
-      ]);
+      );
     } else {
       events.push(
         statusLine('warning', 'No devices are currently available for testing.'),
@@ -351,7 +336,7 @@ export async function list_devicesLogic(
       );
     }
 
-    return toolResponse(events);
+    return events;
   };
 
   const sharedOptions = {
@@ -360,19 +345,21 @@ export async function list_devicesLogic(
     logMessage: ({ message }: { message: string }) => `Error listing devices: ${message}`,
   };
 
+  const maybeCtx = (() => {
+    try {
+      return getHandlerContext();
+    } catch {
+      return handlerContextStorage.getStore();
+    }
+  })();
+
   if (maybeCtx) {
     await withErrorHandling(
       maybeCtx,
       async () => {
-        const response = await buildResponse();
-        const events = response._meta?.events;
-        if (Array.isArray(events)) {
-          for (const event of events) {
-            maybeCtx.emit(event);
-          }
-        }
-        if (response.nextStepParams) {
-          maybeCtx.nextStepParams = response.nextStepParams;
+        const events = await buildEvents();
+        for (const event of events) {
+          maybeCtx.emit(event);
         }
       },
       sharedOptions,
@@ -380,7 +367,10 @@ export async function list_devicesLogic(
     return undefined as unknown as ToolResponse;
   }
 
-  return withErrorHandling(buildResponse, sharedOptions);
+  return withErrorHandling(async () => {
+    const events = await buildEvents();
+    return eventsToToolResponse(events);
+  }, sharedOptions);
 }
 
 export const schema = listDevicesSchema.shape;

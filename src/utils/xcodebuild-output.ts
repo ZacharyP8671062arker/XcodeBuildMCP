@@ -110,7 +110,9 @@ export function createBuildRunResultEvents(data: BuildRunResultNoticeData): Pipe
     message: 'Build & Run complete',
   });
 
-  const items: Array<{ label: string; value: string }> = [{ label: 'App Path', value: data.appPath }];
+  const items: Array<{ label: string; value: string }> = [
+    { label: 'App Path', value: data.appPath },
+  ];
 
   if (data.bundleId) {
     items.push({ label: 'Bundle ID', value: data.bundleId });
@@ -191,9 +193,7 @@ export function isPendingXcodebuildResponse(response: {
   );
 }
 
-export function finalizeInlineXcodebuild(
-  options: FinalizeInlineXcodebuildOptions,
-): PipelineResult {
+export function finalizeInlineXcodebuild(options: FinalizeInlineXcodebuildOptions): PipelineResult {
   const pipelineResult = options.started.pipeline.finalize(options.succeeded, options.durationMs, {
     emitSummary: options.emitSummary,
     tailEvents: options.tailEvents,

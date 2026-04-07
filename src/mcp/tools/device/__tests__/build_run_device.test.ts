@@ -5,10 +5,7 @@ import {
   createMockFileSystemExecutor,
   createMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
-import {
-  runToolLogic,
-  type MockToolHandlerResult,
-} from '../../../../test-utils/test-helpers.ts';
+import { runToolLogic, type MockToolHandlerResult } from '../../../../test-utils/test-helpers.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, build_run_deviceLogic } from '../build_run_device.ts';

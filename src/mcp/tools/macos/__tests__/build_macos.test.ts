@@ -2,10 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DERIVED_DATA_DIR } from '../../../../utils/log-paths.ts';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
-import {
-  expectPendingBuildResponse,
-  runToolLogic,
-} from '../../../../test-utils/test-helpers.ts';
+import { expectPendingBuildResponse, runToolLogic } from '../../../../test-utils/test-helpers.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, buildMacOSLogic } from '../build_macos.ts';
 

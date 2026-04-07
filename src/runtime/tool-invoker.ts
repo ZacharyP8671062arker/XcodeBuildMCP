@@ -13,9 +13,7 @@ import {
   type SentryToolRuntime,
   type SentryToolTransport,
 } from '../utils/sentry.ts';
-import {
-  isPendingXcodebuildResponse,
-} from '../utils/xcodebuild-output.ts';
+import { isPendingXcodebuildResponse } from '../utils/xcodebuild-output.ts';
 import { renderNextStepsSection } from '../utils/responses/next-steps-renderer.ts';
 import type { RuntimeKind } from './types.ts';
 import type { ToolHandlerContext } from '../rendering/types.ts';

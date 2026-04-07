@@ -6,7 +6,9 @@ import { finalizeInlineXcodebuild } from '../xcodebuild-output.ts';
 async function runFinalizedPipeline(
   logic: (
     started: ReturnType<typeof startBuildPipeline>,
-    emit: (event: Parameters<ReturnType<typeof createMockToolHandlerContext>['ctx']['emit']>[0]) => void,
+    emit: (
+      event: Parameters<ReturnType<typeof createMockToolHandlerContext>['ctx']['emit']>[0],
+    ) => void,
   ) => void,
 ): Promise<ReturnType<typeof createMockToolHandlerContext>['result']> {
   const { ctx, result, run } = createMockToolHandlerContext();

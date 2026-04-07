@@ -14,10 +14,7 @@ import { resolveEffectiveDerivedDataPath } from './derived-data-path.ts';
 import { formatDeviceId } from './device-name-resolver.ts';
 import { createLogCapture, createParserDebugCapture } from './xcodebuild-log-capture.ts';
 import { log as appLog } from './logging/index.ts';
-import {
-  getHandlerContext,
-  handlerContextStorage,
-} from './typed-tool-factory.ts';
+import { getHandlerContext, handlerContextStorage } from './typed-tool-factory.ts';
 
 export interface PipelineOptions {
   operation: XcodebuildOperation;
@@ -199,11 +196,13 @@ export function createXcodebuildPipeline(options: PipelineOptions): XcodebuildPi
   }
   const logCapture = createLogCapture(options.toolName);
   const debugCapture = createParserDebugCapture(options.toolName);
-  const emit = options.emit ?? ((event: PipelineEvent) => {
-    for (const renderer of renderers) {
-      renderer.onEvent(event);
-    }
-  });
+  const emit =
+    options.emit ??
+    ((event: PipelineEvent) => {
+      for (const renderer of renderers) {
+        renderer.onEvent(event);
+      }
+    });
 
   const runState = createXcodebuildRunState({
     operation: options.operation,

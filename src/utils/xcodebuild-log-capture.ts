@@ -18,7 +18,9 @@ function resolveWritableLogDir(): string {
     }
   }
 
-  throw new Error(`Unable to create writable log directory in any candidate path: ${candidates.join(', ')}`);
+  throw new Error(
+    `Unable to create writable log directory in any candidate path: ${candidates.join(', ')}`,
+  );
 }
 
 function generateLogFileName(toolName: string): string {

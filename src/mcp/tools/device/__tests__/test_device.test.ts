@@ -4,10 +4,7 @@ import {
   createMockExecutor,
   createMockFileSystemExecutor,
 } from '../../../../test-utils/mock-executors.ts';
-import {
-  expectPendingBuildResponse,
-  runToolLogic,
-} from '../../../../test-utils/test-helpers.ts';
+import { expectPendingBuildResponse, runToolLogic } from '../../../../test-utils/test-helpers.ts';
 import { schema, handler, testDeviceLogic } from '../test_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 

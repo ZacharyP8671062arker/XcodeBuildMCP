@@ -9,7 +9,6 @@ import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { version } from '../../../utils/version/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { getConfig } from '../../../utils/config-store.ts';
@@ -18,7 +17,7 @@ import { type DoctorDependencies, createDoctorDependencies } from './lib/doctor.
 import { peekXcodeToolsBridgeManager } from '../../../integrations/xcode-tools-bridge/index.ts';
 import { getMcpBridgeAvailability } from '../../../integrations/xcode-tools-bridge/core.ts';
 import { header, statusLine, section, detailTree } from '../../../utils/tool-event-builders.ts';
-import { eventsToToolResponse } from '../../../utils/events-to-tool-response.ts';
+import { renderEvents } from '../../../rendering/render.ts';
 
 const LOG_PREFIX = '[Doctor]';
 const USER_HOME_PATH_PATTERN = /\/Users\/[^/\s]+/g;
@@ -164,10 +163,7 @@ async function getXcodeToolsBridgeDoctorInfo(
 /**
  * Run the doctor tool and return the results.
  */
-export async function runDoctor(
-  params: DoctorParams,
-  deps: DoctorDependencies,
-): Promise<ToolResponse> {
+export async function runDoctor(params: DoctorParams, deps: DoctorDependencies) {
   const prevSilence = process.env.XCODEBUILDMCP_SILENCE_LOGS;
   process.env.XCODEBUILDMCP_SILENCE_LOGS = 'true';
   log('info', `${LOG_PREFIX}: Running doctor tool`);
@@ -484,13 +480,20 @@ export async function runDoctor(
   } else {
     process.env.XCODEBUILDMCP_SILENCE_LOGS = prevSilence;
   }
-  return eventsToToolResponse(events);
+  const rendered = renderEvents(events, 'text');
+  const hasError = events.some(
+    (e) =>
+      (e.type === 'status-line' && e.level === 'error') ||
+      (e.type === 'summary' && e.status === 'FAILED'),
+  );
+  return {
+    content: [{ type: 'text' as const, text: rendered }],
+    isError: hasError || undefined,
+    _meta: { events: [...events] },
+  };
 }
 
-export async function doctorLogic(
-  params: DoctorParams,
-  executor: CommandExecutor,
-): Promise<ToolResponse> {
+export async function doctorLogic(params: DoctorParams, executor: CommandExecutor) {
   const deps = createDoctorDependencies(executor);
   return runDoctor(params, deps);
 }

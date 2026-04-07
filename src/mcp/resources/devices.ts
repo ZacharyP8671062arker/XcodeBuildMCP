@@ -10,7 +10,6 @@ import type { CommandExecutor } from '../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../utils/execution/index.ts';
 import { list_devicesLogic } from '../tools/device/list_devices.ts';
 
-// Testable resource logic separated from MCP handler
 export async function devicesResourceLogic(
   executor: CommandExecutor = getDefaultCommandExecutor(),
 ): Promise<{ contents: Array<{ text: string }> }> {
@@ -18,12 +17,15 @@ export async function devicesResourceLogic(
     log('info', 'Processing devices resource request');
     const result = await list_devicesLogic({}, executor);
 
-    if (result.isError) {
-      const errorText = result.content.map((c) => ('text' in c ? c.text : '')).join('\n');
+    const asRecord = result as unknown as Record<string, unknown> | undefined;
+    if (asRecord?.isError) {
+      const content = asRecord.content as Array<{ text?: string }>;
+      const errorText = content.map((c) => c.text ?? '').join('\n');
       throw new Error(errorText || 'Failed to retrieve device data');
     }
 
-    const joinedText = result.content.map((c) => ('text' in c ? c.text : '')).join('\n');
+    const content = (asRecord?.content as Array<{ text?: string }>) ?? [];
+    const joinedText = content.map((c) => c.text ?? '').join('\n');
 
     return {
       contents: [

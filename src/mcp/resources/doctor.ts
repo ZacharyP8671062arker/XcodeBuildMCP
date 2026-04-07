@@ -10,7 +10,6 @@ import type { CommandExecutor } from '../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../utils/execution/index.ts';
 import { doctorLogic } from '../tools/doctor/doctor.ts';
 
-// Testable resource logic separated from MCP handler
 export async function doctorResourceLogic(
   executor: CommandExecutor = getDefaultCommandExecutor(),
 ): Promise<{ contents: Array<{ text: string }> }> {

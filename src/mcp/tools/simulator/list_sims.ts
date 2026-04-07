@@ -1,16 +1,11 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import {
-  createTypedTool,
-  getHandlerContext,
-  handlerContextStorage,
-} from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, handlerContextStorage } from '../../../utils/typed-tool-factory.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
-import { eventsToToolResponse } from '../../../utils/events-to-tool-response.ts';
+import { renderEvents } from '../../../rendering/render.ts';
 import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const listSimsSchema = z.object({
@@ -205,18 +200,26 @@ function getPlatformInfo(platform: string): PlatformInfo {
   );
 }
 
+const NEXT_STEP_PARAMS = {
+  boot_sim: { simulatorId: 'UUID_FROM_ABOVE' },
+  open_sim: {},
+  build_sim: { scheme: 'YOUR_SCHEME', simulatorId: 'UUID_FROM_ABOVE' },
+  get_sim_app_path: {
+    scheme: 'YOUR_SCHEME',
+    platform: 'iOS Simulator',
+    simulatorId: 'UUID_FROM_ABOVE',
+  },
+} as const;
+
 export async function list_simsLogic(
   _params: ListSimsParams,
   executor: CommandExecutor,
-): Promise<ToolResponse> {
+): Promise<void> {
   log('info', 'Starting xcrun simctl list devices request');
 
   const headerEvent = header('List Simulators');
 
-  const buildEvents = async (): Promise<{
-    events: PipelineEvent[];
-    nextStepParams?: ToolResponse['nextStepParams'];
-  }> => {
+  const buildEvents = async (): Promise<PipelineEvent[]> => {
     const simulators = await listSimulators(executor);
 
     const grouped = new Map<string, ListedSimulator[]>();
@@ -285,68 +288,47 @@ export async function list_simsLogic(
       ]),
     );
 
-    return {
-      events,
-      nextStepParams: {
-        boot_sim: { simulatorId: 'UUID_FROM_ABOVE' },
-        open_sim: {},
-        build_sim: { scheme: 'YOUR_SCHEME', simulatorId: 'UUID_FROM_ABOVE' },
-        get_sim_app_path: {
-          scheme: 'YOUR_SCHEME',
-          platform: 'iOS Simulator',
-          simulatorId: 'UUID_FROM_ABOVE',
-        },
-      },
-    };
+    return events;
   };
 
   const sharedOptions = {
     header: headerEvent,
     errorMessage: ({ message }: { message: string }) => `Failed to list simulators: ${message}`,
     logMessage: ({ message }: { message: string }) => `Error listing simulators: ${message}`,
-    mapError: ({
-      message,
-      headerEvent: hdr,
-    }: {
-      message: string;
-      headerEvent: typeof headerEvent;
-    }) => {
-      if (message.startsWith('Failed to list simulators:')) {
-        return eventsToToolResponse([hdr, statusLine('error', message)]);
-      }
-      return undefined;
-    },
   };
 
-  const maybeCtx = (() => {
-    try {
-      return getHandlerContext();
-    } catch {
-      return handlerContextStorage.getStore();
-    }
-  })();
+  const ctx = handlerContextStorage.getStore();
 
-  if (maybeCtx) {
+  if (ctx) {
     await withErrorHandling(
-      maybeCtx,
+      ctx,
       async () => {
-        const { events, nextStepParams } = await buildEvents();
+        const events = await buildEvents();
         for (const event of events) {
-          maybeCtx.emit(event);
+          ctx.emit(event);
         }
-        if (nextStepParams) {
-          maybeCtx.nextStepParams = nextStepParams;
-        }
+        ctx.nextStepParams = { ...NEXT_STEP_PARAMS };
       },
       sharedOptions,
     );
-    return undefined as unknown as ToolResponse;
+    return;
   }
 
   return withErrorHandling(async () => {
-    const { events, nextStepParams } = await buildEvents();
-    return eventsToToolResponse(events, { nextStepParams });
-  }, sharedOptions);
+    const events = await buildEvents();
+    const rendered = renderEvents(events, 'text');
+    const hasError = events.some(
+      (e) =>
+        (e.type === 'status-line' && e.level === 'error') ||
+        (e.type === 'summary' && e.status === 'FAILED'),
+    );
+    return {
+      content: [{ type: 'text' as const, text: rendered }],
+      isError: hasError || undefined,
+      nextStepParams: { ...NEXT_STEP_PARAMS },
+      _meta: { events: [...events] },
+    };
+  }, sharedOptions) as unknown as Promise<void>;
 }
 
 export const schema = listSimsSchema.shape;

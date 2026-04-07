@@ -1,19 +1,14 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import {
-  createTypedTool,
-  getHandlerContext,
-  handlerContextStorage,
-} from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, handlerContextStorage } from '../../../utils/typed-tool-factory.ts';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
-import { eventsToToolResponse } from '../../../utils/events-to-tool-response.ts';
+import { renderEvents } from '../../../rendering/render.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const listDevicesSchema = z.object({});
@@ -133,7 +128,7 @@ export async function list_devicesLogic(
     readFile?: (path: string, encoding?: string) => Promise<string>;
     unlink?: (path: string) => Promise<void>;
   },
-): Promise<ToolResponse> {
+): Promise<void> {
   log('info', 'Starting device discovery');
   const headerEvent = header('List Devices');
 
@@ -345,32 +340,36 @@ export async function list_devicesLogic(
     logMessage: ({ message }: { message: string }) => `Error listing devices: ${message}`,
   };
 
-  const maybeCtx = (() => {
-    try {
-      return getHandlerContext();
-    } catch {
-      return handlerContextStorage.getStore();
-    }
-  })();
+  const ctx = handlerContextStorage.getStore();
 
-  if (maybeCtx) {
+  if (ctx) {
     await withErrorHandling(
-      maybeCtx,
+      ctx,
       async () => {
         const events = await buildEvents();
         for (const event of events) {
-          maybeCtx.emit(event);
+          ctx.emit(event);
         }
       },
       sharedOptions,
     );
-    return undefined as unknown as ToolResponse;
+    return;
   }
 
   return withErrorHandling(async () => {
     const events = await buildEvents();
-    return eventsToToolResponse(events);
-  }, sharedOptions);
+    const rendered = renderEvents(events, 'text');
+    const hasError = events.some(
+      (e) =>
+        (e.type === 'status-line' && e.level === 'error') ||
+        (e.type === 'summary' && e.status === 'FAILED'),
+    );
+    return {
+      content: [{ type: 'text' as const, text: rendered }],
+      isError: hasError || undefined,
+      _meta: { events: [...events] },
+    };
+  }, sharedOptions) as unknown as Promise<void>;
 }
 
 export const schema = listDevicesSchema.shape;

@@ -6,7 +6,6 @@
  */
 
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { XcodePlatform } from '../../../types/common.ts';
 import { handleTestLogic } from '../../../utils/test/index.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
@@ -67,7 +66,7 @@ export async function testMacosLogic(
   params: TestMacosParams,
   executor: CommandExecutor = getDefaultCommandExecutor(),
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const configuration = params.configuration ?? 'Debug';
 
   const preflight = await resolveTestPreflight(
@@ -82,7 +81,7 @@ export async function testMacosLogic(
     fileSystemExecutor,
   );
 
-  return handleTestLogic(
+  await handleTestLogic(
     {
       projectPath: params.projectPath,
       workspacePath: params.workspacePath,

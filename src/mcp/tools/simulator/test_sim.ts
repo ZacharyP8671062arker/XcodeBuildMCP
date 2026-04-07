@@ -9,7 +9,6 @@
 import * as z from 'zod';
 import { handleTestLogic } from '../../../utils/test/index.ts';
 import { log } from '../../../utils/logging/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
 import {
   getDefaultCommandExecutor,
@@ -91,7 +90,7 @@ export async function test_simLogic(
   params: TestSimulatorParams,
   executor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   if (params.simulatorId && params.useLatestOS !== undefined) {
     log(
       'warn',
@@ -140,7 +139,7 @@ export async function test_simLogic(
     fileSystemExecutor,
   );
 
-  return handleTestLogic(
+  await handleTestLogic(
     {
       projectPath: params.projectPath,
       workspacePath: params.workspacePath,

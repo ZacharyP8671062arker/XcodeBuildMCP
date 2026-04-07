@@ -10,7 +10,6 @@ import { getDefaultCommandExecutor } from '../../utils/execution/index.ts';
 import type { CommandExecutor } from '../../utils/execution/index.ts';
 import { list_simsLogic } from '../tools/simulator/list_sims.ts';
 
-// Testable resource logic separated from MCP handler
 export async function simulatorsResourceLogic(
   executor: CommandExecutor = getDefaultCommandExecutor(),
 ): Promise<{ contents: Array<{ text: string }> }> {
@@ -18,12 +17,15 @@ export async function simulatorsResourceLogic(
     log('info', 'Processing simulators resource request');
     const result = await list_simsLogic({}, executor);
 
-    if (result.isError) {
-      const errorText = result.content.map((c) => ('text' in c ? c.text : '')).join('\n');
+    const asRecord = result as unknown as Record<string, unknown> | undefined;
+    if (asRecord?.isError) {
+      const content = asRecord.content as Array<{ text?: string }>;
+      const errorText = content.map((c) => c.text ?? '').join('\n');
       throw new Error(errorText || 'Failed to retrieve simulator data');
     }
 
-    const joinedText = result.content.map((c) => ('text' in c ? c.text : '')).join('\n');
+    const content = (asRecord?.content as Array<{ text?: string }>) ?? [];
+    const joinedText = content.map((c) => c.text ?? '').join('\n');
 
     return {
       contents: [

@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -8,7 +7,6 @@ import {
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
@@ -22,7 +20,7 @@ type SetSimAppearanceParams = z.infer<typeof setSimAppearanceSchema>;
 export async function set_sim_appearanceLogic(
   params: SetSimAppearanceParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   log('info', `Setting simulator ${params.simulatorId} appearance to ${params.mode} mode`);
 
   const headerEvent = header('Set Appearance', [
@@ -35,41 +33,22 @@ export async function set_sim_appearanceLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const command = ['xcrun', 'simctl', 'ui', params.simulatorId, 'appearance', params.mode];
-        const result = await executor(command, 'Set Simulator Appearance', false);
+      const command = ['xcrun', 'simctl', 'ui', params.simulatorId, 'appearance', params.mode];
+      const result = await executor(command, 'Set Simulator Appearance', false);
 
-        if (!result.success) {
-          log(
-            'error',
-            `Failed to set simulator appearance: ${result.error} (simulator: ${params.simulatorId})`,
-          );
-          return toolResponse([
-            headerEvent,
-            statusLine('error', `Failed to set simulator appearance: ${result.error}`),
-          ]);
-        }
-
-        log('info', `Set simulator ${params.simulatorId} appearance to ${params.mode} mode`);
-        return toolResponse([
-          headerEvent,
-          statusLine('success', `Appearance successfully set to ${params.mode} mode`),
-        ]);
-      })();
-
-      if (!response) {
+      if (!result.success) {
+        log(
+          'error',
+          `Failed to set simulator appearance: ${result.error} (simulator: ${params.simulatorId})`,
+        );
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('error', `Failed to set simulator appearance: ${result.error}`));
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      log('info', `Set simulator ${params.simulatorId} appearance to ${params.mode} mode`);
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', `Appearance successfully set to ${params.mode} mode`));
     },
     {
       header: headerEvent,

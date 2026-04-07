@@ -7,11 +7,9 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import { XcodePlatform } from '../../../types/common.ts';
 import { constructDestinationString } from '../../../utils/xcode.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
@@ -81,27 +79,24 @@ const SIMULATOR_TO_DEVICE_PLATFORM: Partial<Record<XcodePlatform, XcodePlatform>
   [XcodePlatform.visionOSSimulator]: XcodePlatform.visionOS,
 };
 
-export async function cleanLogic(
-  params: CleanParams,
-  executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+export async function cleanLogic(params: CleanParams, executor: CommandExecutor): Promise<void> {
   const headerEvent = header('Clean');
 
+  const ctx = getHandlerContext();
+
   if (params.workspacePath && !params.scheme) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', 'scheme is required when workspacePath is provided.'),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', 'scheme is required when workspacePath is provided.'));
+    return;
   }
 
   const targetPlatform = params.platform ?? 'iOS';
 
   const platformEnum = PLATFORM_MAP[targetPlatform];
   if (!platformEnum) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', `Unsupported platform: "${targetPlatform}".`),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', `Unsupported platform: "${targetPlatform}".`));
+    return;
   }
 
   const cleanPlatform = SIMULATOR_TO_DEVICE_PLATFORM[platformEnum] ?? platformEnum;
@@ -150,43 +145,25 @@ export async function cleanLogic(
 
   command.push('clean');
 
-  const ctx = getHandlerContext();
-
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const result = await executor(command, 'Clean', false, { cwd: projectDir });
+      const result = await executor(command, 'Clean', false, { cwd: projectDir });
 
-        if (!result.success) {
-          const combinedOutput = [result.error, result.output].filter(Boolean).join('\n').trim();
-          const errorLines = combinedOutput
-            .split('\n')
-            .filter((line) => /error:/i.test(line))
-            .map((line) => line.trim());
-          const errorMessage = errorLines.length > 0 ? errorLines.join('; ') : 'Unknown error';
-          return toolResponse([
-            cleanHeaderEvent,
-            statusLine('error', `Clean failed: ${errorMessage}`),
-          ]);
-        }
-
-        return toolResponse([cleanHeaderEvent, statusLine('success', 'Clean successful')]);
-      })();
-
-      if (!response) {
+      if (!result.success) {
+        const combinedOutput = [result.error, result.output].filter(Boolean).join('\n').trim();
+        const errorLines = combinedOutput
+          .split('\n')
+          .filter((line) => /error:/i.test(line))
+          .map((line) => line.trim());
+        const errorMessage = errorLines.length > 0 ? errorLines.join('; ') : 'Unknown error';
+        ctx.emit(cleanHeaderEvent);
+        ctx.emit(statusLine('error', `Clean failed: ${errorMessage}`));
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      ctx.emit(cleanHeaderEvent);
+      ctx.emit(statusLine('success', 'Clean successful'));
     },
     {
       header: cleanHeaderEvent,

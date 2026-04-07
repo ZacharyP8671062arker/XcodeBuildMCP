@@ -6,7 +6,6 @@
  */
 
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -61,7 +60,7 @@ const publicSchemaObject = baseSchemaObject.omit({
 export async function get_device_app_pathLogic(
   params: GetDeviceAppPathParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const platform = mapDevicePlatform(params.platform);
   const configuration = params.configuration ?? 'Debug';
 
@@ -96,54 +95,34 @@ export async function get_device_app_pathLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        let appPath: string;
-        try {
-          appPath = await resolveAppPathFromBuildSettings(
-            {
-              projectPath: params.projectPath,
-              workspacePath: params.workspacePath,
-              scheme: params.scheme,
-              configuration,
-              platform,
-            },
-            executor,
-          );
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return toolResponse(buildErrorEvents(message));
-        }
-
-        return toolResponse(
-          [
-            headerEvent,
-            statusLine('success', 'Success'),
-            detailTree([{ label: 'App Path', value: appPath }]),
-          ],
+      let appPath: string;
+      try {
+        appPath = await resolveAppPathFromBuildSettings(
           {
-            nextStepParams: {
-              get_app_bundle_id: { appPath },
-              install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-              launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
-            },
-            suppressCliStream: true,
+            projectPath: params.projectPath,
+            workspacePath: params.workspacePath,
+            scheme: params.scheme,
+            configuration,
+            platform,
           },
+          executor,
         );
-      })();
-
-      if (!response) {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        for (const event of buildErrorEvents(message)) {
+          ctx.emit(event);
+        }
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'Success'));
+      ctx.emit(detailTree([{ label: 'App Path', value: appPath }]));
+      ctx.nextStepParams = {
+        get_app_bundle_id: { appPath },
+        install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: 'BUNDLE_ID' },
+      };
     },
     {
       header: headerEvent,

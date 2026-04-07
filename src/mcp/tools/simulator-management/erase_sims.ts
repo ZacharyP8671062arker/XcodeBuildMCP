@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -8,7 +7,6 @@ import {
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 
@@ -24,7 +22,7 @@ type EraseSimsParams = z.infer<typeof eraseSimsSchema>;
 export async function erase_simsLogic(
   params: EraseSimsParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const simulatorId = params.simulatorId;
   const headerEvent = header('Erase Simulator', [
     { label: 'Simulator', value: simulatorId },
@@ -36,71 +34,50 @@ export async function erase_simsLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        log(
-          'info',
-          `Erasing simulator ${simulatorId}${params.shutdownFirst ? ' (shutdownFirst=true)' : ''}`,
-        );
+      log(
+        'info',
+        `Erasing simulator ${simulatorId}${params.shutdownFirst ? ' (shutdownFirst=true)' : ''}`,
+      );
 
-        if (params.shutdownFirst) {
-          try {
-            await executor(
-              ['xcrun', 'simctl', 'shutdown', simulatorId],
-              'Shutdown Simulator',
-              true,
-              undefined,
-            );
-          } catch {
-            // ignore shutdown errors; proceed to erase attempt
-          }
+      if (params.shutdownFirst) {
+        try {
+          await executor(
+            ['xcrun', 'simctl', 'shutdown', simulatorId],
+            'Shutdown Simulator',
+            true,
+            undefined,
+          );
+        } catch {
+          // ignore shutdown errors; proceed to erase attempt
         }
+      }
 
-        const result = await executor(
-          ['xcrun', 'simctl', 'erase', simulatorId],
-          'Erase Simulator',
-          true,
-          undefined,
-        );
-        if (result.success) {
-          return toolResponse([
-            headerEvent,
-            statusLine('success', 'Simulators were erased successfully'),
-          ]);
-        }
-
-        const errText = result.error ?? 'Unknown error';
-        if (
-          /Unable to erase contents and settings.*Booted/i.test(errText) &&
-          !params.shutdownFirst
-        ) {
-          return toolResponse([
-            headerEvent,
-            statusLine('error', `Failed to erase simulator: ${errText}`),
-            section('Hint', [
-              `The simulator appears to be Booted. Re-run erase_sims with { simulatorId: '${simulatorId}', shutdownFirst: true } to shut it down before erasing.`,
-            ]),
-          ]);
-        }
-
-        return toolResponse([
-          headerEvent,
-          statusLine('error', `Failed to erase simulator: ${errText}`),
-        ]);
-      })();
-
-      if (!response) {
+      const result = await executor(
+        ['xcrun', 'simctl', 'erase', simulatorId],
+        'Erase Simulator',
+        true,
+        undefined,
+      );
+      if (result.success) {
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('success', 'Simulators were erased successfully'));
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
+      const errText = result.error ?? 'Unknown error';
+      if (/Unable to erase contents and settings.*Booted/i.test(errText) && !params.shutdownFirst) {
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('error', `Failed to erase simulator: ${errText}`));
+        ctx.emit(
+          section('Hint', [
+            `The simulator appears to be Booted. Re-run erase_sims with { simulatorId: '${simulatorId}', shutdownFirst: true } to shut it down before erasing.`,
+          ]),
+        );
+        return;
       }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('error', `Failed to erase simulator: ${errText}`));
     },
     {
       header: headerEvent,

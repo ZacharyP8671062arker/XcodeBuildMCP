@@ -1,10 +1,8 @@
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
@@ -18,12 +16,12 @@ type StopMacAppParams = z.infer<typeof stopMacAppSchema>;
 export async function stop_mac_appLogic(
   params: StopMacAppParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   if (!params.appName && !params.processId) {
-    return toolResponse([
-      header('Stop macOS App'),
-      statusLine('error', 'Either appName or processId must be provided.'),
-    ]);
+    const ctx = getHandlerContext();
+    ctx.emit(header('Stop macOS App'));
+    ctx.emit(statusLine('error', 'Either appName or processId must be provided.'));
+    return;
   }
 
   const target = params.processId ? `PID ${params.processId}` : params.appName!;
@@ -36,43 +34,29 @@ export async function stop_mac_appLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        let command: string[];
+      let command: string[];
 
-        if (params.processId) {
-          command = ['kill', String(params.processId)];
-        } else {
-          command = ['pkill', '-f', params.appName!];
-        }
+      if (params.processId) {
+        command = ['kill', String(params.processId)];
+      } else {
+        command = ['pkill', '-f', params.appName!];
+      }
 
-        const result = await executor(command, 'Stop macOS App');
+      const result = await executor(command, 'Stop macOS App');
 
-        if (!result.success) {
-          return toolResponse([
-            headerEvent,
-            statusLine(
-              'error',
-              `Stop macOS app operation failed: ${result.error ?? 'Unknown error'}`,
-            ),
-          ]);
-        }
-
-        return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
-      })();
-
-      if (!response) {
+      if (!result.success) {
+        ctx.emit(headerEvent);
+        ctx.emit(
+          statusLine(
+            'error',
+            `Stop macOS app operation failed: ${result.error ?? 'Unknown error'}`,
+          ),
+        );
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'App stopped successfully'));
     },
     {
       header: headerEvent,

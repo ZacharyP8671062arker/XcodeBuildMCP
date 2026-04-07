@@ -3,11 +3,9 @@ import { join, dirname, basename } from 'node:path';
 import { log } from '../../../utils/logging/index.ts';
 import { ValidationError } from '../../../utils/errors.ts';
 import { TemplateManager } from '../../../utils/template/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/command.ts';
 import { getDefaultCommandExecutor, getDefaultFileSystemExecutor } from '../../../utils/command.ts';
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import {
@@ -325,61 +323,37 @@ export async function scaffold_macos_projectLogic(
   params: ScaffoldMacOSProjectParams,
   commandExecutor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const ctx = getHandlerContext();
 
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const projectParams = { ...params, platform: 'macOS' as const };
-        const projectPath = await scaffoldProject(
-          projectParams,
-          commandExecutor,
-          fileSystemExecutor,
-        );
+      const projectParams = { ...params, platform: 'macOS' as const };
+      const projectPath = await scaffoldProject(projectParams, commandExecutor, fileSystemExecutor);
 
-        const generatedProjectName =
-          params.customizeNames === false ? 'MyProject' : params.projectName;
-        const workspacePath = `${projectPath}/${generatedProjectName}.xcworkspace`;
+      const generatedProjectName =
+        params.customizeNames === false ? 'MyProject' : params.projectName;
+      const workspacePath = `${projectPath}/${generatedProjectName}.xcworkspace`;
 
-        return toolResponse(
-          [
-            header('Scaffold macOS Project', [
-              { label: 'Name', value: params.projectName },
-              { label: 'Path', value: projectPath },
-              { label: 'Platform', value: 'macOS' },
-            ]),
-            statusLine('success', `Project scaffolded successfully\n  └ ${projectPath}`),
-          ],
-          {
-            nextStepParams: {
-              build_macos: {
-                workspacePath,
-                scheme: generatedProjectName,
-              },
-              build_run_macos: {
-                workspacePath,
-                scheme: generatedProjectName,
-              },
-            },
-          },
-        );
-      })();
-
-      if (!response) {
-        return;
-      }
-
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      ctx.emit(
+        header('Scaffold macOS Project', [
+          { label: 'Name', value: params.projectName },
+          { label: 'Path', value: projectPath },
+          { label: 'Platform', value: 'macOS' },
+        ]),
+      );
+      ctx.emit(statusLine('success', `Project scaffolded successfully\n  └ ${projectPath}`));
+      ctx.nextStepParams = {
+        build_macos: {
+          workspacePath,
+          scheme: generatedProjectName,
+        },
+        build_run_macos: {
+          workspacePath,
+          scheme: generatedProjectName,
+        },
+      };
     },
     {
       header: header('Scaffold macOS Project', [

@@ -6,7 +6,6 @@
  */
 
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -15,7 +14,6 @@ import {
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { formatDeviceId } from '../../../utils/device-name-resolver.ts';
@@ -36,7 +34,7 @@ type InstallAppDeviceParams = z.infer<typeof installAppDeviceSchema>;
 export async function install_app_deviceLogic(
   params: InstallAppDeviceParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const { deviceId, appPath } = params;
   const headerEvent = header('Install App', [
     { label: 'Device', value: formatDeviceId(deviceId) },
@@ -50,32 +48,16 @@ export async function install_app_deviceLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const installResult = await installAppOnDevice(deviceId, appPath, executor);
+      const installResult = await installAppOnDevice(deviceId, appPath, executor);
 
-        if (!installResult.success) {
-          return toolResponse([
-            headerEvent,
-            statusLine('error', `Failed to install app: ${installResult.error}`),
-          ]);
-        }
-
-        return toolResponse([headerEvent, statusLine('success', 'App installed successfully.')]);
-      })();
-
-      if (!response) {
+      if (!installResult.success) {
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('error', `Failed to install app: ${installResult.error}`));
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'App installed successfully.'));
     },
     {
       header: headerEvent,

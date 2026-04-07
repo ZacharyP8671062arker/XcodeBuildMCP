@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -8,7 +7,6 @@ import {
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree } from '../../../utils/tool-event-builders.ts';
 import {
@@ -56,7 +54,7 @@ export async function launch_app_simLogic(
   params: LaunchAppSimParams,
   executor: CommandExecutor,
   launcher: SimulatorLauncher = launchSimulatorAppWithLogging,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const simulatorId = params.simulatorId;
   const simulatorDisplayName = params.simulatorName
     ? `"${params.simulatorName}" (${simulatorId})`
@@ -69,6 +67,8 @@ export async function launch_app_simLogic(
     { label: 'Bundle ID', value: params.bundleId },
   ]);
 
+  const ctx = getHandlerContext();
+
   try {
     const getAppContainerCmd = [
       'xcrun',
@@ -80,80 +80,62 @@ export async function launch_app_simLogic(
     ];
     const getAppContainerResult = await executor(getAppContainerCmd, 'Check App Installed', false);
     if (!getAppContainerResult.success) {
-      return toolResponse([
-        headerEvent,
+      ctx.emit(headerEvent);
+      ctx.emit(
         statusLine(
           'error',
           'App is not installed on the simulator. Please use install_app_sim before launching. Workflow: build -> install -> launch.',
         ),
-      ]);
+      );
+      return;
     }
   } catch {
-    return toolResponse([
-      headerEvent,
+    ctx.emit(headerEvent);
+    ctx.emit(
       statusLine(
         'error',
         'App is not installed on the simulator (check failed). Please use install_app_sim before launching. Workflow: build -> install -> launch.',
       ),
-    ]);
+    );
+    return;
   }
-
-  const ctx = getHandlerContext();
 
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const launchResult: LaunchWithLoggingResult = await launcher(simulatorId, params.bundleId, {
-          args: params.args,
-          env: params.env,
-        });
+      const launchResult: LaunchWithLoggingResult = await launcher(simulatorId, params.bundleId, {
+        args: params.args,
+        env: params.env,
+      });
 
-        if (!launchResult.success) {
-          return toolResponse([
-            headerEvent,
-            statusLine('error', `Launch app in simulator operation failed: ${launchResult.error}`),
-          ]);
-        }
-
-        const detailItems: Array<{ label: string; value: string }> = [];
-        if (launchResult.processId !== undefined) {
-          detailItems.push({ label: 'Process ID', value: String(launchResult.processId) });
-        }
-        if (launchResult.logFilePath) {
-          detailItems.push({ label: 'Runtime Logs', value: displayPath(launchResult.logFilePath) });
-        }
-        if (launchResult.osLogPath) {
-          detailItems.push({ label: 'OSLog', value: displayPath(launchResult.osLogPath) });
-        }
-
-        const events = [
-          headerEvent,
-          statusLine('success', 'App launched successfully'),
-          ...(detailItems.length > 0 ? [detailTree(detailItems)] : []),
-        ];
-
-        return toolResponse(events, {
-          nextStepParams: {
-            open_sim: {},
-            stop_app_sim: { simulatorId, bundleId: params.bundleId },
-          },
-        });
-      })();
-
-      if (!response) {
+      if (!launchResult.success) {
+        ctx.emit(headerEvent);
+        ctx.emit(
+          statusLine('error', `Launch app in simulator operation failed: ${launchResult.error}`),
+        );
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
+      const detailItems: Array<{ label: string; value: string }> = [];
+      if (launchResult.processId !== undefined) {
+        detailItems.push({ label: 'Process ID', value: String(launchResult.processId) });
       }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
+      if (launchResult.logFilePath) {
+        detailItems.push({ label: 'Runtime Logs', value: displayPath(launchResult.logFilePath) });
       }
+      if (launchResult.osLogPath) {
+        detailItems.push({ label: 'OSLog', value: displayPath(launchResult.osLogPath) });
+      }
+
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'App launched successfully'));
+      if (detailItems.length > 0) {
+        ctx.emit(detailTree(detailItems));
+      }
+      ctx.nextStepParams = {
+        open_sim: {},
+        stop_app_sim: { simulatorId, bundleId: params.bundleId },
+      };
     },
     {
       header: headerEvent,

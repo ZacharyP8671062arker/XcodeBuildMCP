@@ -10,7 +10,6 @@ import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import { XcodePlatform } from '../../../types/common.ts';
 import { constructDestinationString } from '../../../utils/xcode.ts';
 import {
@@ -90,7 +89,7 @@ type GetSimulatorAppPathParams = z.infer<typeof getSimulatorAppPathSchema>;
 export async function get_sim_app_pathLogic(
   params: GetSimulatorAppPathParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const configuration = params.configuration ?? 'Debug';
   const useLatestOS = params.useLatestOS ?? true;
 
@@ -139,68 +138,43 @@ export async function get_sim_app_pathLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const destination = params.simulatorId
-          ? constructDestinationString(params.platform, undefined, params.simulatorId)
-          : constructDestinationString(
-              params.platform,
-              params.simulatorName,
-              undefined,
-              useLatestOS,
-            );
+      const destination = params.simulatorId
+        ? constructDestinationString(params.platform, undefined, params.simulatorId)
+        : constructDestinationString(params.platform, params.simulatorName, undefined, useLatestOS);
 
-        let appPath: string;
-        try {
-          appPath = await resolveAppPathFromBuildSettings(
-            {
-              projectPath: params.projectPath,
-              workspacePath: params.workspacePath,
-              scheme: params.scheme,
-              configuration,
-              platform: params.platform,
-              destination,
-            },
-            executor,
-          );
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          return toolResponse(buildErrorEvents(message));
-        }
-
-        const durationMs = Date.now() - startedAt;
-        const durationStr = (durationMs / 1000).toFixed(1);
-
-        return toolResponse(
-          [
-            headerEvent,
-            statusLine('success', `Get app path successful (\u{23F1}\u{FE0F} ${durationStr}s)`),
-            detailTree([{ label: 'App Path', value: appPath }]),
-          ],
+      let appPath: string;
+      try {
+        appPath = await resolveAppPathFromBuildSettings(
           {
-            nextStepParams: {
-              get_app_bundle_id: { appPath },
-              boot_sim: { simulatorId: 'SIMULATOR_UUID' },
-              install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
-              launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'BUNDLE_ID' },
-            },
-            suppressCliStream: true,
+            projectPath: params.projectPath,
+            workspacePath: params.workspacePath,
+            scheme: params.scheme,
+            configuration,
+            platform: params.platform,
+            destination,
           },
+          executor,
         );
-      })();
-
-      if (!response) {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        for (const event of buildErrorEvents(message)) {
+          ctx.emit(event);
+        }
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      const durationMs = Date.now() - startedAt;
+      const durationStr = (durationMs / 1000).toFixed(1);
+
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', `Get app path successful (\u{23F1}\u{FE0F} ${durationStr}s)`));
+      ctx.emit(detailTree([{ label: 'App Path', value: appPath }]));
+      ctx.nextStepParams = {
+        get_app_bundle_id: { appPath },
+        boot_sim: { simulatorId: 'SIMULATOR_UUID' },
+        install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
+        launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: 'BUNDLE_ID' },
+      };
     },
     {
       header: headerEvent,

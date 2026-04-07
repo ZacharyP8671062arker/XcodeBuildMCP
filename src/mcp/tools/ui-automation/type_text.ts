@@ -6,7 +6,6 @@
  */
 
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
@@ -44,19 +43,24 @@ export async function type_textLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const toolName = 'type_text';
 
   const { simulatorId, text } = params;
   const headerEvent = header('Type Text', [{ label: 'Simulator', value: simulatorId }]);
+
+  const ctx = getHandlerContext();
 
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedMessage)
-    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
+  if (guard.blockedMessage) {
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', guard.blockedMessage));
+    return;
+  }
 
   const commandArgs = ['type', text];
 
@@ -65,33 +69,15 @@ export async function type_textLogic(
     `${LOG_PREFIX}/${toolName}: Starting type "${text.substring(0, 20)}..." on ${simulatorId}`,
   );
 
-  const ctx = getHandlerContext();
-
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        await executeAxeCommand(commandArgs, simulatorId, 'type', executor, axeHelpers);
-        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-        return toolResponse([
-          headerEvent,
-          statusLine('success', 'Text typing simulated successfully.'),
-          ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
-        ]);
-      })();
-
-      if (!response) {
-        return;
-      }
-
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
+      await executeAxeCommand(commandArgs, simulatorId, 'type', executor, axeHelpers);
+      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'Text typing simulated successfully.'));
+      if (guard.warningText) {
+        ctx.emit(statusLine('warning', guard.warningText));
       }
     },
     {

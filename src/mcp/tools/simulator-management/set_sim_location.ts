@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -8,7 +7,6 @@ import {
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
@@ -23,65 +21,47 @@ type SetSimulatorLocationParams = z.infer<typeof setSimulatorLocationSchema>;
 export async function set_sim_locationLogic(
   params: SetSimulatorLocationParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const coords = `${params.latitude},${params.longitude}`;
   const headerEvent = header('Set Location', [
     { label: 'Simulator', value: params.simulatorId },
     { label: 'Coordinates', value: coords },
   ]);
 
+  const ctx = getHandlerContext();
+
   if (params.latitude < -90 || params.latitude > 90) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', 'Latitude must be between -90 and 90 degrees'),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', 'Latitude must be between -90 and 90 degrees'));
+    return;
   }
   if (params.longitude < -180 || params.longitude > 180) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', 'Longitude must be between -180 and 180 degrees'),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', 'Longitude must be between -180 and 180 degrees'));
+    return;
   }
 
   log('info', `Setting simulator ${params.simulatorId} location to ${coords}`);
 
-  const ctx = getHandlerContext();
-
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'set', coords];
-        const result = await executor(command, 'Set Simulator Location', false);
+      const command = ['xcrun', 'simctl', 'location', params.simulatorId, 'set', coords];
+      const result = await executor(command, 'Set Simulator Location', false);
 
-        if (!result.success) {
-          log(
-            'error',
-            `Failed to set simulator location: ${result.error} (simulator: ${params.simulatorId})`,
-          );
-          return toolResponse([
-            headerEvent,
-            statusLine('error', `Failed to set simulator location: ${result.error}`),
-          ]);
-        }
-
-        log('info', `Set simulator ${params.simulatorId} location to ${coords}`);
-        return toolResponse([headerEvent, statusLine('success', 'Location set successfully')]);
-      })();
-
-      if (!response) {
+      if (!result.success) {
+        log(
+          'error',
+          `Failed to set simulator location: ${result.error} (simulator: ${params.simulatorId})`,
+        );
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('error', `Failed to set simulator location: ${result.error}`));
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      log('info', `Set simulator ${params.simulatorId} location to ${coords}`);
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'Location set successfully'));
     },
     {
       header: headerEvent,

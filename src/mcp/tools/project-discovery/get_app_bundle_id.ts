@@ -7,7 +7,6 @@
 
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/command.ts';
 import { getDefaultFileSystemExecutor, getDefaultCommandExecutor } from '../../../utils/command.ts';
 import type { FileSystemExecutor } from '../../../utils/FileSystemExecutor.ts';
@@ -31,15 +30,17 @@ export async function get_app_bundle_idLogic(
   params: GetAppBundleIdParams,
   executor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const appPath = params.appPath;
   const headerEvent = header('Get Bundle ID', [{ label: 'App', value: appPath }]);
 
   if (!fileSystemExecutor.existsSync(appPath)) {
-    return toolResponse([
-      headerEvent,
+    const ctx = getHandlerContext();
+    ctx.emit(headerEvent);
+    ctx.emit(
       statusLine('error', `File not found: '${appPath}'. Please check the path and try again.`),
-    ]);
+    );
+    return;
   }
 
   log('info', `Starting bundle ID extraction for app: ${appPath}`);
@@ -49,41 +50,22 @@ export async function get_app_bundle_idLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const bundleId = await extractBundleIdFromAppPath(appPath, executor).catch((innerError) => {
-          throw new Error(
-            `Could not extract bundle ID from Info.plist: ${innerError instanceof Error ? innerError.message : String(innerError)}`,
-          );
-        });
-
-        log('info', `Extracted app bundle ID: ${bundleId}`);
-
-        return toolResponse(
-          [headerEvent, statusLine('success', `Bundle ID\n  \u2514 ${bundleId.trim()}`)],
-          {
-            nextStepParams: {
-              install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
-              launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: bundleId.trim() },
-              install_app_device: { deviceId: 'DEVICE_UDID', appPath },
-              launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: bundleId.trim() },
-            },
-          },
+      const bundleId = await extractBundleIdFromAppPath(appPath, executor).catch((innerError) => {
+        throw new Error(
+          `Could not extract bundle ID from Info.plist: ${innerError instanceof Error ? innerError.message : String(innerError)}`,
         );
-      })();
+      });
 
-      if (!response) {
-        return;
-      }
+      log('info', `Extracted app bundle ID: ${bundleId}`);
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', `Bundle ID\n  \u2514 ${bundleId.trim()}`));
+      ctx.nextStepParams = {
+        install_app_sim: { simulatorId: 'SIMULATOR_UUID', appPath },
+        launch_app_sim: { simulatorId: 'SIMULATOR_UUID', bundleId: bundleId.trim() },
+        install_app_device: { deviceId: 'DEVICE_UDID', appPath },
+        launch_app_device: { deviceId: 'DEVICE_UDID', bundleId: bundleId.trim() },
+      };
     },
     {
       header: headerEvent,

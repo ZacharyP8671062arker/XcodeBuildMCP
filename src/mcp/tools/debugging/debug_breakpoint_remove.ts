@@ -1,6 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 import {
@@ -22,7 +20,7 @@ export type DebugBreakpointRemoveParams = z.infer<typeof debugBreakpointRemoveSc
 export async function debug_breakpoint_removeLogic(
   params: DebugBreakpointRemoveParams,
   ctx: DebuggerToolContext,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const headerEvent = header('Remove Breakpoint');
 
   const handlerCtx = getHandlerContext();
@@ -30,33 +28,16 @@ export async function debug_breakpoint_removeLogic(
   return withErrorHandling(
     handlerCtx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const output = await ctx.debugger.removeBreakpoint(
-          params.debugSessionId,
-          params.breakpointId,
-        );
-        const rawOutput = output.trim();
-        const events = [
-          headerEvent,
-          statusLine('success', `Breakpoint ${params.breakpointId} removed`),
-          ...(rawOutput ? [section('Output:', rawOutput.split('\n'))] : []),
-        ];
+      const output = await ctx.debugger.removeBreakpoint(
+        params.debugSessionId,
+        params.breakpointId,
+      );
+      const rawOutput = output.trim();
 
-        return toolResponse(events);
-      })();
-
-      if (!response) {
-        return;
-      }
-
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          handlerCtx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        handlerCtx.nextStepParams = response.nextStepParams;
+      handlerCtx.emit(headerEvent);
+      handlerCtx.emit(statusLine('success', `Breakpoint ${params.breakpointId} removed`));
+      if (rawOutput) {
+        handlerCtx.emit(section('Output:', rawOutput.split('\n')));
       }
     },
     {

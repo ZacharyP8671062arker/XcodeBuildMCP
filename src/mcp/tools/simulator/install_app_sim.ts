@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { validateFileExists } from '../../../utils/validation.ts';
 import type { CommandExecutor, FileSystemExecutor } from '../../../utils/execution/index.ts';
@@ -9,7 +8,6 @@ import {
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 import { installAppOnSimulator } from '../../../utils/simulator-steps.ts';
@@ -49,7 +47,7 @@ export async function install_app_simLogic(
   params: InstallAppSimParams,
   executor: CommandExecutor,
   fileSystem?: FileSystemExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const simulatorDisplayName = params.simulatorName
     ? `"${params.simulatorName}" (${params.simulatorId})`
     : params.simulatorId;
@@ -59,73 +57,57 @@ export async function install_app_simLogic(
     { label: 'App Path', value: params.appPath },
   ]);
 
+  const ctx = getHandlerContext();
+
   const appPathExistsValidation = validateFileExists(params.appPath, fileSystem);
   if (!appPathExistsValidation.isValid) {
-    return toolResponse([headerEvent, statusLine('error', appPathExistsValidation.errorMessage!)]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', appPathExistsValidation.errorMessage!));
+    return;
   }
 
   log('info', `Starting xcrun simctl install request for simulator ${params.simulatorId}`);
 
-  const ctx = getHandlerContext();
-
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const installResult = await installAppOnSimulator(
-          params.simulatorId,
-          params.appPath,
-          executor,
+      const installResult = await installAppOnSimulator(
+        params.simulatorId,
+        params.appPath,
+        executor,
+      );
+
+      if (!installResult.success) {
+        ctx.emit(headerEvent);
+        ctx.emit(
+          statusLine('error', `Install app in simulator operation failed: ${installResult.error}`),
         );
-
-        if (!installResult.success) {
-          return toolResponse([
-            headerEvent,
-            statusLine(
-              'error',
-              `Install app in simulator operation failed: ${installResult.error}`,
-            ),
-          ]);
-        }
-
-        let bundleId = '';
-        try {
-          const bundleIdResult = await executor(
-            ['defaults', 'read', `${params.appPath}/Info`, 'CFBundleIdentifier'],
-            'Extract Bundle ID',
-            false,
-          );
-          if (bundleIdResult.success) {
-            bundleId = bundleIdResult.output.trim();
-          }
-        } catch (error) {
-          log('warn', `Could not extract bundle ID from app: ${error}`);
-        }
-
-        return toolResponse([headerEvent, statusLine('success', 'App installed successfully')], {
-          nextStepParams: {
-            open_sim: {},
-            launch_app_sim: {
-              simulatorId: params.simulatorId,
-              bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
-            },
-          },
-        });
-      })();
-
-      if (!response) {
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
+      let bundleId = '';
+      try {
+        const bundleIdResult = await executor(
+          ['defaults', 'read', `${params.appPath}/Info`, 'CFBundleIdentifier'],
+          'Extract Bundle ID',
+          false,
+        );
+        if (bundleIdResult.success) {
+          bundleId = bundleIdResult.output.trim();
         }
+      } catch (error) {
+        log('warn', `Could not extract bundle ID from app: ${error}`);
       }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'App installed successfully'));
+      ctx.nextStepParams = {
+        open_sim: {},
+        launch_app_sim: {
+          simulatorId: params.simulatorId,
+          bundleId: bundleId || 'YOUR_APP_BUNDLE_ID',
+        },
+      };
     },
     {
       header: headerEvent,

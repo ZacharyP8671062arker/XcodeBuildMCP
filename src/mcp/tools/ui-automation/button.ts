@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -40,19 +39,24 @@ export async function buttonLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const toolName = 'button';
   const { simulatorId, buttonType, duration } = params;
 
   const headerEvent = header('Button', [{ label: 'Simulator', value: simulatorId }]);
+
+  const ctx = getHandlerContext();
 
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedMessage)
-    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
+  if (guard.blockedMessage) {
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', guard.blockedMessage));
+    return;
+  }
 
   const commandArgs = ['button', buttonType];
   if (duration !== undefined) {
@@ -61,33 +65,15 @@ export async function buttonLogic(
 
   log('info', `${LOG_PREFIX}/${toolName}: Starting ${buttonType} button press on ${simulatorId}`);
 
-  const ctx = getHandlerContext();
-
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        await executeAxeCommand(commandArgs, simulatorId, 'button', executor, axeHelpers);
-        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-        return toolResponse([
-          headerEvent,
-          statusLine('success', `Hardware button '${buttonType}' pressed successfully.`),
-          ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
-        ]);
-      })();
-
-      if (!response) {
-        return;
-      }
-
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
+      await executeAxeCommand(commandArgs, simulatorId, 'button', executor, axeHelpers);
+      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', `Hardware button '${buttonType}' pressed successfully.`));
+      if (guard.warningText) {
+        ctx.emit(statusLine('warning', guard.warningText));
       }
     },
     {

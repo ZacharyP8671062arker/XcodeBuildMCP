@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -8,7 +7,6 @@ import {
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
@@ -39,7 +37,7 @@ export type StopAppSimParams = z.infer<typeof internalSchemaObject>;
 export async function stop_app_simLogic(
   params: StopAppSimParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const simulatorId = params.simulatorId;
   const simulatorDisplayName = params.simulatorName
     ? `"${params.simulatorName}" (${simulatorId})`
@@ -57,33 +55,17 @@ export async function stop_app_simLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const command = ['xcrun', 'simctl', 'terminate', simulatorId, params.bundleId];
-        const result = await executor(command, 'Stop App in Simulator', false);
+      const command = ['xcrun', 'simctl', 'terminate', simulatorId, params.bundleId];
+      const result = await executor(command, 'Stop App in Simulator', false);
 
-        if (!result.success) {
-          return toolResponse([
-            headerEvent,
-            statusLine('error', `Stop app in simulator operation failed: ${result.error}`),
-          ]);
-        }
-
-        return toolResponse([headerEvent, statusLine('success', 'App stopped successfully')]);
-      })();
-
-      if (!response) {
+      if (!result.success) {
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('error', `Stop app in simulator operation failed: ${result.error}`));
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'App stopped successfully'));
     },
     {
       header: headerEvent,

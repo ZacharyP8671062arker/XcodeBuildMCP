@@ -2,14 +2,12 @@ import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
@@ -44,7 +42,7 @@ function stripXcodebuildPreamble(output: string): string {
 export async function showBuildSettingsLogic(
   params: ShowBuildSettingsParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   log('info', `Showing build settings for scheme ${params.scheme}`);
 
   const hasProjectPath = typeof params.projectPath === 'string';
@@ -62,59 +60,40 @@ export async function showBuildSettingsLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const command = ['xcodebuild', '-showBuildSettings'];
+      const command = ['xcodebuild', '-showBuildSettings'];
 
-        if (hasProjectPath) {
-          command.push('-project', params.projectPath!);
-        } else {
-          command.push('-workspace', params.workspacePath!);
-        }
+      if (hasProjectPath) {
+        command.push('-project', params.projectPath!);
+      } else {
+        command.push('-workspace', params.workspacePath!);
+      }
 
-        command.push('-scheme', params.scheme);
+      command.push('-scheme', params.scheme);
 
-        const result = await executor(command, 'Show Build Settings', false);
+      const result = await executor(command, 'Show Build Settings', false);
 
-        if (!result.success) {
-          return toolResponse([headerEvent, statusLine('error', result.error || 'Unknown error')]);
-        }
-
-        const settingsOutput = stripXcodebuildPreamble(
-          result.output || 'Build settings retrieved successfully.',
-        );
-
-        const pathKey = hasProjectPath ? 'projectPath' : 'workspacePath';
-        const nextStepParams = {
-          build_macos: { [pathKey]: pathValue!, scheme: params.scheme },
-          build_sim: { [pathKey]: pathValue!, scheme: params.scheme, simulatorName: 'iPhone 17' },
-          list_schemes: { [pathKey]: pathValue! },
-        };
-
-        const settingsLines = settingsOutput.split('\n').filter((l) => l.trim());
-
-        return toolResponse(
-          [
-            headerEvent,
-            statusLine('success', 'Build settings retrieved'),
-            section('Settings', settingsLines),
-          ],
-          { nextStepParams },
-        );
-      })();
-
-      if (!response) {
+      if (!result.success) {
+        ctx.emit(headerEvent);
+        ctx.emit(statusLine('error', result.error || 'Unknown error'));
         return;
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      const settingsOutput = stripXcodebuildPreamble(
+        result.output || 'Build settings retrieved successfully.',
+      );
+
+      const pathKey = hasProjectPath ? 'projectPath' : 'workspacePath';
+      ctx.nextStepParams = {
+        build_macos: { [pathKey]: pathValue!, scheme: params.scheme },
+        build_sim: { [pathKey]: pathValue!, scheme: params.scheme, simulatorName: 'iPhone 17' },
+        list_schemes: { [pathKey]: pathValue! },
+      };
+
+      const settingsLines = settingsOutput.split('\n').filter((l) => l.trim());
+
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'Build settings retrieved'));
+      ctx.emit(section('Settings', settingsLines));
     },
     {
       header: headerEvent,

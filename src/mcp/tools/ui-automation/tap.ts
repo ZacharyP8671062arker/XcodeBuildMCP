@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -110,19 +109,24 @@ export async function tapLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const toolName = 'tap';
   const { simulatorId, x, y, id, label, preDelay, postDelay } = params;
 
   const headerEvent = header('Tap', [{ label: 'Simulator', value: simulatorId }]);
+
+  const ctx = getHandlerContext();
 
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedMessage)
-    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
+  if (guard.blockedMessage) {
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', guard.blockedMessage));
+    return;
+  }
 
   let targetDescription = '';
   let actionDescription = '';
@@ -143,10 +147,9 @@ export async function tapLogic(
     actionDescription = `Tap on ${targetDescription}`;
     commandArgs.push('--label', label);
   } else {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', 'Parameter validation failed: Missing tap target'),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', 'Parameter validation failed: Missing tap target'));
+    return;
   }
 
   if (preDelay !== undefined) {
@@ -158,38 +161,20 @@ export async function tapLogic(
 
   log('info', `${LOG_PREFIX}/${toolName}: Starting for ${targetDescription} on ${simulatorId}`);
 
-  const ctx = getHandlerContext();
-
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        await executeAxeCommand(commandArgs, simulatorId, 'tap', executor, axeHelpers);
-        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+      await executeAxeCommand(commandArgs, simulatorId, 'tap', executor, axeHelpers);
+      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
-        const coordinateWarning = usesCoordinates ? getSnapshotUiWarning(simulatorId) : null;
-        const warnings = [guard.warningText, coordinateWarning].filter(
-          (w): w is string => typeof w === 'string' && w.length > 0,
-        );
-        return toolResponse([
-          headerEvent,
-          statusLine('success', `${actionDescription} simulated successfully.`),
-          ...warnings.map((w) => statusLine('warning', w)),
-        ]);
-      })();
-
-      if (!response) {
-        return;
-      }
-
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
+      const coordinateWarning = usesCoordinates ? getSnapshotUiWarning(simulatorId) : null;
+      const warnings = [guard.warningText, coordinateWarning].filter(
+        (w): w is string => typeof w === 'string' && w.length > 0,
+      );
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', `${actionDescription} simulated successfully.`));
+      for (const w of warnings) {
+        ctx.emit(statusLine('warning', w));
       }
     },
     {

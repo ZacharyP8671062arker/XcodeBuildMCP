@@ -1,5 +1,4 @@
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
@@ -33,75 +32,60 @@ export async function snapshot_uiLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const toolName = 'snapshot_ui';
   const { simulatorId } = params;
   const commandArgs = ['describe-ui'];
 
   const headerEvent = header('Snapshot UI', [{ label: 'Simulator', value: simulatorId }]);
 
+  const ctx = getHandlerContext();
+
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedMessage)
-    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
+  if (guard.blockedMessage) {
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', guard.blockedMessage));
+    return;
+  }
 
   log('info', `${LOG_PREFIX}/${toolName}: Starting for ${simulatorId}`);
-
-  const ctx = getHandlerContext();
 
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const responseText = await executeAxeCommand(
-          commandArgs,
-          simulatorId,
-          'describe-ui',
-          executor,
-          axeHelpers,
-        );
+      const responseText = await executeAxeCommand(
+        commandArgs,
+        simulatorId,
+        'describe-ui',
+        executor,
+        axeHelpers,
+      );
 
-        recordSnapshotUiCall(simulatorId);
+      recordSnapshotUiCall(simulatorId);
 
-        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
-        return toolResponse(
-          [
-            headerEvent,
-            statusLine('success', 'Accessibility hierarchy retrieved successfully.'),
-            section('Accessibility Hierarchy', ['```json', responseText, '```']),
-            section('Tips', [
-              '- Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)',
-              '- If a debugger is attached, ensure the app is running (not stopped on breakpoints)',
-              '- Screenshots are for visual verification only',
-            ]),
-            ...(guard.warningText ? [statusLine('warning' as const, guard.warningText)] : []),
-          ],
-          {
-            nextStepParams: {
-              snapshot_ui: { simulatorId },
-              tap: { simulatorId, x: 0, y: 0 },
-              screenshot: { simulatorId },
-            },
-          },
-        );
-      })();
-
-      if (!response) {
-        return;
+      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', 'Accessibility hierarchy retrieved successfully.'));
+      ctx.emit(section('Accessibility Hierarchy', ['```json', responseText, '```']));
+      ctx.emit(
+        section('Tips', [
+          '- Use frame coordinates for tap/swipe (center: x+width/2, y+height/2)',
+          '- If a debugger is attached, ensure the app is running (not stopped on breakpoints)',
+          '- Screenshots are for visual verification only',
+        ]),
+      );
+      if (guard.warningText) {
+        ctx.emit(statusLine('warning', guard.warningText));
       }
-
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      ctx.nextStepParams = {
+        snapshot_ui: { simulatorId },
+        tap: { simulatorId, x: 0, y: 0 },
+        screenshot: { simulatorId },
+      };
     },
     {
       header: headerEvent,

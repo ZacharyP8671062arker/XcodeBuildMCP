@@ -2,14 +2,12 @@ import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
   getHandlerContext,
 } from '../../../utils/typed-tool-factory.ts';
 import { nullifyEmptyStrings } from '../../../utils/schema-helpers.ts';
-import { toolResponse } from '../../../utils/tool-response.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
@@ -67,7 +65,7 @@ export async function listSchemes(
 export async function listSchemesLogic(
   params: ListSchemesParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   log('info', 'Listing schemes');
 
   const hasProjectPath = typeof params.projectPath === 'string';
@@ -86,56 +84,33 @@ export async function listSchemesLogic(
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        const schemes = await listSchemes(params, executor);
+      const schemes = await listSchemes(params, executor);
 
-        let nextStepParams: Record<string, Record<string, string | number | boolean>> | undefined;
+      if (schemes.length > 0) {
+        const firstScheme = schemes[0];
 
-        if (schemes.length > 0) {
-          const firstScheme = schemes[0];
-
-          nextStepParams = {
-            build_macos: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
-            build_run_sim: {
-              [`${projectOrWorkspace}Path`]: pathValue!,
-              scheme: firstScheme,
-              simulatorName: 'iPhone 17',
-            },
-            build_sim: {
-              [`${projectOrWorkspace}Path`]: pathValue!,
-              scheme: firstScheme,
-              simulatorName: 'iPhone 17',
-            },
-            show_build_settings: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
-          };
-        }
-
-        const schemeItems = schemes.length > 0 ? schemes : ['(none)'];
-        const schemeWord = schemes.length === 1 ? 'scheme' : 'schemes';
-
-        return toolResponse(
-          [
-            headerEvent,
-            statusLine('success', `Found ${schemes.length} ${schemeWord}`),
-            section('Schemes:', schemeItems),
-          ],
-          nextStepParams ? { nextStepParams } : undefined,
-        );
-      })();
-
-      if (!response) {
-        return;
+        ctx.nextStepParams = {
+          build_macos: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
+          build_run_sim: {
+            [`${projectOrWorkspace}Path`]: pathValue!,
+            scheme: firstScheme,
+            simulatorName: 'iPhone 17',
+          },
+          build_sim: {
+            [`${projectOrWorkspace}Path`]: pathValue!,
+            scheme: firstScheme,
+            simulatorName: 'iPhone 17',
+          },
+          show_build_settings: { [`${projectOrWorkspace}Path`]: pathValue!, scheme: firstScheme },
+        };
       }
 
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
-      }
+      const schemeItems = schemes.length > 0 ? schemes : ['(none)'];
+      const schemeWord = schemes.length === 1 ? 'scheme' : 'schemes';
+
+      ctx.emit(headerEvent);
+      ctx.emit(statusLine('success', `Found ${schemes.length} ${schemeWord}`));
+      ctx.emit(section('Schemes:', schemeItems));
     },
     {
       header: headerEvent,

@@ -5,7 +5,6 @@
  */
 
 import * as z from 'zod';
-import type { ToolResponse } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { DependencyError, AxeError, SystemError } from '../../../utils/errors.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
@@ -62,19 +61,24 @@ export async function swipeLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const toolName = 'swipe';
 
   const { simulatorId, x1, y1, x2, y2, duration, delta, preDelay, postDelay } = params;
   const headerEvent = header('Swipe', [{ label: 'Simulator', value: simulatorId }]);
+
+  const ctx = getHandlerContext();
 
   const guard = await guardUiAutomationAgainstStoppedDebugger({
     debugger: debuggerManager,
     simulatorId,
     toolName,
   });
-  if (guard.blockedMessage)
-    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
+  if (guard.blockedMessage) {
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', guard.blockedMessage));
+    return;
+  }
 
   const commandArgs = [
     'swipe',
@@ -106,41 +110,25 @@ export async function swipeLogic(
     `${LOG_PREFIX}/${toolName}: Starting swipe (${x1},${y1})->(${x2},${y2})${optionsText} on ${simulatorId}`,
   );
 
-  const ctx = getHandlerContext();
-
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        await executeAxeCommand(commandArgs, simulatorId, 'swipe', executor, axeHelpers);
-        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+      await executeAxeCommand(commandArgs, simulatorId, 'swipe', executor, axeHelpers);
+      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
-        const coordinateWarning = getSnapshotUiWarning(simulatorId);
-        const warnings = [guard.warningText, coordinateWarning].filter(
-          (w): w is string => typeof w === 'string' && w.length > 0,
-        );
-        return toolResponse([
-          headerEvent,
-          statusLine(
-            'success',
-            `Swipe from (${x1}, ${y1}) to (${x2}, ${y2})${optionsText} simulated successfully.`,
-          ),
-          ...warnings.map((w) => statusLine('warning', w)),
-        ]);
-      })();
-
-      if (!response) {
-        return;
-      }
-
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
+      const coordinateWarning = getSnapshotUiWarning(simulatorId);
+      const warnings = [guard.warningText, coordinateWarning].filter(
+        (w): w is string => typeof w === 'string' && w.length > 0,
+      );
+      ctx.emit(headerEvent);
+      ctx.emit(
+        statusLine(
+          'success',
+          `Swipe from (${x1}, ${y1}) to (${x2}, ${y2})${optionsText} simulated successfully.`,
+        ),
+      );
+      for (const w of warnings) {
+        ctx.emit(statusLine('warning', w));
       }
     },
     {

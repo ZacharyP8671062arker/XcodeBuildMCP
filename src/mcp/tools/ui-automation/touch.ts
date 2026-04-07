@@ -14,7 +14,6 @@ import { getDefaultDebuggerManager } from '../../../utils/debugger/index.ts';
 import type { DebuggerManager } from '../../../utils/debugger/debugger-manager.ts';
 import { guardUiAutomationAgainstStoppedDebugger } from '../../../utils/debugger/ui-automation-guard.ts';
 import { AXE_NOT_AVAILABLE_MESSAGE } from '../../../utils/axe-helpers.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
@@ -51,17 +50,18 @@ export async function touchLogic(
   executor: CommandExecutor,
   axeHelpers: AxeHelpers = defaultAxeHelpers,
   debuggerManager: DebuggerManager = getDefaultDebuggerManager(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const toolName = 'touch';
 
   const { simulatorId, x, y, down, up, delay } = params;
   const headerEvent = header('Touch', [{ label: 'Simulator', value: simulatorId }]);
 
+  const ctx = getHandlerContext();
+
   if (!down && !up) {
-    return toolResponse([
-      headerEvent,
-      statusLine('error', 'At least one of "down" or "up" must be true'),
-    ]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', 'At least one of "down" or "up" must be true'));
+    return;
   }
 
   const guard = await guardUiAutomationAgainstStoppedDebugger({
@@ -69,8 +69,11 @@ export async function touchLogic(
     simulatorId,
     toolName,
   });
-  if (guard.blockedMessage)
-    return toolResponse([headerEvent, statusLine('error', guard.blockedMessage)]);
+  if (guard.blockedMessage) {
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', guard.blockedMessage));
+    return;
+  }
 
   const commandArgs = ['touch', '-x', String(x), '-y', String(y)];
   if (down) {
@@ -89,41 +92,22 @@ export async function touchLogic(
     `${LOG_PREFIX}/${toolName}: Starting ${actionText} at (${x}, ${y}) on ${simulatorId}`,
   );
 
-  const ctx = getHandlerContext();
-
   return withErrorHandling(
     ctx,
     async () => {
-      const response = await (async (): Promise<ToolResponse> => {
-        await executeAxeCommand(commandArgs, simulatorId, 'touch', executor, axeHelpers);
-        log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
+      await executeAxeCommand(commandArgs, simulatorId, 'touch', executor, axeHelpers);
+      log('info', `${LOG_PREFIX}/${toolName}: Success for ${simulatorId}`);
 
-        const coordinateWarning = getSnapshotUiWarning(simulatorId);
-        const warnings = [guard.warningText, coordinateWarning].filter(
-          (w): w is string => typeof w === 'string' && w.length > 0,
-        );
-        return toolResponse([
-          headerEvent,
-          statusLine(
-            'success',
-            `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`,
-          ),
-          ...warnings.map((w) => statusLine('warning', w)),
-        ]);
-      })();
-
-      if (!response) {
-        return;
-      }
-
-      const events = response._meta?.events;
-      if (Array.isArray(events)) {
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      }
-      if (response.nextStepParams) {
-        ctx.nextStepParams = response.nextStepParams;
+      const coordinateWarning = getSnapshotUiWarning(simulatorId);
+      const warnings = [guard.warningText, coordinateWarning].filter(
+        (w): w is string => typeof w === 'string' && w.length > 0,
+      );
+      ctx.emit(headerEvent);
+      ctx.emit(
+        statusLine('success', `Touch event (${actionText}) at (${x}, ${y}) executed successfully.`),
+      );
+      for (const w of warnings) {
+        ctx.emit(statusLine('warning', w));
       }
     },
     {

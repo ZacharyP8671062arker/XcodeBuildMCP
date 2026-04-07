@@ -1,7 +1,6 @@
 import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
-import type { ToolResponse } from '../../../types/common.ts';
 import { XcodePlatform } from '../../../types/common.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
@@ -57,7 +56,7 @@ export type BuildMacOSParams = z.infer<typeof buildMacOSSchema>;
 export async function buildMacOSLogic(
   params: BuildMacOSParams,
   executor: CommandExecutor,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const ctx = getHandlerContext();
   log('info', `Starting macOS build for scheme ${params.scheme}`);
 

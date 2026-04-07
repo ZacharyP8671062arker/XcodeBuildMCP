@@ -5,7 +5,7 @@
  */
 
 import * as z from 'zod';
-import type { ToolResponse, SharedBuildParams, NextStepParamsMap } from '../../../types/common.ts';
+import type { SharedBuildParams, NextStepParamsMap } from '../../../types/common.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { executeXcodeBuildCommand } from '../../../utils/build/index.ts';
@@ -85,7 +85,7 @@ export async function build_run_deviceLogic(
   params: BuildRunDeviceParams,
   executor: CommandExecutor,
   fileSystemExecutor: FileSystemExecutor = getDefaultFileSystemExecutor(),
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const ctx = getHandlerContext();
   const platform = mapDevicePlatform(params.platform);
 

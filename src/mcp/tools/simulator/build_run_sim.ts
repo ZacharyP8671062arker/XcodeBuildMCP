@@ -7,7 +7,7 @@
  */
 
 import * as z from 'zod';
-import type { ToolResponse, SharedBuildParams } from '../../../types/common.ts';
+import type { SharedBuildParams } from '../../../types/common.ts';
 import { log } from '../../../utils/logging/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import {
@@ -104,7 +104,7 @@ export async function build_run_simLogic(
   params: BuildRunSimulatorParams,
   executor: CommandExecutor,
   launcher: SimulatorLauncher = launchSimulatorAppWithLogging,
-): Promise<ToolResponse | void> {
+): Promise<void> {
   const ctx = getHandlerContext();
   const projectType = params.projectPath ? 'project' : 'workspace';
   const filePath = params.projectPath ?? params.workspacePath;

@@ -7,7 +7,7 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, swift_package_cleanLogic } from '../swift_package_clean.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
-import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
 
 const runLogic = async (logic: () => Promise<unknown>) => {
   const { result, run } = createMockToolHandlerContext();
@@ -113,7 +113,7 @@ describe('swift_package_clean plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Swift package cleaned successfully');
     });
 
@@ -133,7 +133,7 @@ describe('swift_package_clean plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Swift Package Clean');
       expect(text).toContain('Swift package cleaned successfully');
       expect(text).toContain('Package cleaned successfully');
@@ -155,7 +155,7 @@ describe('swift_package_clean plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Swift Package Clean');
       expect(text).toContain('Swift package cleaned successfully');
     });
@@ -176,7 +176,7 @@ describe('swift_package_clean plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Swift package clean failed');
       expect(text).toContain('Permission denied');
     });
@@ -196,7 +196,7 @@ describe('swift_package_clean plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Failed to execute swift package clean');
       expect(text).toContain('spawn ENOENT');
     });

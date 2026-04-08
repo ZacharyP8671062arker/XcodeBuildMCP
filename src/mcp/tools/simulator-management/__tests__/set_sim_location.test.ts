@@ -6,7 +6,7 @@ import {
   createNoopExecutor,
 } from '../../../../test-utils/mock-executors.ts';
 import { schema, handler, set_sim_locationLogic } from '../set_sim_location.ts';
-import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
 
 const runLogic = async (logic: () => Promise<unknown>) => {
   const { result, run } = createMockToolHandlerContext();
@@ -163,7 +163,7 @@ describe('set_sim_location tool', () => {
         ),
       );
 
-      expect(result.content[0]?.text).toContain('Latitude must be between -90 and 90 degrees');
+      expect(allText(result)).toContain('Latitude must be between -90 and 90 degrees');
       expect(result.isError).toBe(true);
     });
 
@@ -179,7 +179,7 @@ describe('set_sim_location tool', () => {
         ),
       );
 
-      expect(result.content[0]?.text).toContain('Longitude must be between -180 and 180 degrees');
+      expect(allText(result)).toContain('Longitude must be between -180 and 180 degrees');
       expect(result.isError).toBe(true);
     });
 

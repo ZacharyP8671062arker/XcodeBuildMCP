@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
 
 const runLogic = async (logic: () => Promise<unknown>) => {
   const { result, run } = createMockToolHandlerContext();
@@ -65,7 +65,7 @@ describe('swift_package_stop plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('No running process found with PID 99999');
     });
 
@@ -95,7 +95,7 @@ describe('swift_package_stop plugin', () => {
 
       expect(terminateTrackedProcess).toHaveBeenCalledWith(12345, 5000);
       expect(result.isError).toBeUndefined();
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Stopped executable (was running since 2023-01-01T10:00:00.000Z)');
     });
 
@@ -122,7 +122,7 @@ describe('swift_package_stop plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Failed to stop process');
       expect(text).toContain('ESRCH: No such process');
     });
@@ -159,7 +159,7 @@ describe('swift_package_stop plugin', () => {
       const result = await handler({ pid: 'bad' });
 
       expect(result.isError).toBe(true);
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Parameter validation failed');
     });
   });

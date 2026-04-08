@@ -59,7 +59,7 @@ const runLogic = async (logic: () => Promise<unknown>) => {
     return response as {
       content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
       isError?: boolean;
-      nextStepParams?: unknown;
+      nextStepParams?: Record<string, Record<string, unknown> | Record<string, unknown>[]>;
     };
   }
 

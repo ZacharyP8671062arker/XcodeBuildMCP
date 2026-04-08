@@ -23,10 +23,7 @@ function createTool(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
       scheme: z.string().optional(),
     },
     stateful: false,
-    handler: vi.fn(async () => ({
-      content: [createTextContent('ok')],
-      isError: false,
-    })),
+    handler: vi.fn(async () => {}) as ToolDefinition['handler'],
     ...overrides,
   };
 }
@@ -97,10 +94,9 @@ describe('registerToolCommands', () => {
   });
 
   it('hydrates required args from the active defaults profile', async () => {
-    const invokeDirect = vi.spyOn(DefaultToolInvoker.prototype, 'invokeDirect').mockResolvedValue({
-      content: [createTextContent('ok')],
-      isError: false,
-    });
+    const invokeDirect = vi
+      .spyOn(DefaultToolInvoker.prototype, 'invokeDirect')
+      .mockResolvedValue(undefined);
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const tool = createTool();
@@ -126,10 +122,9 @@ describe('registerToolCommands', () => {
   it('hydrates required args from the explicit --profile override', async () => {
     process.argv = ['node', 'xcodebuildmcp', 'simulator', 'run-tool', '--profile', 'qa'];
 
-    const invokeDirect = vi.spyOn(DefaultToolInvoker.prototype, 'invokeDirect').mockResolvedValue({
-      content: [createTextContent('ok')],
-      isError: false,
-    });
+    const invokeDirect = vi
+      .spyOn(DefaultToolInvoker.prototype, 'invokeDirect')
+      .mockResolvedValue(undefined);
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const tool = createTool();
@@ -176,10 +171,9 @@ describe('registerToolCommands', () => {
   });
 
   it('hydrates args before daemon-routed invocation', async () => {
-    const invokeDirect = vi.spyOn(DefaultToolInvoker.prototype, 'invokeDirect').mockResolvedValue({
-      content: [createTextContent('ok')],
-      isError: false,
-    });
+    const invokeDirect = vi
+      .spyOn(DefaultToolInvoker.prototype, 'invokeDirect')
+      .mockResolvedValue(undefined);
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const tool = createTool({ stateful: true });
@@ -199,10 +193,9 @@ describe('registerToolCommands', () => {
   });
 
   it('lets explicit args override conflicting defaults before invocation', async () => {
-    const invokeDirect = vi.spyOn(DefaultToolInvoker.prototype, 'invokeDirect').mockResolvedValue({
-      content: [createTextContent('ok')],
-      isError: false,
-    });
+    const invokeDirect = vi
+      .spyOn(DefaultToolInvoker.prototype, 'invokeDirect')
+      .mockResolvedValue(undefined);
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const tool = createTool({
@@ -250,10 +243,9 @@ describe('registerToolCommands', () => {
   });
 
   it('lets --json override configured defaults', async () => {
-    const invokeDirect = vi.spyOn(DefaultToolInvoker.prototype, 'invokeDirect').mockResolvedValue({
-      content: [createTextContent('ok')],
-      isError: false,
-    });
+    const invokeDirect = vi
+      .spyOn(DefaultToolInvoker.prototype, 'invokeDirect')
+      .mockResolvedValue(undefined);
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const tool = createTool();
@@ -280,10 +272,9 @@ describe('registerToolCommands', () => {
   });
 
   it('allows --json to satisfy required arguments', async () => {
-    const invokeDirect = vi.spyOn(DefaultToolInvoker.prototype, 'invokeDirect').mockResolvedValue({
-      content: [createTextContent('ok')],
-      isError: false,
-    });
+    const invokeDirect = vi
+      .spyOn(DefaultToolInvoker.prototype, 'invokeDirect')
+      .mockResolvedValue(undefined);
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const tool = createTool();
@@ -315,10 +306,9 @@ describe('registerToolCommands', () => {
   });
 
   it('allows array args that begin with a dash', async () => {
-    const invokeDirect = vi.spyOn(DefaultToolInvoker.prototype, 'invokeDirect').mockResolvedValue({
-      content: [createTextContent('ok')],
-      isError: false,
-    });
+    const invokeDirect = vi
+      .spyOn(DefaultToolInvoker.prototype, 'invokeDirect')
+      .mockResolvedValue(undefined);
     const stdoutWrite = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const tool = createTool({

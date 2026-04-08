@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { schema, handler, swift_package_listLogic } from '../swift_package_list.ts';
-import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
 
 const runLogic = async (logic: () => Promise<unknown>) => {
   const { result, run } = createMockToolHandlerContext();
@@ -61,9 +61,7 @@ describe('swift_package_list plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      expect(result.content.map((c) => c.text).join('\n')).toContain(
-        'No Swift Package processes currently running',
-      );
+      expect(allText(result)).toContain('No Swift Package processes currently running');
     });
 
     it('should use default executable name and clamp durations to at least one second', async () => {
@@ -89,7 +87,7 @@ describe('swift_package_list plugin', () => {
       );
 
       expect(result.isError).toBeUndefined();
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('12345');
       expect(text).toContain('default');
       expect(text).toContain('/test/package');

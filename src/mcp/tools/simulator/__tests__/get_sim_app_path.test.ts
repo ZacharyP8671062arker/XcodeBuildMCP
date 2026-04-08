@@ -7,7 +7,7 @@ import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, get_sim_app_pathLogic } from '../get_sim_app_path.ts';
 import type { CommandExecutor } from '../../../../utils/CommandExecutor.ts';
 import { XcodePlatform } from '../../../../types/common.ts';
-import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
 
 const runLogic = async (logic: () => Promise<unknown>) => {
   const { result, run } = createMockToolHandlerContext();
@@ -193,7 +193,7 @@ describe('get_sim_app_path tool', () => {
       ]);
 
       expect(result.isError).toBeFalsy();
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Get App Path');
       expect(text).toContain('MyScheme');
       expect(text).toContain('/path/to/workspace.xcworkspace');
@@ -223,7 +223,7 @@ describe('get_sim_app_path tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Get App Path');
       expect(text).toContain('MyScheme');
       expect(text).toContain('Errors (1):');

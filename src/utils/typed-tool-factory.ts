@@ -4,10 +4,31 @@ import type { ToolHandlerContext } from '../rendering/types.ts';
 import { createRenderSession } from '../rendering/render.ts';
 import type { CommandExecutor } from './execution/index.ts';
 import { statusLine } from './tool-event-builders.ts';
+import type { PipelineEvent } from '../types/pipeline-events.ts';
 
 import { sessionStore, type SessionDefaults } from './session-store.ts';
 import { isSessionDefaultsOptOutEnabled } from './environment.ts';
 import { mergeSessionDefaultArgs } from './session-default-args.ts';
+
+/**
+ * Result returned by tool handlers when invoked without a ToolHandlerContext
+ * (i.e. in test mode). Provides a ToolResponse-compatible shape.
+ */
+export interface ToolTestResult {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+  _meta?: { events: PipelineEvent[] };
+}
+
+/**
+ * Overloaded handler type for tools.
+ * - With ToolHandlerContext: returns void (production / MCP path)
+ * - Without context: returns ToolTestResult (test path)
+ */
+export interface ToolHandler {
+  (args: Record<string, unknown>, ctx: ToolHandlerContext): Promise<void>;
+  (args: Record<string, unknown>): Promise<ToolTestResult>;
+}
 
 export const handlerContextStorage = new AsyncLocalStorage<ToolHandlerContext>();
 
@@ -30,13 +51,11 @@ function isToolHandlerContext(value: unknown): value is ToolHandlerContext {
   );
 }
 
-function sessionToTestResult(
-  session: ReturnType<typeof createRenderSession>,
-): Record<string, unknown> {
+function sessionToTestResult(session: ReturnType<typeof createRenderSession>): ToolTestResult {
   const text = session.finalize();
   const events = [...session.getEvents()];
 
-  const content: Array<Record<string, unknown>> = [];
+  const content: Array<{ type: 'text'; text: string }> = [];
   if (text) {
     content.push({ type: 'text' as const, text });
   }
@@ -52,11 +71,11 @@ function createValidatedHandler<TParams, TContext>(
   schema: z.ZodType<TParams, unknown>,
   logicFunction: (params: TParams, context: TContext) => Promise<void>,
   getContext: () => TContext,
-): (args: Record<string, unknown>, incomingCtx?: ToolHandlerContext) => Promise<void> {
-  return async (
+): ToolHandler {
+  const impl = async (
     args: Record<string, unknown>,
     providedContext?: TContext | ToolHandlerContext,
-  ): Promise<void> => {
+  ): Promise<ToolTestResult | void> => {
     const hasProvidedHandlerContext = isToolHandlerContext(providedContext);
     const session = hasProvidedHandlerContext ? null : createRenderSession('text');
     const ctx: ToolHandlerContext = hasProvidedHandlerContext
@@ -76,14 +95,14 @@ function createValidatedHandler<TParams, TContext>(
       const validatedParams = schema.parse(args);
       await handlerContextStorage.run(ctx, () => logicFunction(validatedParams, context));
       if (!hasProvidedHandlerContext) {
-        return sessionToTestResult(session!) as unknown as void;
+        return sessionToTestResult(session!);
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;
         ctx.emit(statusLine('error', `Parameter validation failed: ${details}`));
         if (!hasProvidedHandlerContext) {
-          return sessionToTestResult(session!) as unknown as void;
+          return sessionToTestResult(session!);
         }
         return;
       }
@@ -91,13 +110,14 @@ function createValidatedHandler<TParams, TContext>(
       throw error;
     }
   };
+  return impl as ToolHandler;
 }
 
 export function createTypedTool<TParams>(
   schema: z.ZodType<TParams, unknown>,
   logicFunction: (params: TParams, executor: CommandExecutor) => Promise<void>,
   getExecutor: () => CommandExecutor,
-): (args: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void> {
+): ToolHandler {
   return createValidatedHandler(schema, logicFunction, getExecutor);
 }
 
@@ -105,7 +125,7 @@ export function createTypedToolWithContext<TParams, TContext>(
   schema: z.ZodType<TParams, unknown>,
   logicFunction: (params: TParams, context: TContext) => Promise<void>,
   getContext: () => TContext,
-): (args: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void> {
+): ToolHandler {
   return createValidatedHandler(schema, logicFunction, getContext);
 }
 
@@ -149,7 +169,7 @@ export function createSessionAwareTool<TParams>(opts: {
   getExecutor: () => CommandExecutor;
   requirements?: SessionRequirement[];
   exclusivePairs?: (keyof SessionDefaults)[][];
-}): (rawArgs: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void> {
+}): ToolHandler {
   return createSessionAwareHandler({
     internalSchema: opts.internalSchema,
     logicFunction: opts.logicFunction,
@@ -165,7 +185,7 @@ export function createSessionAwareToolWithContext<TParams, TContext>(opts: {
   getContext: () => TContext;
   requirements?: SessionRequirement[];
   exclusivePairs?: (keyof SessionDefaults)[][];
-}): (rawArgs: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void> {
+}): ToolHandler {
   return createSessionAwareHandler(opts);
 }
 
@@ -175,7 +195,7 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
   getContext: () => TContext;
   requirements?: SessionRequirement[];
   exclusivePairs?: (keyof SessionDefaults)[][];
-}): (rawArgs: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void> {
+}): ToolHandler {
   const {
     internalSchema,
     logicFunction,
@@ -184,10 +204,10 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
     exclusivePairs = [],
   } = opts;
 
-  return async (
+  const impl = async (
     rawArgs: Record<string, unknown>,
     providedContext?: TContext | ToolHandlerContext,
-  ): Promise<void> => {
+  ): Promise<ToolTestResult | void> => {
     const hasProvidedHandlerContext = isToolHandlerContext(providedContext);
     const session = hasProvidedHandlerContext ? null : createRenderSession('text');
     const ctx: ToolHandlerContext = hasProvidedHandlerContext
@@ -203,9 +223,9 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
     const context =
       providedContext !== undefined && !hasProvidedHandlerContext ? providedContext : getContext();
 
-    const finalize = (): void => {
+    const finalize = (): ToolTestResult | void => {
       if (!hasProvidedHandlerContext) {
-        return sessionToTestResult(session!) as unknown as void;
+        return sessionToTestResult(session!);
       }
     };
 
@@ -282,6 +302,7 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
       throw error;
     }
   };
+  return impl as ToolHandler;
 }
 
 function formatZodIssues(error: z.ZodError): string {

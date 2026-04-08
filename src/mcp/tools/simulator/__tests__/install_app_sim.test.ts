@@ -9,7 +9,7 @@ import {
 import { sessionStore } from '../../../../utils/session-store.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { schema, handler, install_app_simLogic } from '../install_app_sim.ts';
-import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
 
 const runLogic = async (logic: () => Promise<unknown>) => {
   const { result, run } = createMockToolHandlerContext();
@@ -193,10 +193,7 @@ describe('install_app_sim tool', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
+      const text = allText(result);
       expect(text).toContain("File not found: '/path/to/app.app'");
     });
 
@@ -241,7 +238,7 @@ describe('install_app_sim tool', () => {
         ),
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('App installed successfully');
       expect(text).toContain('test-uuid-123');
       expect(result.nextStepParams).toEqual({
@@ -292,7 +289,7 @@ describe('install_app_sim tool', () => {
         ),
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('App installed successfully');
       expect(text).toContain('test-uuid-123');
       expect(result.nextStepParams).toEqual({
@@ -327,7 +324,7 @@ describe('install_app_sim tool', () => {
         ),
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Install app in simulator operation failed');
       expect(text).toContain('Install failed');
       expect(result.isError).toBe(true);
@@ -351,7 +348,7 @@ describe('install_app_sim tool', () => {
         ),
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Install app in simulator operation failed');
       expect(text).toContain('Command execution failed');
       expect(result.isError).toBe(true);
@@ -375,7 +372,7 @@ describe('install_app_sim tool', () => {
         ),
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Install app in simulator operation failed');
       expect(text).toContain('String error');
       expect(result.isError).toBe(true);

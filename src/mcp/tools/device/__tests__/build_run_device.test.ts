@@ -258,10 +258,10 @@ describe('build_run_device tool', () => {
       );
       expect(completionEvent).toBeDefined();
 
-      const detailTree = result.events.findLast(
-        (event): event is { type: 'detail-tree'; items: Array<{ label: string; value: string }> } =>
-          event.type === 'detail-tree',
-      );
+      const detailTrees = result.events.filter((event) => event.type === 'detail-tree');
+      const detailTree = detailTrees[detailTrees.length - 1] as
+        | { type: 'detail-tree'; items: Array<{ label: string; value: string }> }
+        | undefined;
       expect(detailTree).toBeDefined();
       expect(detailTree?.items.some((item) => item.label === 'Process ID')).toBe(false);
     });

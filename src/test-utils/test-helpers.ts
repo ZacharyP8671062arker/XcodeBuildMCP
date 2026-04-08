@@ -6,6 +6,7 @@ import { expect } from 'vitest';
 import type { ToolHandlerContext, ImageAttachment } from '../rendering/types.ts';
 import type { PipelineEvent } from '../types/pipeline-events.ts';
 import type { ToolResponse, NextStepParamsMap } from '../types/common.ts';
+import type { ToolHandler } from '../utils/typed-tool-factory.ts';
 import { renderEvents } from '../rendering/render.ts';
 import { createRenderSession } from '../rendering/render.ts';
 import { handlerContextStorage } from '../utils/typed-tool-factory.ts';
@@ -13,11 +14,13 @@ import { handlerContextStorage } from '../utils/typed-tool-factory.ts';
 /**
  * Extract and join all text content items from a tool response.
  */
-export function allText(
-  result: ToolResponse | { content: Array<{ type: string; text?: string }> },
-): string {
+export function allText(result: {
+  content: ReadonlyArray<{ type: string; text?: string; [key: string]: unknown }>;
+}): string {
   return result.content
-    .filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+    .filter(
+      (c): c is { type: 'text'; text: string } => c.type === 'text' && typeof c.text === 'string',
+    )
     .map((c) => c.text)
     .join('\n');
 }
@@ -84,14 +87,22 @@ export async function runToolLogic<T>(logic: () => Promise<T>): Promise<{
   return { response, result };
 }
 
+export interface CallHandlerResult {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+  nextStepParams?: NextStepParamsMap;
+}
+
 /**
  * Call a tool handler in test mode, providing a session context and
  * returning a ToolResponse-shaped result for backward-compatible assertions.
  */
 export async function callHandler(
-  handler: (args: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void>,
+  handler:
+    | ToolHandler
+    | ((args: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void>),
   args: Record<string, unknown>,
-): Promise<ToolResponse> {
+): Promise<CallHandlerResult> {
   const session = createRenderSession('text');
   const ctx: ToolHandlerContext = {
     emit: (event) => session.emit(event),

@@ -96,10 +96,7 @@ describe('launch_mac_app plugin', () => {
       );
 
       expect(result.isError).toBe(true);
-      const text = result.content
-        .filter((i) => i.type === 'text')
-        .map((i) => i.text)
-        .join('\n');
+      const text = allText(result);
       expect(text).toContain("File not found: '/path/to/NonExistent.app'");
     });
   });

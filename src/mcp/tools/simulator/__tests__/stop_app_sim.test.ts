@@ -7,7 +7,7 @@ import {
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, stop_app_simLogic } from '../stop_app_sim.ts';
-import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
 
 const runLogic = async (logic: () => Promise<unknown>) => {
   const { result, run } = createMockToolHandlerContext();
@@ -115,7 +115,7 @@ describe('stop_app_sim tool', () => {
         ),
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Stop App');
       expect(text).toContain('io.sentry.App');
       expect(text).toContain('stopped successfully');
@@ -136,7 +136,7 @@ describe('stop_app_sim tool', () => {
         ),
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Stop App');
       expect(text).toContain('io.sentry.App');
       expect(text).toContain('stopped successfully');
@@ -160,7 +160,7 @@ describe('stop_app_sim tool', () => {
         ),
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Stop app in simulator operation failed');
       expect(text).toContain('Simulator not found');
       expect(result.isError).toBe(true);
@@ -181,7 +181,7 @@ describe('stop_app_sim tool', () => {
         ),
       );
 
-      const text = result.content.map((c) => c.text).join('\n');
+      const text = allText(result);
       expect(text).toContain('Stop app in simulator operation failed');
       expect(text).toContain('Unexpected error');
       expect(result.isError).toBe(true);

@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import * as z from 'zod';
 import { createTypedTool } from '../typed-tool-factory.ts';
+import type { ToolHandler } from '../typed-tool-factory.ts';
 import { createMockExecutor } from '../../test-utils/mock-executors.ts';
 import { createRenderSession } from '../../rendering/render.ts';
 import type { ToolHandlerContext } from '../../rendering/types.ts';
@@ -24,7 +25,7 @@ async function testLogic(params: TestParams): Promise<void> {
 }
 
 function invokeAndCollect(
-  handler: (args: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void>,
+  handler: ToolHandler,
   args: Record<string, unknown>,
 ): Promise<{ text: string; isError: boolean }> {
   const session = createRenderSession('text');

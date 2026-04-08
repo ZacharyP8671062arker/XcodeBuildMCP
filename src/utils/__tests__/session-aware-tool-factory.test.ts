@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as z from 'zod';
-import { createSessionAwareTool, getHandlerContext } from '../typed-tool-factory.ts';
+import {
+  createSessionAwareTool,
+  getHandlerContext,
+  type ToolHandler,
+} from '../typed-tool-factory.ts';
 import { sessionStore } from '../session-store.ts';
 import {
   createMockExecutor,
@@ -23,7 +27,7 @@ async function initConfigStoreForTest(overrides?: RuntimeConfigOverrides): Promi
 }
 
 function invokeAndCollect(
-  handler: (args: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void>,
+  handler: ToolHandler,
   args: Record<string, unknown>,
 ): Promise<{ text: string; isError: boolean }> {
   const session = createRenderSession('text');

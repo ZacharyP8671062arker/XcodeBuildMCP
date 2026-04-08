@@ -110,7 +110,7 @@ async function invokeDeterministicSimulatorList(): Promise<{ text: string; isErr
 
   const { tool, catalog } = buildCatalogForTool(
     'list_sims',
-    list_simsLogic as ToolDefinition['handler'],
+    list_simsLogic as unknown as ToolDefinition['handler'],
   );
   postProcessSession({
     tool,

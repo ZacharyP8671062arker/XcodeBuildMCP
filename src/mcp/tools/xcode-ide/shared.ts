@@ -1,6 +1,7 @@
-import type { ToolResponse } from '../../../types/common.ts';
-import type { PipelineEvent } from '../../../types/pipeline-events.ts';
-import type { XcodeToolsBridgeToolHandler } from '../../../integrations/xcode-tools-bridge/index.ts';
+import type {
+  BridgeToolResult,
+  XcodeToolsBridgeToolHandler,
+} from '../../../integrations/xcode-tools-bridge/index.ts';
 import { getServer } from '../../../server/server-state.ts';
 import { getXcodeToolsBridgeToolHandler } from '../../../integrations/xcode-tools-bridge/index.ts';
 import { getHandlerContext } from '../../../utils/typed-tool-factory.ts';
@@ -8,7 +9,7 @@ import { header, statusLine } from '../../../utils/tool-event-builders.ts';
 
 export async function withBridgeToolHandler(
   operation: string,
-  callback: (bridge: XcodeToolsBridgeToolHandler) => Promise<ToolResponse>,
+  callback: (bridge: XcodeToolsBridgeToolHandler) => Promise<BridgeToolResult>,
 ): Promise<void> {
   const ctx = getHandlerContext();
   const bridge = getXcodeToolsBridgeToolHandler(getServer());
@@ -18,22 +19,17 @@ export async function withBridgeToolHandler(
     return;
   }
 
-  const response = await callback(bridge);
+  const result = await callback(bridge);
 
-  const events = response._meta?.events;
-  if (Array.isArray(events)) {
-    for (const event of events as PipelineEvent[]) {
-      ctx.emit(event);
-    }
+  for (const event of result.events) {
+    ctx.emit(event);
   }
 
-  for (const contentItem of response.content) {
-    if (contentItem.type === 'image') {
-      ctx.attach({ data: contentItem.data, mimeType: contentItem.mimeType });
-    }
+  for (const img of result.images ?? []) {
+    ctx.attach(img);
   }
 
-  if (response.nextStepParams) {
-    ctx.nextStepParams = response.nextStepParams;
+  if (result.nextStepParams) {
+    ctx.nextStepParams = result.nextStepParams;
   }
 }

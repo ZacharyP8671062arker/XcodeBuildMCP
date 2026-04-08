@@ -1,7 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { log } from '../../utils/logger.ts';
-import type { ToolResponse } from '../../types/common.ts';
-import { eventsToToolResponse } from '../../utils/events-to-tool-response.ts';
+import { callToolResultToBridgeResult, type BridgeToolResult } from './bridge-tool-result.ts';
 import { header, statusLine, section } from '../../utils/tool-event-builders.ts';
 import { XcodeToolsProxyRegistry, type ProxySyncResult } from './registry.ts';
 import {
@@ -109,53 +108,59 @@ export class XcodeToolsBridgeManager {
     await this.service.disconnect();
   }
 
-  async statusTool(): Promise<ToolResponse> {
+  async statusTool(): Promise<BridgeToolResult> {
     const status = await this.getStatus();
-    return eventsToToolResponse([
-      header('Bridge Status'),
-      section('Status', [JSON.stringify(status, null, 2)]),
-    ]);
+    return {
+      events: [header('Bridge Status'), section('Status', [JSON.stringify(status, null, 2)])],
+    };
   }
 
-  async syncTool(): Promise<ToolResponse> {
+  async syncTool(): Promise<BridgeToolResult> {
     try {
       const sync = await this.syncTools({ reason: 'manual' });
       const status = await this.getStatus();
-      return eventsToToolResponse([
-        header('Bridge Sync'),
-        section('Sync Result', [JSON.stringify({ sync, status }, null, 2)]),
-        statusLine('success', 'Bridge sync completed'),
-      ]);
+      return {
+        events: [
+          header('Bridge Sync'),
+          section('Sync Result', [JSON.stringify({ sync, status }, null, 2)]),
+          statusLine('success', 'Bridge sync completed'),
+        ],
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return eventsToToolResponse([
-        header('Bridge Sync'),
-        statusLine('error', `Bridge sync failed: ${message}`),
-      ]);
+      return {
+        events: [header('Bridge Sync'), statusLine('error', `Bridge sync failed: ${message}`)],
+        isError: true,
+      };
     }
   }
 
-  async disconnectTool(): Promise<ToolResponse> {
+  async disconnectTool(): Promise<BridgeToolResult> {
     try {
       await this.disconnect();
       const status = await this.getStatus();
-      return eventsToToolResponse([
-        header('Bridge Disconnect'),
-        section('Status', [JSON.stringify(status, null, 2)]),
-        statusLine('success', 'Bridge disconnected'),
-      ]);
+      return {
+        events: [
+          header('Bridge Disconnect'),
+          section('Status', [JSON.stringify(status, null, 2)]),
+          statusLine('success', 'Bridge disconnected'),
+        ],
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return eventsToToolResponse([
-        header('Bridge Disconnect'),
-        statusLine('error', `Bridge disconnect failed: ${message}`),
-      ]);
+      return {
+        events: [
+          header('Bridge Disconnect'),
+          statusLine('error', `Bridge disconnect failed: ${message}`),
+        ],
+        isError: true,
+      };
     }
   }
 
-  async listToolsTool(params: { refresh?: boolean }): Promise<ToolResponse> {
+  async listToolsTool(params: { refresh?: boolean }): Promise<BridgeToolResult> {
     if (!this.workflowEnabled) {
-      return this.createBridgeFailureResponse(
+      return this.createBridgeFailureResult(
         'XCODE_MCP_UNAVAILABLE',
         'xcode-ide workflow is not enabled',
       );
@@ -167,13 +172,15 @@ export class XcodeToolsBridgeManager {
         toolCount: tools.length,
         tools: tools.map(serializeBridgeTool),
       };
-      return eventsToToolResponse([
-        header('Xcode IDE List Tools'),
-        section('Tools', [JSON.stringify(payload, null, 2)]),
-        statusLine('success', `Found ${tools.length} tool(s)`),
-      ]);
+      return {
+        events: [
+          header('Xcode IDE List Tools'),
+          section('Tools', [JSON.stringify(payload, null, 2)]),
+          statusLine('success', `Found ${tools.length} tool(s)`),
+        ],
+      };
     } catch (error) {
-      return this.createBridgeFailureResponse(
+      return this.createBridgeFailureResult(
         classifyBridgeError(error, 'list', {
           connected: this.service.getClientStatus().connected,
         }),
@@ -186,9 +193,9 @@ export class XcodeToolsBridgeManager {
     remoteTool: string;
     arguments: Record<string, unknown>;
     timeoutMs?: number;
-  }): Promise<ToolResponse> {
+  }): Promise<BridgeToolResult> {
     if (!this.workflowEnabled) {
-      return this.createBridgeFailureResponse(
+      return this.createBridgeFailureResult(
         'XCODE_MCP_UNAVAILABLE',
         'xcode-ide workflow is not enabled',
       );
@@ -198,9 +205,9 @@ export class XcodeToolsBridgeManager {
       const response = await this.service.invokeTool(params.remoteTool, params.arguments, {
         timeoutMs: params.timeoutMs,
       });
-      return response as ToolResponse;
+      return callToolResultToBridgeResult(response);
     } catch (error) {
-      return this.createBridgeFailureResponse(
+      return this.createBridgeFailureResult(
         classifyBridgeError(error, 'call', {
           connected: this.service.getClientStatus().connected,
         }),
@@ -209,11 +216,11 @@ export class XcodeToolsBridgeManager {
     }
   }
 
-  private createBridgeFailureResponse(code: string, error: unknown): ToolResponse {
+  private createBridgeFailureResult(code: string, error: unknown): BridgeToolResult {
     const message = error instanceof Error ? error.message : String(error);
-    return eventsToToolResponse([
-      header('Xcode IDE Call Tool'),
-      statusLine('error', `[${code}] ${message}`),
-    ]);
+    return {
+      events: [header('Xcode IDE Call Tool'), statusLine('error', `[${code}] ${message}`)],
+      isError: true,
+    };
   }
 }

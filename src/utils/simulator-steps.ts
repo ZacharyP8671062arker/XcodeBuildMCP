@@ -220,12 +220,9 @@ async function resolveAppPid(logFilePath: string): Promise<number | undefined> {
   while (Date.now() - start < PID_POLL_TIMEOUT_MS) {
     const content = readLogFileSafe(logFilePath);
     if (content) {
-      for (const line of content.split('\n')) {
-        const bracketMatch = line.match(/\[(\d{3,})\]/);
-        if (bracketMatch) {
-          return parseInt(bracketMatch[1], 10);
-        }
-        const colonMatch = line.match(/:\s*(\d+)\s*$/);
+      const firstLine = content.split('\n').find((l) => l.trim().length > 0);
+      if (firstLine) {
+        const colonMatch = firstLine.match(/:\s*(\d+)\s*$/);
         if (colonMatch) {
           return parseInt(colonMatch[1], 10);
         }

@@ -7,9 +7,9 @@ import { launchSimulatorAppWithLogging } from '../simulator-steps.ts';
 function createMockChild(exitCode: number | null = null): ChildProcess {
   const emitter = new EventEmitter();
   const child = emitter as unknown as ChildProcess;
-  child.exitCode = exitCode;
+  Object.defineProperty(child, 'exitCode', { value: exitCode, writable: true });
   child.unref = vi.fn();
-  child.pid = 99999;
+  Object.defineProperty(child, 'pid', { value: 99999, writable: true });
   return child;
 }
 

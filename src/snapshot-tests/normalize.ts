@@ -85,6 +85,7 @@ export function normalizeSnapshotOutput(text: string): string {
   const home = os.homedir();
   normalized = normalized.replace(new RegExp(escapeRegex(home), 'g'), '<HOME>');
   normalized = normalized.replace(/~\//g, '<HOME>/');
+  normalized = normalized.replace(/(?<=\s|:)~(?=\s|$)/gm, '<HOME>');
 
   const tmpDir = os.tmpdir();
   normalized = normalized.replace(

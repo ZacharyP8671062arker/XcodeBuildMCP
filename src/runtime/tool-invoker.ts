@@ -1,7 +1,6 @@
 import type { ToolCatalog, ToolDefinition, ToolInvoker, InvokeOptions } from './types.ts';
 import type { NextStep, NextStepParams, NextStepParamsMap, ToolResponse } from '../types/common.ts';
 import type { PipelineEvent } from '../types/pipeline-events.ts';
-import { eventsToToolResponse } from '../utils/events-to-tool-response.ts';
 import { statusLine } from '../utils/tool-event-builders.ts';
 import { DaemonClient } from '../cli/daemon-client.ts';
 import { ensureDaemonRunning, DEFAULT_DAEMON_STARTUP_TIMEOUT_MS } from '../cli/daemon-control.ts';
@@ -16,36 +15,13 @@ import {
 import { isPendingXcodebuildResponse } from '../utils/xcodebuild-output.ts';
 import { renderNextStepsSection } from '../utils/responses/next-steps-renderer.ts';
 import type { RuntimeKind } from './types.ts';
-import type { ToolHandlerContext } from '../rendering/types.ts';
+import type { RenderSession, ToolHandlerContext } from '../rendering/types.ts';
 import { createRenderSession } from '../rendering/render.ts';
 
 type BuiltTemplateNextStep = {
   step: NextStep;
   templateToolId?: string;
 };
-
-function isToolResponse(value: ToolResponse | void): value is ToolResponse {
-  return typeof value === 'object' && value !== null && 'content' in value;
-}
-
-function finalizeRenderedToolResponse(
-  response: ToolResponse | void,
-  session: ReturnType<typeof createRenderSession>,
-  ctx: ToolHandlerContext,
-): ToolResponse {
-  if (isToolResponse(response)) {
-    return response;
-  }
-
-  const text = session.finalize();
-  const events = [...session.getEvents()];
-  return {
-    content: text ? [{ type: 'text' as const, text }] : [],
-    isError: session.isError() || undefined,
-    nextStepParams: ctx.nextStepParams,
-    ...(events.length > 0 ? { _meta: { events } } : {}),
-  };
-}
 
 function buildTemplateNextSteps(
   tool: ToolDefinition,
@@ -138,80 +114,102 @@ function mergeTemplateAndResponseNextSteps(
   });
 }
 
-function normalizeNextSteps(response: ToolResponse, catalog: ToolCatalog): ToolResponse {
-  if (!response.nextSteps || response.nextSteps.length === 0) {
-    return response;
-  }
-
-  return {
-    ...response,
-    nextSteps: response.nextSteps.map((step) => {
-      if (!step.tool) {
-        return step;
-      }
-
-      const target = catalog.getByMcpName(step.tool);
-      if (!target) {
-        return step;
-      }
-
-      return {
-        ...step,
-        tool: target.mcpName,
-        workflow: target.workflow,
-        cliTool: target.cliName,
-      };
-    }),
-  };
-}
-
-function renderNextStepsIntoContent(response: ToolResponse, runtime: RuntimeKind): ToolResponse {
-  if (!response.nextSteps || response.nextSteps.length === 0) {
-    return response;
-  }
-
-  const section = renderNextStepsSection(response.nextSteps, runtime);
-  if (!section) {
-    return response;
-  }
-
-  const content = [...response.content];
-  let lastTextIndex = -1;
-  for (let i = content.length - 1; i >= 0; i--) {
-    if (content[i].type === 'text') {
-      lastTextIndex = i;
-      break;
+function normalizeNextSteps(steps: NextStep[], catalog: ToolCatalog): NextStep[] {
+  return steps.map((step) => {
+    if (!step.tool) {
+      return step;
     }
-  }
-  if (lastTextIndex >= 0) {
-    const lastItem = content[lastTextIndex];
-    content[lastTextIndex] = { ...lastItem, text: `${lastItem.text}\n\n${section}` };
-  } else {
-    content.push({ type: 'text', text: section });
-  }
 
-  return { ...response, content };
+    const target = catalog.getByMcpName(step.tool);
+    if (!target) {
+      return step;
+    }
+
+    return {
+      ...step,
+      tool: target.mcpName,
+      workflow: target.workflow,
+      cliTool: target.cliName,
+    };
+  });
 }
 
-function isStructuredXcodebuildFailureResponse(response: ToolResponse): boolean {
-  if (isPendingXcodebuildResponse(response)) {
+function isStructuredXcodebuildFailureSession(session: RenderSession): boolean {
+  const events = session.getEvents();
+
+  const asResponseLike = {
+    _meta: { events: [...events] },
+  };
+  if (isPendingXcodebuildResponse(asResponseLike)) {
     return true;
   }
 
-  const events = response._meta?.events;
-  if (!Array.isArray(events)) {
-    return false;
-  }
-
-  const pipelineEvents = events as PipelineEvent[];
-  const hasFailedSummary = pipelineEvents.some(
+  const hasFailedSummary = events.some(
     (event) => event.type === 'summary' && event.status === 'FAILED',
   );
-  const hasHeader = pipelineEvents.some((event) => event.type === 'header');
+  const hasHeader = events.some((event) => event.type === 'header');
 
   return hasFailedSummary && hasHeader;
 }
 
+export function postProcessSession(params: {
+  tool: ToolDefinition;
+  session: RenderSession;
+  ctx: ToolHandlerContext;
+  catalog: ToolCatalog;
+  runtime: InvokeOptions['runtime'];
+  applyTemplateNextSteps?: boolean;
+}): void {
+  const { tool, session, ctx, catalog, runtime, applyTemplateNextSteps = true } = params;
+
+  const isError = session.isError();
+  const nextStepParams = ctx.nextStepParams;
+  const handlerNextSteps = ctx.nextSteps;
+  const suppressNextStepsForStructuredFailure =
+    isError && isStructuredXcodebuildFailureSession(session);
+
+  if (suppressNextStepsForStructuredFailure) {
+    return;
+  }
+
+  const suppressTemplateNextSteps = handlerNextSteps !== undefined && handlerNextSteps.length === 0;
+
+  const effectiveNextStepParams = nextStepParams;
+
+  const allTemplateSteps = buildTemplateNextSteps(tool, catalog);
+  const templateSteps = allTemplateSteps.filter((t) => {
+    const when = t.step.when ?? 'success';
+    if (when === 'success') return !isError;
+    if (when === 'failure') return isError;
+    return true;
+  });
+
+  let finalSteps: NextStep[];
+
+  if (applyTemplateNextSteps && !suppressTemplateNextSteps && templateSteps.length > 0) {
+    finalSteps = mergeTemplateAndResponseNextSteps(templateSteps, effectiveNextStepParams);
+  } else if (handlerNextSteps && handlerNextSteps.length > 0) {
+    finalSteps = handlerNextSteps;
+  } else {
+    return;
+  }
+
+  const normalized = normalizeNextSteps(finalSteps, catalog);
+
+  if (normalized.length > 0) {
+    session.emit({
+      type: 'next-steps',
+      timestamp: new Date().toISOString(),
+      steps: normalized,
+      runtime,
+    });
+  }
+}
+
+/**
+ * Post-process a ToolResponse returned from the daemon wire protocol.
+ * This is used by the MCP boundary (tool-registry.ts) and snapshot harness.
+ */
 export function postProcessToolResponse(params: {
   tool: ToolDefinition;
   response: ToolResponse;
@@ -257,9 +255,11 @@ export function postProcessToolResponse(params: {
         }
       : responseForNextSteps;
 
-  const normalized = normalizeNextSteps(withTemplates, catalog);
+  const withNormalized = withTemplates.nextSteps
+    ? { ...withTemplates, nextSteps: normalizeNextSteps(withTemplates.nextSteps, catalog) }
+    : withTemplates;
 
-  const finalized = renderNextStepsIntoContent(normalized, runtime);
+  const finalized = renderNextStepsIntoContent(withNormalized, runtime);
 
   if (
     Array.isArray(finalized._meta?.events) &&
@@ -276,6 +276,53 @@ export function postProcessToolResponse(params: {
 
   const { nextSteps: _ns, nextStepParams: _nsp, ...result } = finalized;
   return result;
+}
+
+function isStructuredXcodebuildFailureResponse(response: ToolResponse): boolean {
+  if (isPendingXcodebuildResponse(response)) {
+    return true;
+  }
+
+  const events = response._meta?.events;
+  if (!Array.isArray(events)) {
+    return false;
+  }
+
+  const pipelineEvents = events as PipelineEvent[];
+  const hasFailedSummary = pipelineEvents.some(
+    (event) => event.type === 'summary' && event.status === 'FAILED',
+  );
+  const hasHeader = pipelineEvents.some((event) => event.type === 'header');
+
+  return hasFailedSummary && hasHeader;
+}
+
+function renderNextStepsIntoContent(response: ToolResponse, runtime: RuntimeKind): ToolResponse {
+  if (!response.nextSteps || response.nextSteps.length === 0) {
+    return response;
+  }
+
+  const section = renderNextStepsSection(response.nextSteps, runtime);
+  if (!section) {
+    return response;
+  }
+
+  const content = [...response.content];
+  let lastTextIndex = -1;
+  for (let i = content.length - 1; i >= 0; i--) {
+    if (content[i].type === 'text') {
+      lastTextIndex = i;
+      break;
+    }
+  }
+  if (lastTextIndex >= 0) {
+    const lastItem = content[lastTextIndex];
+    content[lastTextIndex] = { ...lastItem, text: `${lastItem.text}\n\n${section}` };
+  } else {
+    content.push({ type: 'text', text: section });
+  }
+
+  return { ...response, content };
 }
 
 function buildDaemonEnvOverrides(opts: InvokeOptions): Record<string, string> | undefined {
@@ -296,6 +343,31 @@ function mapRuntimeToSentryToolRuntime(runtime: InvokeOptions['runtime']): Sentr
   return 'cli';
 }
 
+function emitDaemonToolResponseIntoSession(
+  response: ToolResponse,
+  session: RenderSession,
+  ctx: ToolHandlerContext,
+): void {
+  const events = response._meta?.events;
+  if (Array.isArray(events) && events.length > 0) {
+    for (const event of events as PipelineEvent[]) {
+      session.emit(event);
+    }
+  } else {
+    for (const item of response.content) {
+      if (item.type === 'text' && item.text) {
+        session.emit(statusLine(response.isError ? 'error' : 'success', item.text));
+      }
+    }
+  }
+  if (response.nextStepParams) {
+    ctx.nextStepParams = response.nextStepParams;
+  }
+  if (response.nextSteps) {
+    ctx.nextSteps = response.nextSteps;
+  }
+}
+
 export class DefaultToolInvoker implements ToolInvoker {
   constructor(private catalog: ToolCatalog) {}
 
@@ -303,41 +375,41 @@ export class DefaultToolInvoker implements ToolInvoker {
     toolName: string,
     args: Record<string, unknown>,
     opts: InvokeOptions,
-  ): Promise<ToolResponse> {
+  ): Promise<void> {
     const resolved = this.catalog.resolve(toolName);
+    const session = opts.renderSession ?? createRenderSession('text');
+    const resolvedOpts = { ...opts, renderSession: session };
 
     if (resolved.ambiguous) {
-      return eventsToToolResponse([
+      session.emit(
         statusLine(
           'error',
           `Ambiguous tool name: Multiple tools match '${toolName}'. Use one of:\n- ${resolved.ambiguous.join('\n- ')}`,
         ),
-      ]);
+      );
+      return;
     }
 
     if (resolved.notFound || !resolved.tool) {
-      return eventsToToolResponse([
+      session.emit(
         statusLine(
           'error',
           `Tool not found: Unknown tool '${toolName}'. Run 'xcodebuildmcp tools' to see available tools.`,
         ),
-      ]);
+      );
+      return;
     }
 
-    return this.executeTool(resolved.tool, args, opts);
+    return this.executeTool(resolved.tool, args, resolvedOpts);
   }
 
-  /**
-   * Invoke a tool directly, bypassing catalog resolution.
-   * Used by CLI where the correct ToolDefinition is already known
-   * from workflow-scoped yargs routing.
-   */
   async invokeDirect(
     tool: ToolDefinition,
     args: Record<string, unknown>,
     opts: InvokeOptions,
-  ): Promise<ToolResponse> {
-    return this.executeTool(tool, args, opts);
+  ): Promise<void> {
+    const session = opts.renderSession ?? createRenderSession('text');
+    return this.executeTool(tool, args, { ...opts, renderSession: session });
   }
 
   private async invokeViaDaemon(
@@ -354,18 +426,20 @@ export class DefaultToolInvoker implements ToolInvoker {
         runtime: InvokeOptions['runtime'];
       };
     },
-  ): Promise<ToolResponse> {
+  ): Promise<void> {
+    const session = opts.renderSession!;
     const socketPath = opts.socketPath;
     if (!socketPath) {
       const error = new Error('SocketPathMissing');
       context.captureInfraErrorMetric(error);
       context.captureInvocationMetric('infra_error');
-      return eventsToToolResponse([
+      session.emit(
         statusLine(
           'error',
           'Socket path required: No socket path configured for daemon communication.',
         ),
-      ]);
+      );
+      return;
     }
 
     const client = new DaemonClient({ socketPath });
@@ -387,23 +461,29 @@ export class DefaultToolInvoker implements ToolInvoker {
         );
         context.captureInfraErrorMetric(error);
         context.captureInvocationMetric('infra_error');
-        return eventsToToolResponse([
+        session.emit(
           statusLine(
             'error',
             `Daemon auto-start failed: ${error instanceof Error ? error.message : String(error)}\n\nYou can try starting the daemon manually:\n  xcodebuildmcp daemon start`,
           ),
-        ]);
+        );
+        return;
       }
     }
 
     try {
       const response = await invoke(client);
       context.captureInvocationMetric('completed');
-      return postProcessToolResponse({
+      const processed = postProcessToolResponse({
         ...context.postProcessParams,
         response,
         applyTemplateNextSteps: false,
       });
+      const ctx: ToolHandlerContext = {
+        emit: (event) => session.emit(event),
+        attach: (image) => session.attach(image),
+      };
+      emitDaemonToolResponseIntoSession(processed, session, ctx);
     } catch (error) {
       log(
         'error',
@@ -412,12 +492,12 @@ export class DefaultToolInvoker implements ToolInvoker {
       );
       context.captureInfraErrorMetric(error);
       context.captureInvocationMetric('infra_error');
-      return eventsToToolResponse([
+      session.emit(
         statusLine(
           'error',
           `${context.errorTitle}: ${error instanceof Error ? error.message : String(error)}`,
         ),
-      ]);
+      );
     }
   }
 
@@ -425,7 +505,7 @@ export class DefaultToolInvoker implements ToolInvoker {
     tool: ToolDefinition,
     args: Record<string, unknown>,
     opts: InvokeOptions,
-  ): Promise<ToolResponse> {
+  ): Promise<void> {
     const startedAt = Date.now();
     const runtime = mapRuntimeToSentryToolRuntime(opts.runtime);
     let transport: SentryToolTransport = 'direct';
@@ -480,8 +560,8 @@ export class DefaultToolInvoker implements ToolInvoker {
     }
 
     // Direct invocation (CLI stateless or daemon internal)
+    const session = opts.renderSession!;
     try {
-      const session = opts.renderSession ?? createRenderSession('text');
       const ctx: ToolHandlerContext = {
         emit: (event) => {
           session.emit(event);
@@ -490,12 +570,13 @@ export class DefaultToolInvoker implements ToolInvoker {
           session.attach(image);
         },
       };
-      const rawResponse = await tool.handler(args, ctx);
-      const response = finalizeRenderedToolResponse(rawResponse, session, ctx);
+      await tool.handler(args, ctx);
+
       captureInvocationMetric('completed');
-      return postProcessToolResponse({
+      postProcessSession({
         ...postProcessParams,
-        response,
+        session,
+        ctx,
       });
     } catch (error) {
       log(
@@ -506,7 +587,7 @@ export class DefaultToolInvoker implements ToolInvoker {
       captureInfraErrorMetric(error);
       captureInvocationMetric('infra_error');
       const message = error instanceof Error ? error.message : String(error);
-      return eventsToToolResponse([statusLine('error', `Tool execution failed: ${message}`)]);
+      session.emit(statusLine('error', `Tool execution failed: ${message}`));
     }
   }
 }

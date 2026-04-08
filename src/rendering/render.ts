@@ -164,7 +164,8 @@ function createTextRenderSession(): RenderSession {
         }
 
         case 'next-steps': {
-          const text = formatNextStepsEvent(event, 'mcp');
+          const effectiveRuntime = event.runtime === 'cli' ? 'cli' : 'mcp';
+          const text = formatNextStepsEvent(event, effectiveRuntime);
           pushSection(text);
           return { text };
         }

@@ -1,44 +1,38 @@
-import type { ToolResponse, OutputStyle } from '../types/common.ts';
+import type { OutputStyle } from '../types/common.ts';
 import type { PipelineEvent } from '../types/pipeline-events.ts';
+import type { ImageAttachment } from '../rendering/types.ts';
 import { createCliTextRenderer } from '../utils/renderers/cli-text-renderer.ts';
 import { formatCliTextLine } from '../utils/terminal-output.ts';
 
 export type OutputFormat = 'text' | 'json' | 'raw';
 
-export interface PrintToolResponseOptions {
+export interface PrintSessionOutputOptions {
   format?: OutputFormat;
   style?: OutputStyle;
+}
+
+export interface SessionOutputData {
+  text: string;
+  events: PipelineEvent[];
+  attachments: readonly ImageAttachment[];
+  isError: boolean;
 }
 
 function writeLine(text: string): void {
   process.stdout.write(`${text}\n`);
 }
 
-function extractRenderedNextSteps(response: ToolResponse): string {
-  for (let index = (response.content?.length ?? 0) - 1; index >= 0; index -= 1) {
-    const item = response.content?.[index];
-    if (!item || item.type !== 'text') {
-      continue;
-    }
+function extractRenderedNextSteps(text: string): string {
+  const nextStepsIndex = text.lastIndexOf('\n\nNext steps:\n');
+  if (nextStepsIndex >= 0) {
+    return text.slice(nextStepsIndex + 2).trim();
+  }
 
-    const nextStepsIndex = item.text.lastIndexOf('\n\nNext steps:\n');
-    if (nextStepsIndex >= 0) {
-      return item.text.slice(nextStepsIndex + 2).trim();
-    }
-
-    if (item.text.startsWith('Next steps:\n')) {
-      return item.text.trim();
-    }
+  if (text.startsWith('Next steps:\n')) {
+    return text.trim();
   }
 
   return '';
-}
-
-function isCompletePipelineStream(response: ToolResponse): boolean {
-  return (
-    response._meta?.xcodebuildStreamMode === 'complete' ||
-    response._meta?.pipelineStreamMode === 'complete'
-  );
 }
 
 const CLI_RENDERABLE_EVENT_TYPES = new Set<PipelineEvent['type']>([
@@ -66,16 +60,15 @@ function isCliRenderableEvent(event: unknown): event is PipelineEvent {
   return CLI_RENDERABLE_EVENT_TYPES.has((event as { type: PipelineEvent['type'] }).type);
 }
 
-function getRenderableResponseEvents(response: ToolResponse): PipelineEvent[] | null {
-  const events = response._meta?.events;
-  if (!Array.isArray(events) || events.length === 0) {
+function getRenderableEvents(events: PipelineEvent[]): PipelineEvent[] | null {
+  if (events.length === 0) {
     return null;
   }
 
-  return events.every(isCliRenderableEvent) ? (events as PipelineEvent[]) : null;
+  return events.every(isCliRenderableEvent) ? events : null;
 }
 
-function renderToolResponseEvents(events: readonly PipelineEvent[]): boolean {
+function renderEvents(events: readonly PipelineEvent[]): boolean {
   if (events.length === 0) {
     return false;
   }
@@ -88,139 +81,78 @@ function renderToolResponseEvents(events: readonly PipelineEvent[]): boolean {
   return true;
 }
 
-function responseHasNextStepsEvent(events: readonly PipelineEvent[]): boolean {
+function hasNextStepsEvent(events: readonly PipelineEvent[]): boolean {
   return events.some((event) => event.type === 'next-steps');
 }
 
 /**
- * Print a tool response to the terminal.
- * Applies runtime-aware rendering of next steps for CLI output.
+ * Print session output to the terminal.
+ * Reads directly from RenderSession data (events, text, attachments, isError).
  */
-export function printToolResponse(
-  response: ToolResponse,
-  options: PrintToolResponseOptions = {},
+export function printSessionOutput(
+  data: SessionOutputData,
+  options: PrintSessionOutputOptions = {},
 ): void {
   const { format = 'text', style = 'normal' } = options;
 
-  if (isCompletePipelineStream(response) || process.env.XCODEBUILDMCP_VERBOSE === '1') {
-    if (!response.isError && style !== 'minimal') {
-      const nextStepsText = extractRenderedNextSteps(response);
+  if (process.env.XCODEBUILDMCP_VERBOSE === '1') {
+    if (!data.isError && style !== 'minimal') {
+      const nextStepsText = extractRenderedNextSteps(data.text);
       if (nextStepsText.length > 0) {
         writeLine('');
         writeLine(nextStepsText);
       }
     }
-    if (response.isError) {
+    if (data.isError) {
       process.exitCode = 1;
     }
     return;
   }
 
   if (format === 'json') {
-    // When events were streamed as JSONL during execution, skip re-printing them
-    const hasStreamedEvents = Array.isArray(response._meta?.events);
-    if (hasStreamedEvents) {
-      const events = response._meta?.events as Array<Record<string, unknown>>;
-      const streamedEventCount =
-        typeof response._meta?.streamedEventCount === 'number'
-          ? response._meta.streamedEventCount
-          : events.length;
-      const appendedEvents = events.slice(streamedEventCount);
-
-      for (const event of appendedEvents) {
-        writeLine(JSON.stringify(event));
-      }
-
-      // Events were already written to stdout as JSONL by the CLI JSONL renderer.
-      // Only emit non-event content (error messages, etc.) if present.
-      const nonEventContent = response.content?.filter(
-        (item) => item.type !== 'text' || !item.text,
-      );
-      if (nonEventContent && nonEventContent.length > 0) {
-        writeLine(JSON.stringify({ ...response, content: nonEventContent }, null, 2));
-      }
-    } else {
-      writeLine(JSON.stringify(response, null, 2));
+    for (const event of data.events) {
+      writeLine(JSON.stringify(event));
     }
   } else {
-    const renderableEvents = getRenderableResponseEvents(response);
-    const streamedEventCount =
-      typeof response._meta?.streamedEventCount === 'number'
-        ? response._meta.streamedEventCount
-        : 0;
+    const renderableEvents = getRenderableEvents(data.events);
 
     if (renderableEvents) {
-      renderToolResponseEvents(renderableEvents.slice(streamedEventCount));
+      renderEvents(renderableEvents);
 
-      if (style !== 'minimal' && !responseHasNextStepsEvent(renderableEvents)) {
-        const nextStepsText = extractRenderedNextSteps(response);
+      if (style !== 'minimal' && !hasNextStepsEvent(renderableEvents)) {
+        const nextStepsText = extractRenderedNextSteps(data.text);
         if (nextStepsText.length > 0) {
           writeLine(nextStepsText);
         }
       }
 
-      printToolResponseMedia(response);
+      printMediaAttachments(data.attachments);
     } else {
-      const hasStreamedEvents = Array.isArray(response._meta?.events);
-      const streamedContentCount =
-        typeof response._meta?.streamedContentCount === 'number'
-          ? response._meta.streamedContentCount
-          : 0;
-
-      if (hasStreamedEvents && process.stdout.isTTY === true) {
-        const printedAny = printToolResponseText(response, streamedContentCount);
-        if (!printedAny && style !== 'minimal') {
-          const nextStepsText = extractRenderedNextSteps(response);
-          if (nextStepsText.length > 0) {
-            writeLine(nextStepsText);
-          }
-        }
-      } else {
-        printToolResponseText(response);
-      }
+      printTextOutput(data.text);
     }
   }
 
-  if (response.isError) {
+  if (data.isError) {
     process.exitCode = 1;
   }
 }
 
-/**
- * Print tool response content as text.
- */
-function printToolResponseText(response: ToolResponse, skipItems: number = 0): boolean {
-  let printed = false;
-  const content = response.content ?? [];
-
-  for (const [index, item] of content.entries()) {
-    if (index < skipItems) {
-      continue;
-    }
-
-    if (item.type === 'text') {
-      for (const line of item.text.split('\n')) {
-        writeLine(formatCliTextLine(line));
-      }
-      printed = true;
-    } else if (item.type === 'image') {
-      printed = printResponseImageItem(item.data, item.mimeType) || printed;
-    }
+function printTextOutput(text: string): boolean {
+  if (!text) {
+    return false;
   }
 
-  return printed;
+  for (const line of text.split('\n')) {
+    writeLine(formatCliTextLine(line));
+  }
+  return true;
 }
 
-function printToolResponseMedia(response: ToolResponse, skipItems: number = 0): boolean {
+function printMediaAttachments(attachments: readonly ImageAttachment[]): boolean {
   let printed = false;
-  const content = response.content ?? [];
 
-  for (const [index, item] of content.entries()) {
-    if (index < skipItems || item.type !== 'image') {
-      continue;
-    }
-
-    printed = printResponseImageItem(item.data, item.mimeType) || printed;
+  for (const attachment of attachments) {
+    printed = printResponseImageItem(attachment.data, attachment.mimeType) || printed;
   }
 
   return printed;

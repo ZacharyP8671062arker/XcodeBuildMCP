@@ -13,19 +13,10 @@ import type { ToolDefinition } from '../runtime/types.ts';
 import type { ToolHandlerContext } from '../rendering/types.ts';
 import { createRenderSession } from '../rendering/render.ts';
 
-function isToolResponse(value: ToolResponse | void): value is ToolResponse {
-  return typeof value === 'object' && value !== null && 'content' in value;
-}
-
-function finalizeRenderedToolResponse(
-  response: ToolResponse | void,
+function sessionToToolResponse(
   session: ReturnType<typeof createRenderSession>,
   ctx: ToolHandlerContext,
 ): ToolResponse {
-  if (isToolResponse(response)) {
-    return response;
-  }
-
   const text = session.finalize();
   return {
     content: text ? [{ type: 'text' as const, text }] : [],
@@ -87,7 +78,7 @@ function buildMinimalToolCatalog(
   handler: ToolDefinition['handler'],
 ): { tool: ToolDefinition; catalog: ReturnType<typeof createToolCatalog> } {
   const manifest = loadManifest();
-  const noopHandler: ToolDefinition['handler'] = async () => ({ content: [] });
+  const noopHandler: ToolDefinition['handler'] = async () => {};
 
   const allTools: ToolDefinition[] = Array.from(manifest.tools.values()).map((toolEntry) => ({
     id: toolEntry.id,
@@ -123,7 +114,7 @@ async function importSnapshotToolModule(toolModulePath: string) {
 
   try {
     return (await import(sourceModuleUrl)) as {
-      handler: (params: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<ToolResponse>;
+      handler: (params: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void>;
     };
   } catch {
     return importToolModule(toolModulePath);
@@ -182,11 +173,8 @@ export async function createSnapshotHarness(): Promise<SnapshotHarness> {
         session.attach(image);
       },
     };
-    const raw = finalizeRenderedToolResponse(
-      (await toolModule.handler(args, ctx)) as ToolResponse | void,
-      session,
-      ctx,
-    );
+    await toolModule.handler(args, ctx);
+    const raw = sessionToToolResponse(session, ctx);
     const { tool, catalog } = buildMinimalToolCatalog(
       manifestEntry,
       toolModule.handler as ToolDefinition['handler'],

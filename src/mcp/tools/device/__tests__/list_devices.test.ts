@@ -5,7 +5,23 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 
 import { schema, handler, list_devicesLogic } from '../list_devices.ts';
-import { allText } from '../../../../test-utils/test-helpers.ts';
+import { allText, createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
+import type { CommandExecutor } from '../../../../utils/execution/index.ts';
+
+async function runListDevicesLogic(
+  params: Record<string, never>,
+  executor: CommandExecutor,
+  pathDeps?: Parameters<typeof list_devicesLogic>[2],
+  fsDeps?: Parameters<typeof list_devicesLogic>[3],
+) {
+  const { ctx, result, run } = createMockToolHandlerContext();
+  await run(() => list_devicesLogic(params, executor, pathDeps, fsDeps));
+  return {
+    content: [{ type: 'text' as const, text: result.text() }],
+    isError: result.isError() || undefined,
+    nextStepParams: ctx.nextStepParams,
+  };
+}
 
 describe('list_devices plugin (device-shared)', () => {
   describe('Export Field Validation (Literal)', () => {
@@ -81,7 +97,7 @@ describe('list_devices plugin (device-shared)', () => {
         unlink: async () => {},
       };
 
-      await list_devicesLogic({}, trackingExecutor, mockPathDeps, mockFsDeps);
+      await runListDevicesLogic({}, trackingExecutor, mockPathDeps, mockFsDeps);
 
       expect(commandCalls).toHaveLength(1);
       expect(commandCalls[0].command).toEqual([
@@ -143,7 +159,7 @@ describe('list_devices plugin (device-shared)', () => {
         unlink: async () => {},
       };
 
-      await list_devicesLogic({}, trackingExecutor, mockPathDeps, mockFsDeps);
+      await runListDevicesLogic({}, trackingExecutor, mockPathDeps, mockFsDeps);
 
       expect(commandCalls).toHaveLength(2);
       expect(commandCalls[1].command).toEqual(['xcrun', 'xctrace', 'list', 'devices']);
@@ -194,7 +210,7 @@ describe('list_devices plugin (device-shared)', () => {
         unlink: async () => {},
       };
 
-      const result = await list_devicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
+      const result = await runListDevicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
@@ -240,7 +256,7 @@ describe('list_devices plugin (device-shared)', () => {
         unlink: async () => {},
       };
 
-      const result = await list_devicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
+      const result = await runListDevicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);
@@ -289,7 +305,7 @@ describe('list_devices plugin (device-shared)', () => {
         unlink: async () => {},
       };
 
-      const result = await list_devicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
+      const result = await runListDevicesLogic({}, mockExecutor, mockPathDeps, mockFsDeps);
 
       expect(result.isError).toBeFalsy();
       const text = allText(result);

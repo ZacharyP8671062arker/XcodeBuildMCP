@@ -4,8 +4,20 @@ import {
   createMockCommandResponse,
   createMockExecutor,
 } from '../../../../test-utils/mock-executors.ts';
+import { createMockToolHandlerContext } from '../../../../test-utils/test-helpers.ts';
 
 import { schema, handler, list_simsLogic, listSimulators } from '../list_sims.ts';
+import type { CommandExecutor } from '../../../../utils/execution/index.ts';
+
+async function runListSimsLogic(params: { enabled?: boolean }, executor: CommandExecutor) {
+  const { ctx, result, run } = createMockToolHandlerContext();
+  await run(() => list_simsLogic(params, executor));
+  return {
+    content: [{ type: 'text' as const, text: result.text() }],
+    isError: result.isError() || undefined,
+    nextStepParams: ctx.nextStepParams,
+  };
+}
 
 describe('list_sims tool', () => {
   let callHistory: Array<{
@@ -119,7 +131,7 @@ describe('list_sims tool', () => {
         });
       };
 
-      const result = await list_simsLogic({ enabled: true }, mockExecutor);
+      const result = await runListSimsLogic({ enabled: true }, mockExecutor);
 
       expect(callHistory).toHaveLength(2);
       expect(callHistory[0]).toEqual({
@@ -186,7 +198,7 @@ describe('list_sims tool', () => {
         });
       };
 
-      const result = await list_simsLogic({ enabled: true }, mockExecutor);
+      const result = await runListSimsLogic({ enabled: true }, mockExecutor);
 
       const text = result.content.map((c) => c.text).join('\n');
       expect(text).toContain('List Simulators');
@@ -241,7 +253,7 @@ describe('list_sims tool', () => {
         });
       };
 
-      const result = await list_simsLogic({ enabled: true }, mockExecutor);
+      const result = await runListSimsLogic({ enabled: true }, mockExecutor);
 
       const text = result.content.map((c) => c.text).join('\n');
       expect(text).toContain('iOS 18.6');
@@ -270,7 +282,7 @@ describe('list_sims tool', () => {
         process: { pid: 12345 },
       });
 
-      const result = await list_simsLogic({ enabled: true }, mockExecutor);
+      const result = await runListSimsLogic({ enabled: true }, mockExecutor);
 
       const text = result.content.map((c) => c.text).join('\n');
       expect(text).toContain('Failed to list simulators');
@@ -298,7 +310,7 @@ describe('list_sims tool', () => {
         });
       };
 
-      const result = await list_simsLogic({ enabled: true }, mockExecutor);
+      const result = await runListSimsLogic({ enabled: true }, mockExecutor);
 
       const text = result.content.map((c) => c.text).join('\n');
       expect(text).toContain('iOS 17.0');
@@ -319,7 +331,7 @@ describe('list_sims tool', () => {
     it('should handle exception with Error object', async () => {
       const mockExecutor = createMockExecutor(new Error('Command execution failed'));
 
-      const result = await list_simsLogic({ enabled: true }, mockExecutor);
+      const result = await runListSimsLogic({ enabled: true }, mockExecutor);
 
       const text = result.content.map((c) => c.text).join('\n');
       expect(text).toContain('Failed to list simulators');
@@ -329,7 +341,7 @@ describe('list_sims tool', () => {
     it('should handle exception with string error', async () => {
       const mockExecutor = createMockExecutor('String error');
 
-      const result = await list_simsLogic({ enabled: true }, mockExecutor);
+      const result = await runListSimsLogic({ enabled: true }, mockExecutor);
 
       const text = result.content.map((c) => c.text).join('\n');
       expect(text).toContain('Failed to list simulators');

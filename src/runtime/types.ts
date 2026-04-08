@@ -1,5 +1,4 @@
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
-import type { ToolResponse } from '../types/common.ts';
 import type { ToolSchemaShape } from '../core/plugin-types.ts';
 import type { RenderSession, ToolHandlerContext } from '../rendering/types.ts';
 
@@ -56,10 +55,7 @@ export interface ToolDefinition {
   /**
    * Shared handler (same used by MCP). No duplication.
    */
-  handler: (
-    params: Record<string, unknown>,
-    ctx: ToolHandlerContext,
-  ) => Promise<ToolResponse | void>;
+  handler: (params: Record<string, unknown>, ctx: ToolHandlerContext) => Promise<void>;
 }
 
 export interface ToolResolution {
@@ -102,9 +98,5 @@ export interface InvokeOptions {
 }
 
 export interface ToolInvoker {
-  invoke(
-    toolName: string,
-    args: Record<string, unknown>,
-    opts: InvokeOptions,
-  ): Promise<ToolResponse>;
+  invoke(toolName: string, args: Record<string, unknown>, opts: InvokeOptions): Promise<void>;
 }

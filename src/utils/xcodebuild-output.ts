@@ -1,4 +1,3 @@
-import type { ToolResponseContent } from '../types/common.ts';
 import type {
   BuildRunResultNoticeData,
   BuildRunStepNoticeData,
@@ -17,7 +16,7 @@ interface FinalizeInlineXcodebuildOptions {
   started: StartedPipeline;
   succeeded: boolean;
   durationMs: number;
-  responseContent?: ToolResponseContent[];
+  responseContent?: Array<{ type: 'text'; text: string }>;
   emit?: (event: PipelineEvent) => void;
   emitSummary?: boolean;
   tailEvents?: PipelineEvent[];
@@ -59,7 +58,7 @@ function formatBuildRunStepLabel(step: string): string {
 }
 
 function extractTextContent(
-  content: ToolResponseContent[] | undefined,
+  content: Array<{ type: 'text'; text: string }> | undefined,
 ): Array<{ type: 'text'; text: string }> {
   return (content ?? []).filter(
     (item): item is { type: 'text'; text: string } =>

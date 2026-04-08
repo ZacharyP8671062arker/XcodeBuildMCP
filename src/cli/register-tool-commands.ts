@@ -2,10 +2,11 @@ import type { Argv } from 'yargs';
 import yargsParser from 'yargs-parser';
 import type { ToolCatalog, ToolDefinition } from '../runtime/types.ts';
 import type { OutputStyle } from '../types/common.ts';
+import type { PipelineEvent } from '../types/pipeline-events.ts';
 import { DefaultToolInvoker } from '../runtime/tool-invoker.ts';
 import { schemaToYargsOptions, getUnsupportedSchemaKeys } from './schema-to-yargs.ts';
 import { convertArgvToToolParams } from '../runtime/naming.ts';
-import { printToolResponse, type OutputFormat } from './output.ts';
+import { printSessionOutput, type OutputFormat } from './output.ts';
 import { groupToolsByWorkflow } from '../runtime/tool-catalog.ts';
 import { getWorkflowMetadataFromManifest } from '../core/manifest/load-manifest.ts';
 import type { ResolvedRuntimeConfig } from '../utils/config-store.ts';
@@ -14,6 +15,7 @@ import {
   isKnownCliSessionDefaultsProfile,
   mergeCliSessionDefaults,
 } from './session-defaults.ts';
+import { createRenderSession } from '../rendering/render.ts';
 
 export interface RegisterToolCommandsOptions {
   workspaceRoot: string;
@@ -295,15 +297,25 @@ function registerToolSubcommand(
         outputFormat === 'raw' ? setEnvScoped('XCODEBUILDMCP_VERBOSE', '1') : undefined;
 
       try {
-        const response = await invoker.invokeDirect(tool, args, {
+        const session = createRenderSession('text');
+        await invoker.invokeDirect(tool, args, {
           runtime: 'cli',
+          renderSession: session,
           cliExposedWorkflowIds,
           socketPath,
           workspaceRoot: opts.workspaceRoot,
           logLevel,
         });
 
-        printToolResponse(response, { format: outputFormat, style: outputStyle });
+        const text = session.finalize();
+        const events = [...session.getEvents()] as PipelineEvent[];
+        const attachments = session.getAttachments();
+        const isError = session.isError();
+
+        printSessionOutput(
+          { text, events, attachments, isError },
+          { format: outputFormat, style: outputStyle },
+        );
       } finally {
         restoreCliOutputFormat();
         restoreVerbose?.();

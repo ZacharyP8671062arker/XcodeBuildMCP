@@ -11,6 +11,9 @@ import { createToolCatalog } from '../../runtime/tool-catalog.ts';
 import { postProcessToolResponse } from '../../runtime/tool-invoker.ts';
 import type { ToolDefinition } from '../../runtime/types.ts';
 import type { ToolResponse } from '../../types/common.ts';
+import { createRenderSession } from '../../rendering/render.ts';
+import type { ToolHandlerContext } from '../../rendering/types.ts';
+import { handlerContextStorage } from '../../utils/typed-tool-factory.ts';
 
 const FIXTURE_SIMCTL_TEXT = `== Devices ==
 -- iOS 26.4 --
@@ -66,7 +69,7 @@ function buildCatalogForTool(toolId: string, handler: ToolDefinition['handler'])
     throw new Error(`Tool manifest not found: ${toolId}`);
   }
 
-  const noopHandler: ToolDefinition['handler'] = async () => ({ content: [] });
+  const noopHandler: ToolDefinition['handler'] = async () => {};
   const allTools: ToolDefinition[] = Array.from(manifest.tools.values()).map((toolEntry) => ({
     id: toolEntry.id,
     cliName: getEffectiveCliName(toolEntry),
@@ -108,7 +111,20 @@ async function invokeDeterministicSimulatorList(): Promise<{ text: string; isErr
     };
   };
 
-  const raw = await list_simsLogic({ enabled: true }, executor);
+  const session = createRenderSession('text');
+  const ctx: ToolHandlerContext = {
+    emit: (event) => session.emit(event),
+    attach: () => {},
+  };
+  await handlerContextStorage.run(ctx, () => list_simsLogic({ enabled: true }, executor));
+  const sessionText = session.finalize();
+  const raw: ToolResponse = {
+    content: sessionText ? [{ type: 'text' as const, text: sessionText }] : [],
+    isError: session.isError() || undefined,
+    nextStepParams: ctx.nextStepParams,
+    _meta: { events: [...session.getEvents()] },
+  };
+
   const { tool, catalog } = buildCatalogForTool(
     'list_sims',
     list_simsLogic as ToolDefinition['handler'],

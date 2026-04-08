@@ -7,6 +7,7 @@ import type { ToolHandlerContext, ImageAttachment } from '../rendering/types.ts'
 import type { PipelineEvent } from '../types/pipeline-events.ts';
 import type { ToolResponse, NextStepParamsMap } from '../types/common.ts';
 import { renderEvents } from '../rendering/render.ts';
+import { createRenderSession } from '../rendering/render.ts';
 import { handlerContextStorage } from '../utils/typed-tool-factory.ts';
 
 /**
@@ -40,7 +41,6 @@ export function createMockToolHandlerContext(): {
 } {
   const events: PipelineEvent[] = [];
   const attachments: ImageAttachment[] = [];
-  let fallbackResponse: ToolResponse | null = null;
   const ctx: ToolHandlerContext = {
     emit: (event) => {
       events.push(event);
@@ -53,15 +53,12 @@ export function createMockToolHandlerContext(): {
     events,
     attachments,
     get nextStepParams() {
-      if (fallbackResponse?.nextStepParams) return fallbackResponse.nextStepParams;
       return ctx.nextStepParams;
     },
     text() {
-      if (fallbackResponse) return allText(fallbackResponse);
       return renderEvents(events, 'text');
     },
     isError() {
-      if (fallbackResponse) return fallbackResponse.isError === true;
       return events.some(
         (e) =>
           (e.type === 'status-line' && e.level === 'error') ||
@@ -73,11 +70,7 @@ export function createMockToolHandlerContext(): {
     ctx,
     result: resultObj,
     run: async <T>(fn: () => Promise<T>): Promise<T> => {
-      const value = await handlerContextStorage.run(ctx, fn);
-      if (value && typeof value === 'object' && 'content' in (value as Record<string, unknown>)) {
-        fallbackResponse = value as unknown as ToolResponse;
-      }
-      return value;
+      return handlerContextStorage.run(ctx, fn);
     },
   };
 }
@@ -89,6 +82,28 @@ export async function runToolLogic<T>(logic: () => Promise<T>): Promise<{
   const { result, run } = createMockToolHandlerContext();
   const response = await run(logic);
   return { response, result };
+}
+
+/**
+ * Call a tool handler in test mode, providing a session context and
+ * returning a ToolResponse-shaped result for backward-compatible assertions.
+ */
+export async function callHandler(
+  handler: (args: Record<string, unknown>, ctx?: ToolHandlerContext) => Promise<void>,
+  args: Record<string, unknown>,
+): Promise<ToolResponse> {
+  const session = createRenderSession('text');
+  const ctx: ToolHandlerContext = {
+    emit: (event) => session.emit(event),
+    attach: (image) => session.attach(image),
+  };
+  await handler(args, ctx);
+  const text = session.finalize();
+  return {
+    content: text ? [{ type: 'text' as const, text }] : [],
+    isError: session.isError() || undefined,
+    nextStepParams: ctx.nextStepParams,
+  };
 }
 
 function isMockToolHandlerResult(

@@ -1,5 +1,5 @@
 import type { PipelineEvent } from '../types/pipeline-events.ts';
-import type { NextStepParamsMap } from '../types/common.ts';
+import type { NextStep, NextStepParamsMap } from '../types/common.ts';
 
 export type RenderStrategy = 'text' | 'json';
 
@@ -26,4 +26,5 @@ export interface ToolHandlerContext {
   emit: (event: PipelineEvent) => void;
   attach: (image: ImageAttachment) => void;
   nextStepParams?: NextStepParamsMap;
+  nextSteps?: NextStep[];
 }

@@ -2,13 +2,12 @@ import * as z from 'zod';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { createTypedTool, handlerContextStorage } from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
-import { renderEvents } from '../../../rendering/render.ts';
 import { header, statusLine, section } from '../../../utils/tool-event-builders.ts';
 
 const listDevicesSchema = z.object({});
@@ -117,9 +116,6 @@ function buildDevicePlatformSections(
   return { sections, summary };
 }
 
-/**
- * Business logic for listing connected devices
- */
 export async function list_devicesLogic(
   _params: ListDevicesParams,
   executor: CommandExecutor,
@@ -130,6 +126,8 @@ export async function list_devicesLogic(
   },
 ): Promise<void> {
   log('info', 'Starting device discovery');
+
+  const ctx = getHandlerContext();
   const headerEvent = header('List Devices');
 
   const buildEvents = async (): Promise<PipelineEvent[]> => {
@@ -334,42 +332,20 @@ export async function list_devicesLogic(
     return events;
   };
 
-  const sharedOptions = {
-    header: headerEvent,
-    errorMessage: ({ message }: { message: string }) => `Failed to list devices: ${message}`,
-    logMessage: ({ message }: { message: string }) => `Error listing devices: ${message}`,
-  };
-
-  const ctx = handlerContextStorage.getStore();
-
-  if (ctx) {
-    await withErrorHandling(
-      ctx,
-      async () => {
-        const events = await buildEvents();
-        for (const event of events) {
-          ctx.emit(event);
-        }
-      },
-      sharedOptions,
-    );
-    return;
-  }
-
-  return withErrorHandling(async () => {
-    const events = await buildEvents();
-    const rendered = renderEvents(events, 'text');
-    const hasError = events.some(
-      (e) =>
-        (e.type === 'status-line' && e.level === 'error') ||
-        (e.type === 'summary' && e.status === 'FAILED'),
-    );
-    return {
-      content: [{ type: 'text' as const, text: rendered }],
-      isError: hasError || undefined,
-      _meta: { events: [...events] },
-    };
-  }, sharedOptions) as unknown as Promise<void>;
+  await withErrorHandling(
+    ctx,
+    async () => {
+      const events = await buildEvents();
+      for (const event of events) {
+        ctx.emit(event);
+      }
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }: { message: string }) => `Failed to list devices: ${message}`,
+      logMessage: ({ message }: { message: string }) => `Error listing devices: ${message}`,
+    },
+  );
 }
 
 export const schema = listDevicesSchema.shape;

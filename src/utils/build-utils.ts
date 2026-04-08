@@ -1,7 +1,7 @@
 import { log } from './logger.ts';
 import { XcodePlatform, constructDestinationString } from './xcode.ts';
 import type { CommandExecutor, CommandExecOptions } from './command.ts';
-import type { ToolResponse, SharedBuildParams, PlatformBuildOptions } from '../types/common.ts';
+import type { SharedBuildParams, PlatformBuildOptions } from '../types/common.ts';
 import {
   isXcodemakeEnabled,
   isXcodemakeAvailable,
@@ -15,6 +15,11 @@ import os from 'node:os';
 import { resolveEffectiveDerivedDataPath } from './derived-data-path.ts';
 import type { XcodebuildPipeline } from './xcodebuild-pipeline.ts';
 import { createNoticeEvent } from './xcodebuild-output.ts';
+
+export interface BuildCommandResult {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+}
 
 function resolvePathFromCwd(pathValue: string): string {
   if (path.isAbsolute(pathValue)) {
@@ -35,7 +40,7 @@ export async function executeXcodeBuildCommand(
   executor: CommandExecutor,
   execOpts?: CommandExecOptions,
   pipeline?: XcodebuildPipeline,
-): Promise<ToolResponse> {
+): Promise<BuildCommandResult> {
   function addBuildMessage(message: string, level: 'info' | 'success' = 'info'): void {
     pipeline?.emitEvent(
       createNoticeEvent('BUILD', message.replace(/^[^\p{L}\p{N}]+/u, '').trim(), level),
@@ -228,7 +233,7 @@ export async function executeXcodeBuildCommand(
     log('info', `${platformOptions.logPrefix} ${buildAction} succeeded.`);
 
     const successText = `${platformOptions.logPrefix} ${buildAction} succeeded for scheme ${params.scheme}.`;
-    const successResponse: ToolResponse = {
+    const successResponse: BuildCommandResult = {
       content: [{ type: 'text', text: successText }],
     };
 

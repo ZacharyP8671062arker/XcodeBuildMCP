@@ -1,6 +1,8 @@
 import net from 'node:net';
 import { writeFrame, createFrameReader } from './framing.ts';
 import type { ToolCatalog } from '../runtime/types.ts';
+import type { ToolResponse } from '../types/common.ts';
+import type { PipelineEvent } from '../types/pipeline-events.ts';
 import type {
   DaemonRequest,
   DaemonResponse,
@@ -14,6 +16,7 @@ import type {
 } from './protocol.ts';
 import { DAEMON_PROTOCOL_VERSION } from './protocol.ts';
 import { DefaultToolInvoker } from '../runtime/tool-invoker.ts';
+import { createRenderSession } from '../rendering/render.ts';
 import { log } from '../utils/logger.ts';
 import { XcodeIdeToolService } from '../integrations/xcode-tools-bridge/tool-service.ts';
 import { toLocalToolName } from '../integrations/xcode-tools-bridge/registry.ts';
@@ -117,10 +120,20 @@ export function startDaemonServer(ctx: DaemonServerContext): net.Server {
               }
 
               log('info', `[Daemon] Invoking tool: ${params.tool}`);
-              const response = await invoker.invoke(params.tool, params.args ?? {}, {
+              const session = createRenderSession('text');
+              await invoker.invoke(params.tool, params.args ?? {}, {
                 runtime: 'daemon',
+                renderSession: session,
                 enabledWorkflows: ctx.enabledWorkflows,
               });
+
+              const text = session.finalize();
+              const events = [...session.getEvents()] as PipelineEvent[];
+              const response: ToolResponse = {
+                content: text ? [{ type: 'text' as const, text }] : [],
+                isError: session.isError() || undefined,
+                ...(events.length > 0 ? { _meta: { events } } : {}),
+              };
 
               return writeFrame(socket, { ...base, result: { response } });
             }

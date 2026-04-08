@@ -1,8 +1,6 @@
-import type { ToolResponse } from '../types/common.ts';
 import type { ToolHandlerContext } from '../rendering/types.ts';
 import type { HeaderEvent, PipelineEvent } from '../types/pipeline-events.ts';
 import { toErrorMessage } from './errors.ts';
-import { eventsToToolResponse } from './events-to-tool-response.ts';
 import { statusLine } from './tool-event-builders.ts';
 import { log } from './logging/index.ts';
 
@@ -17,52 +15,14 @@ export interface WithErrorHandlingOptions {
   header: HeaderEvent | (() => HeaderEvent);
   errorMessage: string | ((errCtx: { message: string; error: unknown }) => string);
   logMessage?: string | ((errCtx: { message: string; error: unknown }) => string);
-  mapError?: (errCtx: MapErrorContext) => ToolResponse | void | undefined;
+  mapError?: (errCtx: MapErrorContext) => void | undefined;
 }
 
-function emitMappedErrorResponse(ctx: ToolHandlerContext, response: ToolResponse): boolean {
-  const events = response._meta?.events;
-  if (!Array.isArray(events)) {
-    return false;
-  }
-
-  for (const event of events as PipelineEvent[]) {
-    ctx.emit(event);
-  }
-
-  if (response.nextStepParams) {
-    ctx.nextStepParams = response.nextStepParams;
-  }
-
-  return true;
-}
-
-/**
- * Wrap a tool logic body with standardized error handling.
- *
- * Catches thrown errors and produces a consistent toolResponse with
- * a header event and an error status line. Use `mapError` for tools
- * that need class-specific error branching.
- */
-export async function withErrorHandling(
-  run: () => Promise<ToolResponse>,
-  options: WithErrorHandlingOptions,
-): Promise<ToolResponse>;
 export async function withErrorHandling(
   ctx: ToolHandlerContext,
   run: () => Promise<void>,
   options: WithErrorHandlingOptions,
-): Promise<void>;
-export async function withErrorHandling(
-  ctxOrRun: ToolHandlerContext | (() => Promise<ToolResponse | void>),
-  runOrOptions: (() => Promise<ToolResponse | void>) | WithErrorHandlingOptions,
-  maybeOptions?: WithErrorHandlingOptions,
-): Promise<ToolResponse | void> {
-  const isCtxMode = typeof ctxOrRun !== 'function';
-  const ctx = isCtxMode ? ctxOrRun : undefined;
-  const run = (isCtxMode ? runOrOptions : ctxOrRun) as () => Promise<ToolResponse | void>;
-  const options = (isCtxMode ? maybeOptions : runOrOptions) as WithErrorHandlingOptions;
-
+): Promise<void> {
   try {
     return await run();
   } catch (error) {
@@ -71,23 +31,13 @@ export async function withErrorHandling(
 
     if (options.mapError) {
       let emitted = false;
-      const emit = ctx
-        ? (event: PipelineEvent) => {
-            ctx.emit(event);
-            emitted = true;
-          }
-        : undefined;
-      const mapped = options.mapError({ error, message, headerEvent, emit });
+      const emit = (event: PipelineEvent) => {
+        ctx.emit(event);
+        emitted = true;
+      };
+      options.mapError({ error, message, headerEvent, emit });
       if (emitted) {
         return;
-      }
-      if (mapped) {
-        if (ctx && emitMappedErrorResponse(ctx, mapped)) {
-          return;
-        }
-        if (!ctx) {
-          return mapped;
-        }
       }
     }
 
@@ -104,12 +54,7 @@ export async function withErrorHandling(
         ? options.errorMessage({ message, error })
         : options.errorMessage;
 
-    if (ctx) {
-      ctx.emit(headerEvent);
-      ctx.emit(statusLine('error', errorMsg));
-      return;
-    }
-
-    return eventsToToolResponse([headerEvent, statusLine('error', errorMsg)]);
+    ctx.emit(headerEvent);
+    ctx.emit(statusLine('error', errorMsg));
   }
 }

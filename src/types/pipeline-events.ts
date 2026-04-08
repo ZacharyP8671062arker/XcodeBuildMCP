@@ -83,6 +83,7 @@ export interface NextStepsEvent extends BaseEvent {
     cliTool?: string;
     params?: Record<string, string | number | boolean>;
   }>;
+  runtime?: 'cli' | 'daemon' | 'mcp';
 }
 
 // --- Xcodebuild-specific types ---

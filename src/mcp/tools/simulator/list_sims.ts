@@ -3,9 +3,8 @@ import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 import { log } from '../../../utils/logging/index.ts';
 import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
-import { createTypedTool, handlerContextStorage } from '../../../utils/typed-tool-factory.ts';
+import { createTypedTool, getHandlerContext } from '../../../utils/typed-tool-factory.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
-import { renderEvents } from '../../../rendering/render.ts';
 import { header, section, statusLine } from '../../../utils/tool-event-builders.ts';
 
 const listSimsSchema = z.object({
@@ -217,6 +216,7 @@ export async function list_simsLogic(
 ): Promise<void> {
   log('info', 'Starting xcrun simctl list devices request');
 
+  const ctx = getHandlerContext();
   const headerEvent = header('List Simulators');
 
   const buildEvents = async (): Promise<PipelineEvent[]> => {
@@ -291,44 +291,21 @@ export async function list_simsLogic(
     return events;
   };
 
-  const sharedOptions = {
-    header: headerEvent,
-    errorMessage: ({ message }: { message: string }) => `Failed to list simulators: ${message}`,
-    logMessage: ({ message }: { message: string }) => `Error listing simulators: ${message}`,
-  };
-
-  const ctx = handlerContextStorage.getStore();
-
-  if (ctx) {
-    await withErrorHandling(
-      ctx,
-      async () => {
-        const events = await buildEvents();
-        for (const event of events) {
-          ctx.emit(event);
-        }
-        ctx.nextStepParams = { ...NEXT_STEP_PARAMS };
-      },
-      sharedOptions,
-    );
-    return;
-  }
-
-  return withErrorHandling(async () => {
-    const events = await buildEvents();
-    const rendered = renderEvents(events, 'text');
-    const hasError = events.some(
-      (e) =>
-        (e.type === 'status-line' && e.level === 'error') ||
-        (e.type === 'summary' && e.status === 'FAILED'),
-    );
-    return {
-      content: [{ type: 'text' as const, text: rendered }],
-      isError: hasError || undefined,
-      nextStepParams: { ...NEXT_STEP_PARAMS },
-      _meta: { events: [...events] },
-    };
-  }, sharedOptions) as unknown as Promise<void>;
+  await withErrorHandling(
+    ctx,
+    async () => {
+      const events = await buildEvents();
+      for (const event of events) {
+        ctx.emit(event);
+      }
+      ctx.nextStepParams = { ...NEXT_STEP_PARAMS };
+    },
+    {
+      header: headerEvent,
+      errorMessage: ({ message }: { message: string }) => `Failed to list simulators: ${message}`,
+      logMessage: ({ message }: { message: string }) => `Error listing simulators: ${message}`,
+    },
+  );
 }
 
 export const schema = listSimsSchema.shape;

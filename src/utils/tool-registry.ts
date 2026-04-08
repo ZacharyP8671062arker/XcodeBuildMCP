@@ -15,19 +15,10 @@ import { recordInternalErrorMetric, recordToolInvocationMetric } from './sentry.
 import type { ToolHandlerContext } from '../rendering/types.ts';
 import { createRenderSession } from '../rendering/render.ts';
 
-function isToolResponse(value: ToolResponse | void): value is ToolResponse {
-  return typeof value === 'object' && value !== null && 'content' in value;
-}
-
-function finalizeRenderedToolResponse(
-  response: ToolResponse | void,
+function sessionToToolResponse(
   session: ReturnType<typeof createRenderSession>,
   ctx: ToolHandlerContext,
 ): ToolResponse {
-  if (isToolResponse(response)) {
-    return response;
-  }
-
   const text = session.finalize();
   return {
     content: text ? [{ type: 'text' as const, text }] : [],
@@ -275,11 +266,8 @@ export async function applyWorkflowSelectionFromManifest(
                   session.attach(image);
                 },
               };
-              const rawResponse = (await toolModule.handler(
-                args as Record<string, unknown>,
-                ctx,
-              )) as ToolResponse | void;
-              const response = finalizeRenderedToolResponse(rawResponse, session, ctx);
+              await toolModule.handler(args as Record<string, unknown>, ctx);
+              const response = sessionToToolResponse(session, ctx);
               const catalog = registryState.catalog;
               const catalogTool = catalog?.getByMcpName(toolName);
               const postProcessedResponse =

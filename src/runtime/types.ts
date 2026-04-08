@@ -83,6 +83,8 @@ export interface ToolCatalog {
 export interface InvokeOptions {
   runtime: RuntimeKind;
   renderSession?: RenderSession;
+  /** Pre-created handler context; if provided, executeTool uses it instead of creating a new one. */
+  handlerContext?: ToolHandlerContext;
   /** CLI-exposed workflow IDs used for daemon environment overrides */
   cliExposedWorkflowIds?: string[];
   /** @deprecated Use cliExposedWorkflowIds instead */

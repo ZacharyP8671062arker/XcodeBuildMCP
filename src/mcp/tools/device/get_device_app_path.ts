@@ -20,6 +20,7 @@ import { extractQueryErrorMessages } from '../../../utils/xcodebuild-error-utils
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
+import { displayPath } from '../../../utils/build-preflight.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
 // Unified schema: XOR between projectPath and workspacePath, sharing common options
@@ -116,7 +117,7 @@ export async function get_device_app_pathLogic(
 
       ctx.emit(headerEvent);
       ctx.emit(statusLine('success', 'Success'));
-      ctx.emit(detailTree([{ label: 'App Path', value: appPath }]));
+      ctx.emit(detailTree([{ label: 'App Path', value: displayPath(appPath) }]));
       ctx.nextStepParams = {
         get_app_bundle_id: { appPath },
         install_app_device: { deviceId: 'DEVICE_UDID', appPath },

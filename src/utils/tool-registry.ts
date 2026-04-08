@@ -7,7 +7,7 @@ import { loadManifest, type ResolvedManifest } from '../core/manifest/load-manif
 import { importToolModule } from '../core/manifest/import-tool-module.ts';
 import { getEffectiveCliName, type WorkflowManifestEntry } from '../core/manifest/schema.ts';
 import { createToolCatalog } from '../runtime/tool-catalog.ts';
-import { postProcessToolResponse } from '../runtime/tool-invoker.ts';
+import { postProcessSession } from '../runtime/tool-invoker.ts';
 import type { PredicateContext } from '../visibility/predicate-types.ts';
 import { selectWorkflowsForMcp, isToolExposedForRuntime } from '../visibility/exposure.ts';
 import { getConfig } from './config-store.ts';
@@ -15,15 +15,27 @@ import { recordInternalErrorMetric, recordToolInvocationMetric } from './sentry.
 import type { ToolHandlerContext } from '../rendering/types.ts';
 import { createRenderSession } from '../rendering/render.ts';
 
-function sessionToToolResponse(
-  session: ReturnType<typeof createRenderSession>,
-  ctx: ToolHandlerContext,
-): ToolResponse {
+function sessionToToolResponse(session: ReturnType<typeof createRenderSession>): ToolResponse {
   const text = session.finalize();
+  const attachments = session.getAttachments();
+  const events = [...session.getEvents()];
+
+  const content: ToolResponse['content'] = [];
+  if (text) {
+    content.push({ type: 'text' as const, text });
+  }
+  for (const attachment of attachments) {
+    content.push({
+      type: 'image' as const,
+      data: attachment.data,
+      mimeType: attachment.mimeType,
+    });
+  }
+
   return {
-    content: text ? [{ type: 'text' as const, text }] : [],
+    content,
     isError: session.isError() || undefined,
-    nextStepParams: ctx.nextStepParams,
+    ...(events.length > 0 ? { _meta: { events } } : {}),
   };
 }
 
@@ -267,18 +279,20 @@ export async function applyWorkflowSelectionFromManifest(
                 },
               };
               await toolModule.handler(args as Record<string, unknown>, ctx);
-              const response = sessionToToolResponse(session, ctx);
+
               const catalog = registryState.catalog;
               const catalogTool = catalog?.getByMcpName(toolName);
-              const postProcessedResponse =
-                catalog && catalogTool
-                  ? postProcessToolResponse({
-                      tool: catalogTool,
-                      response: response as ToolResponse,
-                      catalog,
-                      runtime: 'mcp',
-                    })
-                  : (response as ToolResponse);
+              if (catalog && catalogTool) {
+                postProcessSession({
+                  tool: catalogTool,
+                  session,
+                  ctx,
+                  catalog,
+                  runtime: 'mcp',
+                });
+              }
+
+              const response = sessionToToolResponse(session);
 
               recordToolInvocationMetric({
                 toolName,
@@ -288,7 +302,7 @@ export async function applyWorkflowSelectionFromManifest(
                 durationMs: Date.now() - startedAt,
               });
 
-              return postProcessedResponse;
+              return response;
             } catch (error) {
               recordInternalErrorMetric({
                 component: 'mcp-tool-registry',

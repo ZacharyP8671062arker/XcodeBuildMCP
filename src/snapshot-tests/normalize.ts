@@ -18,7 +18,7 @@ const HEX_ADDRESS_REGEX = /0x[0-9a-fA-F]{8,}/g;
 
 const LLDB_FRAME_OFFSET_REGEX = /(`[^`\n]+):(\d+)$/gm;
 const LLDB_SYS_FRAME_FUNC_REGEX =
-  /(frame #\d+: )\S+( at (?:\/usr\/lib\/|\/Library\/Developer\/CoreSimulator\/[^`\n]*\/usr\/lib\/)[^`\n]*`)[^:\s]+(:<OFFSET>)/gm;
+  /(frame #\d+: )\S+( at (?:\/usr\/lib\/|\/Library\/Developer\/CoreSimulator\/)[^`\n]*`)[^:\n]+(:<OFFSET>)/gm;
 const LLDB_LOWER_FRAMES_REGEX = /(  frame #\d+: (?:<FUNC> at [^\n]*|<ADDR>(?: at [^\n]*)?)\n)+/g;
 const LLDB_FRAME_NUMBER_REGEX = /  frame #\d+:/g;
 const LLDB_BREAKPOINT_LOCATIONS_REGEX = /locations = .+$/gm;

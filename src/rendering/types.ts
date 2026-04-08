@@ -1,12 +1,7 @@
 import type { PipelineEvent } from '../types/pipeline-events.ts';
 import type { NextStep, NextStepParamsMap } from '../types/common.ts';
 
-export type RenderStrategy = 'text' | 'json';
-
-export interface TextRenderOp {
-  text: string;
-  transient?: boolean;
-}
+export type RenderStrategy = 'text' | 'cli-text' | 'cli-json';
 
 export interface ImageAttachment {
   data: string;
@@ -14,7 +9,7 @@ export interface ImageAttachment {
 }
 
 export interface RenderSession {
-  emit(event: PipelineEvent): TextRenderOp | null;
+  emit(event: PipelineEvent): void;
   attach(image: ImageAttachment): void;
   getEvents(): readonly PipelineEvent[];
   getAttachments(): readonly ImageAttachment[];

@@ -20,10 +20,16 @@ import {
   formatSummaryEvent,
   formatTableEvent,
   formatTestDiscoveryEvent,
-  formatTransientBuildStageEvent,
-  formatTransientStatusLineEvent,
 } from '../utils/renderers/event-formatting.ts';
-import type { RenderSession, RenderStrategy, TextRenderOp, ImageAttachment } from './types.ts';
+import { createCliTextRenderer } from '../utils/renderers/cli-text-renderer.ts';
+import type { RenderSession, RenderStrategy, ImageAttachment } from './types.ts';
+
+function isErrorEvent(event: PipelineEvent): boolean {
+  return (
+    (event.type === 'status-line' && event.level === 'error') ||
+    (event.type === 'summary' && event.status === 'FAILED')
+  );
+}
 
 function createTextRenderSession(): RenderSession {
   const events: PipelineEvent[] = [];
@@ -45,94 +51,72 @@ function createTextRenderSession(): RenderSession {
     pushText(`\n${text}`);
   };
 
-  const markErrorIfNeeded = (event: PipelineEvent): void => {
-    if (
-      (event.type === 'status-line' && event.level === 'error') ||
-      (event.type === 'summary' && event.status === 'FAILED')
-    ) {
-      hasError = true;
-    }
-  };
-
   return {
-    emit(event: PipelineEvent): TextRenderOp | null {
+    emit(event: PipelineEvent): void {
       events.push(event);
-      markErrorIfNeeded(event);
+      if (isErrorEvent(event)) hasError = true;
 
       switch (event.type) {
         case 'header': {
           diagnosticBaseDir = deriveDiagnosticBaseDir(event);
           pushSection(formatHeaderEvent(event));
-          return { text: formatHeaderEvent(event) };
+          break;
         }
 
         case 'build-stage': {
-          const text = formatBuildStageEvent(event);
-          pushSection(text);
-          return { text: formatTransientBuildStageEvent(event), transient: true };
+          pushSection(formatBuildStageEvent(event));
+          break;
         }
 
         case 'status-line': {
-          const text = formatStatusLineEvent(event);
-          pushSection(text);
-          if (event.level === 'info') {
-            return {
-              text: formatTransientStatusLineEvent(event) ?? `${event.message}...`,
-              transient: true,
-            };
-          }
-          return { text };
+          pushSection(formatStatusLineEvent(event));
+          break;
         }
 
         case 'section': {
-          const text = formatSectionEvent(event);
-          pushText(`\n\n${text}`);
-          return { text };
+          pushText(`\n\n${formatSectionEvent(event)}`);
+          break;
         }
 
         case 'detail-tree': {
-          const text = formatDetailTreeEvent(event);
-          pushSection(text);
-          return { text };
+          pushSection(formatDetailTreeEvent(event));
+          break;
         }
 
         case 'table': {
-          const text = formatTableEvent(event);
-          pushSection(text);
-          return { text };
+          pushSection(formatTableEvent(event));
+          break;
         }
 
         case 'file-ref': {
-          const text = formatFileRefEvent(event);
-          pushSection(text);
-          return { text };
+          pushSection(formatFileRefEvent(event));
+          break;
         }
 
         case 'compiler-warning': {
           if (!suppressWarnings) {
             groupedWarnings.push(event);
           }
-          return null;
+          break;
         }
 
         case 'compiler-error': {
           groupedCompilerErrors.push(event);
-          return null;
+          break;
         }
 
         case 'test-discovery': {
-          const text = formatTestDiscoveryEvent(event);
-          pushText(text);
-          return { text };
+          pushText(formatTestDiscoveryEvent(event));
+          break;
         }
 
         case 'test-progress': {
-          return null;
+          break;
         }
 
         case 'test-failure': {
           groupedTestFailures.push(event);
-          return null;
+          break;
         }
 
         case 'summary': {
@@ -158,16 +142,14 @@ function createTextRenderSession(): RenderSession {
             pushSection(diagnosticSections.join('\n\n'));
           }
 
-          const text = formatSummaryEvent(event);
-          pushSection(text);
-          return { text };
+          pushSection(formatSummaryEvent(event));
+          break;
         }
 
         case 'next-steps': {
           const effectiveRuntime = event.runtime === 'cli' ? 'cli' : 'mcp';
-          const text = formatNextStepsEvent(event, effectiveRuntime);
-          pushSection(text);
-          return { text };
+          pushText(`\n\n${formatNextStepsEvent(event, effectiveRuntime)}`);
+          break;
         }
       }
     },
@@ -195,25 +177,17 @@ function createTextRenderSession(): RenderSession {
   };
 }
 
-function createJsonRenderSession(): RenderSession {
+function createCliTextRenderSession(options: { interactive: boolean }): RenderSession {
   const events: PipelineEvent[] = [];
   const attachments: ImageAttachment[] = [];
-  const lines: string[] = [];
+  const renderer = createCliTextRenderer(options);
   let hasError = false;
 
   return {
-    emit(event: PipelineEvent): TextRenderOp {
+    emit(event: PipelineEvent): void {
       events.push(event);
-      if (
-        (event.type === 'status-line' && event.level === 'error') ||
-        (event.type === 'summary' && event.status === 'FAILED')
-      ) {
-        hasError = true;
-      }
-
-      const text = JSON.stringify(event);
-      lines.push(text);
-      return { text };
+      if (isErrorEvent(event)) hasError = true;
+      renderer.onEvent(event);
     },
 
     attach(image: ImageAttachment): void {
@@ -233,13 +207,62 @@ function createJsonRenderSession(): RenderSession {
     },
 
     finalize(): string {
-      return lines.join('\n');
+      renderer.finalize();
+      return '';
     },
   };
 }
 
-export function createRenderSession(strategy: RenderStrategy): RenderSession {
-  return strategy === 'json' ? createJsonRenderSession() : createTextRenderSession();
+function createCliJsonRenderSession(): RenderSession {
+  const events: PipelineEvent[] = [];
+  const attachments: ImageAttachment[] = [];
+  let hasError = false;
+
+  return {
+    emit(event: PipelineEvent): void {
+      events.push(event);
+      if (isErrorEvent(event)) hasError = true;
+      process.stdout.write(JSON.stringify(event) + '\n');
+    },
+
+    attach(image: ImageAttachment): void {
+      attachments.push(image);
+    },
+
+    getEvents(): readonly PipelineEvent[] {
+      return events;
+    },
+
+    getAttachments(): readonly ImageAttachment[] {
+      return attachments;
+    },
+
+    isError(): boolean {
+      return hasError;
+    },
+
+    finalize(): string {
+      return '';
+    },
+  };
+}
+
+export interface RenderSessionOptions {
+  interactive?: boolean;
+}
+
+export function createRenderSession(
+  strategy: RenderStrategy,
+  options?: RenderSessionOptions,
+): RenderSession {
+  switch (strategy) {
+    case 'text':
+      return createTextRenderSession();
+    case 'cli-text':
+      return createCliTextRenderSession({ interactive: options?.interactive ?? false });
+    case 'cli-json':
+      return createCliJsonRenderSession();
+  }
 }
 
 export function renderEvents(events: readonly PipelineEvent[], strategy: RenderStrategy): string {

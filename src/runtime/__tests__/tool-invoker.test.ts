@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { ToolResponse } from '../../types/common.ts';
 import type { PipelineEvent } from '../../types/pipeline-events.ts';
+import type { DaemonToolResult } from '../../daemon/protocol.ts';
 import type { ToolDefinition } from '../types.ts';
 import { createToolCatalog } from '../tool-catalog.ts';
 import { DefaultToolInvoker } from '../tool-invoker.ts';
@@ -12,23 +13,42 @@ import { statusLine } from '../../utils/tool-event-builders.ts';
 const daemonClientMock = {
   isRunning: vi.fn<() => Promise<boolean>>(),
   invokeXcodeIdeTool:
-    vi.fn<(name: string, args: Record<string, unknown>) => Promise<ToolResponse>>(),
-  invokeTool: vi.fn<(name: string, args: Record<string, unknown>) => Promise<ToolResponse>>(),
+    vi.fn<(name: string, args: Record<string, unknown>) => Promise<DaemonToolResult>>(),
+  invokeTool: vi.fn<(name: string, args: Record<string, unknown>) => Promise<DaemonToolResult>>(),
   listTools: vi.fn<() => Promise<Array<{ name: string }>>>(),
 };
 
-vi.mock('../../cli/daemon-client.ts', () => ({
-  DaemonClient: vi.fn().mockImplementation(() => daemonClientMock),
-}));
+vi.mock('../../cli/daemon-client.ts', () => {
+  class VersionMismatchError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'DaemonVersionMismatchError';
+    }
+  }
+  return {
+    DaemonClient: vi.fn().mockImplementation(() => daemonClientMock),
+    DaemonVersionMismatchError: VersionMismatchError,
+  };
+});
 
 vi.mock('../../cli/daemon-control.ts', () => ({
   ensureDaemonRunning: vi.fn(),
+  forceStopDaemon: vi.fn(),
   DEFAULT_DAEMON_STARTUP_TIMEOUT_MS: 5000,
 }));
 
-function textResponse(text: string): ToolResponse {
+function daemonResult(text: string, opts?: Partial<DaemonToolResult>): DaemonToolResult {
   return {
-    content: [{ type: 'text', text }],
+    events: [
+      {
+        type: 'status-line',
+        timestamp: new Date().toISOString(),
+        level: 'success',
+        message: text,
+      },
+    ],
+    isError: false,
+    ...opts,
   };
 }
 
@@ -118,8 +138,8 @@ describe('DefaultToolInvoker CLI routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     daemonClientMock.isRunning.mockResolvedValue(true);
-    daemonClientMock.invokeXcodeIdeTool.mockResolvedValue(textResponse('daemon-xcode-ide-result'));
-    daemonClientMock.invokeTool.mockResolvedValue(textResponse('daemon-result'));
+    daemonClientMock.invokeXcodeIdeTool.mockResolvedValue(daemonResult('daemon-xcode-ide-result'));
+    daemonClientMock.invokeTool.mockResolvedValue(daemonResult('daemon-result'));
     daemonClientMock.listTools.mockResolvedValue([]);
   });
 
@@ -200,8 +220,8 @@ describe('DefaultToolInvoker xcode-ide dynamic routing', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     daemonClientMock.isRunning.mockResolvedValue(true);
-    daemonClientMock.invokeXcodeIdeTool.mockResolvedValue(textResponse('daemon-result'));
-    daemonClientMock.invokeTool.mockResolvedValue(textResponse('daemon-generic'));
+    daemonClientMock.invokeXcodeIdeTool.mockResolvedValue(daemonResult('daemon-result'));
+    daemonClientMock.invokeTool.mockResolvedValue(daemonResult('daemon-generic'));
     daemonClientMock.listTools.mockResolvedValue([]);
   });
 
@@ -457,17 +477,18 @@ describe('DefaultToolInvoker next steps post-processing', () => {
   });
 
   it('preserves daemon-provided next-step params when nextStepParams are already consumed', async () => {
-    daemonClientMock.invokeTool.mockResolvedValue({
-      content: [{ type: 'text', text: 'ok' }],
-      nextSteps: [
-        {
-          tool: 'stop_sim_log_cap',
-          label: 'Stop capture and retrieve logs',
-          params: { logSessionId: 'session-123' },
-          priority: 1,
-        },
-      ],
-    } satisfies ToolResponse);
+    daemonClientMock.invokeTool.mockResolvedValue(
+      daemonResult('ok', {
+        nextSteps: [
+          {
+            tool: 'stop_sim_log_cap',
+            label: 'Stop capture and retrieve logs',
+            params: { logSessionId: 'session-123' },
+            priority: 1,
+          },
+        ],
+      }),
+    );
 
     const catalog = createToolCatalog([
       makeTool({

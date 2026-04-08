@@ -8,9 +8,8 @@ import { normalizeSnapshotOutput } from '../normalize.ts';
 import { loadManifest } from '../../core/manifest/load-manifest.ts';
 import { getEffectiveCliName } from '../../core/manifest/schema.ts';
 import { createToolCatalog } from '../../runtime/tool-catalog.ts';
-import { postProcessToolResponse } from '../../runtime/tool-invoker.ts';
+import { postProcessSession } from '../../runtime/tool-invoker.ts';
 import type { ToolDefinition } from '../../runtime/types.ts';
-import type { ToolResponse } from '../../types/common.ts';
 import { createRenderSession } from '../../rendering/render.ts';
 import type { ToolHandlerContext } from '../../rendering/types.ts';
 import { handlerContextStorage } from '../../utils/typed-tool-factory.ts';
@@ -52,15 +51,6 @@ const FIXTURE_SIMCTL_TEXT = `== Devices ==
     Apple TV 4K (3rd generation) (26262626-2626-2626-2626-262626262626) (Shutdown)
     Apple TV 4K (3rd generation) (at 1080p) (27272727-2727-2727-2727-272727272727) (Shutdown)
     Apple TV (28282828-2828-2828-2828-282828282828) (Shutdown)`;
-
-function toolResponseToText(response: ToolResponse): string {
-  return (
-    response.content
-      .filter((item): item is { type: 'text'; text: string } => item.type === 'text')
-      .map((item) => item.text)
-      .join('\n') + '\n'
-  );
-}
 
 function buildCatalogForTool(toolId: string, handler: ToolDefinition['handler']) {
   const manifest = loadManifest();
@@ -117,34 +107,29 @@ async function invokeDeterministicSimulatorList(): Promise<{ text: string; isErr
     attach: () => {},
   };
   await handlerContextStorage.run(ctx, () => list_simsLogic({ enabled: true }, executor));
-  const sessionText = session.finalize();
-  const raw: ToolResponse = {
-    content: sessionText ? [{ type: 'text' as const, text: sessionText }] : [],
-    isError: session.isError() || undefined,
-    nextStepParams: ctx.nextStepParams,
-    _meta: { events: [...session.getEvents()] },
-  };
 
   const { tool, catalog } = buildCatalogForTool(
     'list_sims',
     list_simsLogic as ToolDefinition['handler'],
   );
-  const response = postProcessToolResponse({
+  postProcessSession({
     tool,
-    response: raw,
+    session,
+    ctx,
     catalog,
     runtime: 'mcp',
     applyTemplateNextSteps: false,
   });
 
-  const text = normalizeSnapshotOutput(toolResponseToText(response)).replace(
+  const rawText = session.finalize() + '\n';
+  const text = normalizeSnapshotOutput(rawText).replace(
     /\n(✅ \d+ simulators available)/,
     '\n\n$1',
   );
 
   return {
     text,
-    isError: response.isError === true,
+    isError: session.isError(),
   };
 }
 

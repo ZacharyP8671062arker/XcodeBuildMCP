@@ -30,16 +30,20 @@ function isToolHandlerContext(value: unknown): value is ToolHandlerContext {
   );
 }
 
-function sessionToResult(
+function sessionToTestResult(
   session: ReturnType<typeof createRenderSession>,
-  ctx: ToolHandlerContext,
 ): Record<string, unknown> {
   const text = session.finalize();
   const events = [...session.getEvents()];
+
+  const content: Array<Record<string, unknown>> = [];
+  if (text) {
+    content.push({ type: 'text' as const, text });
+  }
+
   return {
-    content: text ? [{ type: 'text' as const, text }] : [],
+    content,
     isError: session.isError() || undefined,
-    nextStepParams: ctx.nextStepParams,
     ...(events.length > 0 ? { _meta: { events } } : {}),
   };
 }
@@ -72,14 +76,14 @@ function createValidatedHandler<TParams, TContext>(
       const validatedParams = schema.parse(args);
       await handlerContextStorage.run(ctx, () => logicFunction(validatedParams, context));
       if (!hasProvidedHandlerContext) {
-        return sessionToResult(session!, ctx) as unknown as void;
+        return sessionToTestResult(session!) as unknown as void;
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
         const details = `Invalid parameters:\n${formatZodIssues(error)}`;
         ctx.emit(statusLine('error', `Parameter validation failed: ${details}`));
         if (!hasProvidedHandlerContext) {
-          return sessionToResult(session!, ctx) as unknown as void;
+          return sessionToTestResult(session!) as unknown as void;
         }
         return;
       }
@@ -201,7 +205,7 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
 
     const finalize = (): void => {
       if (!hasProvidedHandlerContext) {
-        return sessionToResult(session!, ctx) as unknown as void;
+        return sessionToTestResult(session!) as unknown as void;
       }
     };
 

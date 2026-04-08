@@ -110,7 +110,7 @@ export function createBuildRunResultEvents(data: BuildRunResultNoticeData): Pipe
   });
 
   const items: Array<{ label: string; value: string }> = [
-    { label: 'App Path', value: data.appPath },
+    { label: 'App Path', value: displayPath(data.appPath) },
   ];
 
   if (data.bundleId) {

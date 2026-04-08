@@ -1,8 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { invokeResource } from '../resource-harness.ts';
 import { expectMatchesFixture } from '../fixture-io.ts';
+import { ensureSimulatorBooted, shutdownAllSimulatorsExcept } from '../harness.ts';
 
 describe('resources', () => {
+  let simulatorUdid: string;
+
+  beforeAll(async () => {
+    simulatorUdid = await ensureSimulatorBooted('iPhone 17');
+    shutdownAllSimulatorsExcept([simulatorUdid]);
+  }, 30_000);
   describe('devices', () => {
     it('success', async () => {
       const { text } = await invokeResource('devices');

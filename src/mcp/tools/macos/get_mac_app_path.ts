@@ -13,6 +13,7 @@ import { extractQueryErrorMessages } from '../../../utils/xcodebuild-error-utils
 import { resolveAppPathFromBuildSettings } from '../../../utils/app-path-resolver.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine, detailTree, section } from '../../../utils/tool-event-builders.ts';
+import { displayPath } from '../../../utils/build-preflight.ts';
 import type { PipelineEvent } from '../../../types/pipeline-events.ts';
 
 const baseOptions = {
@@ -120,7 +121,7 @@ export async function get_mac_app_pathLogic(
 
       ctx.emit(headerEvent);
       ctx.emit(statusLine('success', 'Success'));
-      ctx.emit(detailTree([{ label: 'App Path', value: appPath }]));
+      ctx.emit(detailTree([{ label: 'App Path', value: displayPath(appPath) }]));
       ctx.nextStepParams = {
         get_mac_bundle_id: { appPath },
         launch_mac_app: { appPath },

@@ -5,25 +5,12 @@ import { normalizeSnapshotOutput } from './normalize.ts';
 import { loadManifest } from '../core/manifest/load-manifest.ts';
 import { getEffectiveCliName } from '../core/manifest/schema.ts';
 import { importToolModule } from '../core/manifest/import-tool-module.ts';
-import type { ToolResponse } from '../types/common.ts';
 import type { ToolManifestEntry } from '../core/manifest/schema.ts';
-import { postProcessToolResponse } from '../runtime/tool-invoker.ts';
+import { postProcessSession } from '../runtime/tool-invoker.ts';
 import { createToolCatalog } from '../runtime/tool-catalog.ts';
 import type { ToolDefinition } from '../runtime/types.ts';
 import type { ToolHandlerContext } from '../rendering/types.ts';
 import { createRenderSession } from '../rendering/render.ts';
-
-function sessionToToolResponse(
-  session: ReturnType<typeof createRenderSession>,
-  ctx: ToolHandlerContext,
-): ToolResponse {
-  const text = session.finalize();
-  return {
-    content: text ? [{ type: 'text' as const, text }] : [],
-    isError: session.isError() || undefined,
-    nextStepParams: ctx.nextStepParams,
-  };
-}
 
 const CLI_PATH = path.resolve(process.cwd(), 'build/cli.js');
 
@@ -98,16 +85,6 @@ function buildMinimalToolCatalog(
   return { tool, catalog };
 }
 
-function toolResponseToText(response: ToolResponse): string {
-  const parts: string[] = [];
-  for (const item of response.content ?? []) {
-    if (item.type === 'text') {
-      parts.push(item.text);
-    }
-  }
-  return parts.join('\n') + '\n';
-}
-
 async function importSnapshotToolModule(toolModulePath: string) {
   const sourceModulePath = path.resolve(process.cwd(), 'src', `${toolModulePath}.ts`);
   const sourceModuleUrl = pathToFileURL(sourceModulePath).href;
@@ -174,29 +151,56 @@ export async function createSnapshotHarness(): Promise<SnapshotHarness> {
       },
     };
     await toolModule.handler(args, ctx);
-    const raw = sessionToToolResponse(session, ctx);
+
     const { tool, catalog } = buildMinimalToolCatalog(
       manifestEntry,
       toolModule.handler as ToolDefinition['handler'],
     );
-    const response = postProcessToolResponse({
+    postProcessSession({
       tool,
-      response: raw,
+      session,
+      ctx,
       catalog,
       runtime: 'mcp',
-      applyTemplateNextSteps: raw.nextStepParams != null,
+      applyTemplateNextSteps: ctx.nextStepParams != null,
     });
-    const rawText = toolResponseToText(response);
+
+    const rawText = session.finalize() + '\n';
     return {
       text: normalizeSnapshotOutput(rawText),
       rawText,
-      isError: response.isError === true,
+      isError: session.isError(),
     };
   }
 
   function cleanup(): void {}
 
   return { invoke, cleanup };
+}
+
+/**
+ * Shut down all booted simulators except those in the keep list.
+ * Use before list/resource tests to guarantee a deterministic simulator state.
+ */
+export function shutdownAllSimulatorsExcept(keepUdids: string[] = []): void {
+  const listOutput = execSync('xcrun simctl list devices available --json', {
+    encoding: 'utf8',
+  });
+  const data = JSON.parse(listOutput) as {
+    devices: Record<string, Array<{ udid: string; name: string; state: string }>>;
+  };
+  const keepSet = new Set(keepUdids);
+  for (const runtime of Object.values(data.devices)) {
+    for (const device of runtime) {
+      if (device.state === 'Booted' && !keepSet.has(device.udid)) {
+        try {
+          execSync(`xcrun simctl shutdown ${device.udid}`, { encoding: 'utf8' });
+        } catch {
+          // Ignore shutdown failures (device may already be shutting down).
+        }
+      }
+    }
+  }
 }
 
 export async function ensureSimulatorBooted(simulatorName: string): Promise<string> {

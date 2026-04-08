@@ -2,11 +2,10 @@ import type { Argv } from 'yargs';
 import yargsParser from 'yargs-parser';
 import type { ToolCatalog, ToolDefinition } from '../runtime/types.ts';
 import type { OutputStyle } from '../types/common.ts';
-import type { PipelineEvent } from '../types/pipeline-events.ts';
 import { DefaultToolInvoker } from '../runtime/tool-invoker.ts';
 import { schemaToYargsOptions, getUnsupportedSchemaKeys } from './schema-to-yargs.ts';
 import { convertArgvToToolParams } from '../runtime/naming.ts';
-import { printSessionOutput, type OutputFormat } from './output.ts';
+import type { OutputFormat } from './output.ts';
 import { groupToolsByWorkflow } from '../runtime/tool-catalog.ts';
 import { getWorkflowMetadataFromManifest } from '../core/manifest/load-manifest.ts';
 import type { ResolvedRuntimeConfig } from '../utils/config-store.ts';
@@ -297,7 +296,15 @@ function registerToolSubcommand(
         outputFormat === 'raw' ? setEnvScoped('XCODEBUILDMCP_VERBOSE', '1') : undefined;
 
       try {
-        const session = createRenderSession('text');
+        const session =
+          outputFormat === 'json'
+            ? createRenderSession('cli-json')
+            : outputFormat === 'raw'
+              ? createRenderSession('text')
+              : createRenderSession('cli-text', {
+                  interactive: process.stdout.isTTY === true,
+                });
+
         await invoker.invokeDirect(tool, args, {
           runtime: 'cli',
           renderSession: session,
@@ -307,15 +314,11 @@ function registerToolSubcommand(
           logLevel,
         });
 
-        const text = session.finalize();
-        const events = [...session.getEvents()] as PipelineEvent[];
-        const attachments = session.getAttachments();
-        const isError = session.isError();
+        session.finalize();
 
-        printSessionOutput(
-          { text, events, attachments, isError },
-          { format: outputFormat, style: outputStyle },
-        );
+        if (session.isError()) {
+          process.exitCode = 1;
+        }
       } finally {
         restoreCliOutputFormat();
         restoreVerbose?.();

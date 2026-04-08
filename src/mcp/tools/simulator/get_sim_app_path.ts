@@ -12,6 +12,7 @@ import type { CommandExecutor } from '../../../utils/execution/index.ts';
 import { getDefaultCommandExecutor } from '../../../utils/execution/index.ts';
 import { XcodePlatform } from '../../../types/common.ts';
 import { constructDestinationString } from '../../../utils/xcode.ts';
+import { displayPath } from '../../../utils/build-preflight.ts';
 import {
   createSessionAwareTool,
   getSessionAwareToolSchemaShape,
@@ -167,7 +168,7 @@ export async function get_sim_app_pathLogic(
 
       ctx.emit(headerEvent);
       ctx.emit(statusLine('success', `Get app path successful (\u{23F1}\u{FE0F} ${durationStr}s)`));
-      ctx.emit(detailTree([{ label: 'App Path', value: appPath }]));
+      ctx.emit(detailTree([{ label: 'App Path', value: displayPath(appPath) }]));
       ctx.nextStepParams = {
         get_app_bundle_id: { appPath },
         boot_sim: { simulatorId: 'SIMULATOR_UUID' },

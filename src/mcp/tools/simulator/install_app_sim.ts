@@ -10,6 +10,7 @@ import {
 } from '../../../utils/typed-tool-factory.ts';
 import { withErrorHandling } from '../../../utils/tool-error-handling.ts';
 import { header, statusLine } from '../../../utils/tool-event-builders.ts';
+import { displayPath } from '../../../utils/build-preflight.ts';
 import { installAppOnSimulator } from '../../../utils/simulator-steps.ts';
 
 const baseSchemaObject = z.object({
@@ -54,7 +55,7 @@ export async function install_app_simLogic(
 
   const headerEvent = header('Install App', [
     { label: 'Simulator', value: simulatorDisplayName },
-    { label: 'App Path', value: params.appPath },
+    { label: 'App Path', value: displayPath(params.appPath) },
   ]);
 
   const ctx = getHandlerContext();

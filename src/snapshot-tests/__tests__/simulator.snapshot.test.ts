@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { execSync } from 'node:child_process';
-import { createSnapshotHarness, ensureSimulatorBooted } from '../harness.ts';
+import {
+  createSnapshotHarness,
+  ensureSimulatorBooted,
+  shutdownAllSimulatorsExcept,
+} from '../harness.ts';
 import { expectMatchesFixture } from '../fixture-io.ts';
 import type { SnapshotHarness } from '../harness.ts';
 import { DERIVED_DATA_DIR } from '../../utils/log-paths.ts';
@@ -129,6 +133,7 @@ describe('simulator workflow', () => {
 
   describe('list', () => {
     it('success', async () => {
+      shutdownAllSimulatorsExcept([simulatorUdid]);
       const { text, isError } = await harness.invoke('simulator', 'list', {});
       expect(isError).toBe(false);
       expect(text.length).toBeGreaterThan(10);

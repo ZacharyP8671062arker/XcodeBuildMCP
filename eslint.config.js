@@ -13,7 +13,6 @@ export default [
       'coverage/**',
       'src/core/generated-plugins.ts',
       'src/core/generated-resources.ts',
-      'src/version.ts',
     ],
   },
   {

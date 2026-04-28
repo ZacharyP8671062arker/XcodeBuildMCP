@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-
-// We cannot easily import the generate-version script (it runs main() immediately),
-// so we extract and test the core logic: VERSION_REGEX and JSON.stringify defense.
-
-const VERSION_REGEX = /^v?[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.\-]+)?(\+[a-zA-Z0-9.\-]+)?$/;
+import { VERSION_REGEX, validateVersion } from '../version/version-validation.ts';
 
 describe('generate-version: VERSION_REGEX validation', () => {
   it('accepts standard semver', () => {
@@ -47,25 +43,14 @@ describe('generate-version: VERSION_REGEX validation', () => {
   });
 });
 
-describe('generate-version: JSON.stringify defense-in-depth', () => {
-  it('produces safe code even if a value somehow contains quotes', () => {
-    const malicious = "1.0.0'; process.exit(1); //";
-    const generated = `const version = ${JSON.stringify(malicious)};\n`;
-    // The output should use escaped double-quoted string, not break out
-    expect(generated).toContain('"1.0.0');
-    expect(generated).not.toContain("'1.0.0'; process.exit(1)");
-    // Should be parseable JS (using const instead of export for Function() compat)
-    expect(() => new Function(generated)).not.toThrow();
+describe('generate-version: validateVersion', () => {
+  it('throws for invalid versions', () => {
+    expect(() => validateVersion('version', "1.0.0'; process.exit(1); //")).toThrow(
+      /Invalid version in package\.json/,
+    );
   });
 
-  it('JSON.stringify properly escapes backslashes and control characters', () => {
-    const tricky = '1.0.0\n";process.exit(1);//';
-    const serialized = JSON.stringify(tricky);
-    // The newline should be escaped as \\n, and the quote should be escaped
-    expect(serialized).toContain('\\n');
-    expect(serialized).toContain('\\"');
-    // The resulting assignment should be valid JS
-    const code = `const v = ${serialized};`;
-    expect(() => new Function(code)).not.toThrow();
+  it('does not throw for valid versions', () => {
+    expect(() => validateVersion('version', '1.0.0-alpha.1+meta')).not.toThrow();
   });
 });

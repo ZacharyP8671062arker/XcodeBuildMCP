@@ -23,6 +23,7 @@
 - Added `toggle_connect_hardware_keyboard` tool to toggle the iOS Simulator hardware keyboard connection ([#346](https://github.com/getsentry/XcodeBuildMCP/issues/346)).
 - Fixed `xcode_tools_bridge_disconnect` immediately re-syncing proxied tools after a manual disconnect ([#343](https://github.com/getsentry/XcodeBuildMCP/issues/343)).
 - Stopped suggesting an unsupported `--device-id`/`deviceId` argument in the `device list` next-step hint for `device build`/`build_device`; device targeting flows through session defaults ([#350](https://github.com/getsentry/XcodeBuildMCP/pull/350) by [@MukundaKatta](https://github.com/MukundaKatta)).
+- Extracted shared version validation (`VERSION_REGEX`/`validateVersion`) for version generation and tests, and switched generated `src/version.ts` literals back to single quotes to avoid Prettier conflicts ([#368](https://github.com/getsentry/XcodeBuildMCP/issues/368), [#369](https://github.com/getsentry/XcodeBuildMCP/issues/369)).
 
 ## [2.3.2]
 

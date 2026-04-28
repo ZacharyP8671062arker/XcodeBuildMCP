@@ -23,6 +23,7 @@
 - Added `toggle_connect_hardware_keyboard` tool to toggle the iOS Simulator hardware keyboard connection ([#346](https://github.com/getsentry/XcodeBuildMCP/issues/346)).
 - Fixed `xcode_tools_bridge_disconnect` immediately re-syncing proxied tools after a manual disconnect ([#343](https://github.com/getsentry/XcodeBuildMCP/issues/343)).
 - Stopped suggesting an unsupported `--device-id`/`deviceId` argument in the `device list` next-step hint for `device build`/`build_device`; device targeting flows through session defaults ([#350](https://github.com/getsentry/XcodeBuildMCP/pull/350) by [@MukundaKatta](https://github.com/MukundaKatta)).
+- Added error handling around build-only tool execution paths (`build_device`, `build_sim`, `build_macos`) so unexpected execution throws are reported as failed build results instead of escaping the handler ([#334](https://github.com/getsentry/XcodeBuildMCP/issues/334)).
 
 ## [2.3.2]
 

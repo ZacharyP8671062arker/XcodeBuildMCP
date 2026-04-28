@@ -76,19 +76,34 @@ export function createBuildMacOSExecutor(
   return async (params, ctx) => {
     const configuration = params.configuration ?? 'Debug';
     const started = createDomainStreamingPipeline('build_macos', 'BUILD', ctx, 'build-result');
-    const buildResult = await executeXcodeBuildCommand(
-      { ...params, configuration },
-      {
-        platform: XcodePlatform.macOS,
-        arch: params.arch,
-        logPrefix: 'macOS Build',
-      },
-      params.preferXcodebuild ?? false,
-      'build',
-      executor,
-      undefined,
-      started.pipeline,
-    );
+    let buildResult;
+    try {
+      buildResult = await executeXcodeBuildCommand(
+        { ...params, configuration },
+        {
+          platform: XcodePlatform.macOS,
+          arch: params.arch,
+          logPrefix: 'macOS Build',
+        },
+        params.preferXcodebuild ?? false,
+        'build',
+        executor,
+        undefined,
+        started.pipeline,
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return createBuildDomainResult({
+        started,
+        succeeded: false,
+        target: 'macos',
+        artifacts: {
+          buildLogPath: started.pipeline.logPath,
+        },
+        fallbackErrorMessages: collectFallbackErrorMessages(started, [errorMessage]),
+        request: createBuildMacOSRequest(params),
+      });
+    }
 
     let bundleId: string | undefined;
     if (!buildResult.isError) {

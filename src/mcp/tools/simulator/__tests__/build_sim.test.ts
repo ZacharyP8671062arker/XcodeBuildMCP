@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { computeScopedDerivedDataPath } from '../../../../utils/derived-data-path.ts';
 import * as z from 'zod';
 import {
@@ -7,6 +7,7 @@ import {
 } from '../../../../test-utils/mock-executors.ts';
 import { expectPendingBuildResponse, runToolLogic } from '../../../../test-utils/test-helpers.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
+import * as buildUtils from '../../../../utils/build/index.ts';
 
 import { schema, handler, build_simLogic } from '../build_sim.ts';
 
@@ -18,6 +19,7 @@ const runBuildSimLogic = (
 describe('build_sim tool', () => {
   beforeEach(() => {
     sessionStore.clear();
+    vi.restoreAllMocks();
   });
 
   describe('Export Field Validation (Literal)', () => {
@@ -458,6 +460,25 @@ describe('build_sim tool', () => {
         mockExecutor,
       );
 
+      expect(result.isError()).toBe(true);
+      expectPendingBuildResponse(result);
+    });
+
+    it('should return error result when executeXcodeBuildCommand throws unexpectedly', async () => {
+      const executeSpy = vi
+        .spyOn(buildUtils, 'executeXcodeBuildCommand')
+        .mockRejectedValueOnce(new Error('Unexpected simulator build error'));
+
+      const { result } = await runBuildSimLogic(
+        {
+          workspacePath: '/path/to/workspace',
+          scheme: 'MyScheme',
+          simulatorName: 'iPhone 17',
+        },
+        createMockExecutor({ success: true, output: 'BUILD SUCCEEDED' }),
+      );
+
+      expect(executeSpy).toHaveBeenCalledOnce();
       expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });

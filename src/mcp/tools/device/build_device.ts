@@ -81,29 +81,43 @@ export function createBuildDeviceExecutor(
     };
     const started = createDomainStreamingPipeline('build_device', 'BUILD', ctx, 'build-result');
 
-    const buildResult = await executeXcodeBuildCommand(
-      processedParams,
-      {
-        platform,
-        logPrefix: `${platform} Device Build`,
-      },
-      params.preferXcodebuild ?? false,
-      'build',
-      executor,
-      undefined,
-      started.pipeline,
-    );
+    try {
+      const buildResult = await executeXcodeBuildCommand(
+        processedParams,
+        {
+          platform,
+          logPrefix: `${platform} Device Build`,
+        },
+        params.preferXcodebuild ?? false,
+        'build',
+        executor,
+        undefined,
+        started.pipeline,
+      );
 
-    return createBuildDomainResult({
-      started,
-      succeeded: !buildResult.isError,
-      target: 'device',
-      artifacts: {
-        buildLogPath: started.pipeline.logPath,
-      },
-      fallbackErrorMessages: collectFallbackErrorMessages(started, [], buildResult.content),
-      request: createBuildDeviceRequest(params),
-    });
+      return createBuildDomainResult({
+        started,
+        succeeded: !buildResult.isError,
+        target: 'device',
+        artifacts: {
+          buildLogPath: started.pipeline.logPath,
+        },
+        fallbackErrorMessages: collectFallbackErrorMessages(started, [], buildResult.content),
+        request: createBuildDeviceRequest(params),
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return createBuildDomainResult({
+        started,
+        succeeded: false,
+        target: 'device',
+        artifacts: {
+          buildLogPath: started.pipeline.logPath,
+        },
+        fallbackErrorMessages: collectFallbackErrorMessages(started, [errorMessage]),
+        request: createBuildDeviceRequest(params),
+      });
+    }
   };
 }
 

@@ -173,26 +173,41 @@ export function createBuildSimExecutor(
     }
 
     const started = createDomainStreamingPipeline('build_sim', 'BUILD', ctx, 'build-result');
-    const buildResult = await executeXcodeBuildCommand(
-      resolved.sharedBuildParams,
-      resolved.platformOptions,
-      params.preferXcodebuild ?? false,
-      'build',
-      executor,
-      undefined,
-      started.pipeline,
-    );
 
-    return createBuildDomainResult({
-      started,
-      succeeded: !buildResult.isError,
-      target: 'simulator',
-      artifacts: {
-        buildLogPath: started.pipeline.logPath,
-      },
-      fallbackErrorMessages: collectFallbackErrorMessages(started, [], buildResult.content),
-      request: resolved.invocationRequest,
-    });
+    try {
+      const buildResult = await executeXcodeBuildCommand(
+        resolved.sharedBuildParams,
+        resolved.platformOptions,
+        params.preferXcodebuild ?? false,
+        'build',
+        executor,
+        undefined,
+        started.pipeline,
+      );
+
+      return createBuildDomainResult({
+        started,
+        succeeded: !buildResult.isError,
+        target: 'simulator',
+        artifacts: {
+          buildLogPath: started.pipeline.logPath,
+        },
+        fallbackErrorMessages: collectFallbackErrorMessages(started, [], buildResult.content),
+        request: resolved.invocationRequest,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return createBuildDomainResult({
+        started,
+        succeeded: false,
+        target: 'simulator',
+        artifacts: {
+          buildLogPath: started.pipeline.logPath,
+        },
+        fallbackErrorMessages: collectFallbackErrorMessages(started, [errorMessage]),
+        request: resolved.invocationRequest,
+      });
+    }
   };
 }
 

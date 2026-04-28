@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { computeScopedDerivedDataPath } from '../../../../utils/derived-data-path.ts';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { expectPendingBuildResponse, runToolLogic } from '../../../../test-utils/test-helpers.ts';
 import { schema, handler, buildDeviceLogic } from '../build_device.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
+import * as buildUtils from '../../../../utils/build/index.ts';
 import type { CommandExecutor } from '../../../../utils/execution/index.ts';
 
 const runHandlerWithExecutor = handler as unknown as (
@@ -30,6 +31,7 @@ function createSpyExecutor(): {
 describe('build_device plugin', () => {
   beforeEach(() => {
     sessionStore.clear();
+    vi.restoreAllMocks();
   });
 
   describe('Export Field Validation (Literal)', () => {
@@ -305,6 +307,26 @@ describe('build_device plugin', () => {
         ),
       );
 
+      expect(result.isError()).toBe(true);
+      expectPendingBuildResponse(result);
+    });
+
+    it('should return error result when executeXcodeBuildCommand throws unexpectedly', async () => {
+      const executeSpy = vi
+        .spyOn(buildUtils, 'executeXcodeBuildCommand')
+        .mockRejectedValueOnce(new Error('Unexpected build error'));
+
+      const { result } = await runToolLogic(() =>
+        buildDeviceLogic(
+          {
+            projectPath: '/path/to/MyProject.xcodeproj',
+            scheme: 'MyScheme',
+          },
+          createMockExecutor({ success: true, output: 'Build succeeded' }),
+        ),
+      );
+
+      expect(executeSpy).toHaveBeenCalledOnce();
       expect(result.isError()).toBe(true);
       expectPendingBuildResponse(result);
     });

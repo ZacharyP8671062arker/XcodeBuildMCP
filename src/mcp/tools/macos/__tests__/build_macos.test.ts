@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { computeScopedDerivedDataPath } from '../../../../utils/derived-data-path.ts';
 import * as z from 'zod';
 import { createMockExecutor } from '../../../../test-utils/mock-executors.ts';
 import { expectPendingBuildResponse, runToolLogic } from '../../../../test-utils/test-helpers.ts';
 import { sessionStore } from '../../../../utils/session-store.ts';
 import { schema, handler, buildMacOSLogic } from '../build_macos.ts';
+import * as buildUtils from '../../../../utils/build/index.ts';
 
 const runBuildMacOS = (
   params: Parameters<typeof buildMacOSLogic>[0],
@@ -29,6 +30,7 @@ function createSpyExecutor(): {
 describe('build_macos plugin', () => {
   beforeEach(() => {
     sessionStore.clear();
+    vi.restoreAllMocks();
   });
 
   describe('Export Field Validation (Literal)', () => {
@@ -148,6 +150,24 @@ describe('build_macos plugin', () => {
           derivedDataPath: '/path/to/derived-data',
         },
       });
+    });
+
+    it('should return error result when executeXcodeBuildCommand throws unexpectedly', async () => {
+      const executeSpy = vi
+        .spyOn(buildUtils, 'executeXcodeBuildCommand')
+        .mockRejectedValueOnce(new Error('Unexpected macOS build error'));
+
+      const { result } = await runBuildMacOS(
+        {
+          projectPath: '/path/to/MyProject.xcodeproj',
+          scheme: 'MyScheme',
+        },
+        createMockExecutor({ success: true, output: 'BUILD SUCCEEDED' }),
+      );
+
+      expect(executeSpy).toHaveBeenCalledOnce();
+      expect(result.isError()).toBe(true);
+      expectPendingBuildResponse(result);
     });
 
     it('should return exact exception handling response', async () => {

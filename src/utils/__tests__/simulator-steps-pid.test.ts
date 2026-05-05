@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import * as fs from 'node:fs';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -9,6 +10,7 @@ import {
   launchSimulatorAppWithLogging,
   setSimulatorLogDirOverrideForTests,
 } from '../simulator-steps.ts';
+import { getWorkspaceFilesystemLayout } from '../log-paths.ts';
 import type { CommandExecutor } from '../CommandExecutor.ts';
 import { setRuntimeInstanceForTests } from '../runtime-instance.ts';
 import {
@@ -110,6 +112,26 @@ describe.sequential('launchSimulatorAppWithLogging PID resolution', () => {
     expect(result.processId).toBe(42567);
   });
 
+  it('writes logs under the current workspace log directory when no test override is set', async () => {
+    setSimulatorLogDirOverrideForTests(null);
+    const spawner = createMockSpawner();
+    const executor = createMockExecutor(42567);
+
+    const result = await launchSimulatorAppWithLogging(
+      'test-sim-uuid',
+      'com.example.app',
+      executor,
+      undefined,
+      { spawner },
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.logFilePath).toContain(getWorkspaceFilesystemLayout('workspace-a').logs);
+    expect(result.logFilePath).toContain('_helperpid90000_ownerpid');
+    expect(result.osLogPath).toContain(getWorkspaceFilesystemLayout('workspace-a').logs);
+    expect(result.osLogPath).toContain('_helperpid90001_ownerpid');
+  });
+
   it('returns undefined processId when executor returns no PID', async () => {
     const spawner = createMockSpawner();
     const executor = createMockExecutor();
@@ -163,6 +185,55 @@ describe.sequential('launchSimulatorAppWithLogging PID resolution', () => {
     );
 
     expect(result.success).toBe(false);
+  });
+
+  it('kills and unrefs the launch helper if helper log rename fails', async () => {
+    const children: ChildProcess[] = [];
+    const spawner = (_command: string, _args: string[], _options: SpawnOptions): ChildProcess => {
+      const child = createMockChild(null);
+      children.push(child);
+      fs.chmodSync(logDir, 0o500);
+      return child;
+    };
+
+    const result = await launchSimulatorAppWithLogging(
+      'test-sim-uuid',
+      'com.example.app',
+      createMockExecutor(42567),
+      undefined,
+      { spawner },
+    );
+    fs.chmodSync(logDir, 0o700);
+
+    expect(result.success).toBe(false);
+    expect(children[0].kill).toHaveBeenCalledWith('SIGTERM');
+    expect(children[0].unref).toHaveBeenCalledOnce();
+  });
+
+  it('kills and unrefs the OSLog helper if helper log rename fails', async () => {
+    const children: ChildProcess[] = [];
+    const spawner = (_command: string, _args: string[], _options: SpawnOptions): ChildProcess => {
+      const child = createMockChild(null);
+      children.push(child);
+      if (children.length === 2) {
+        fs.chmodSync(logDir, 0o500);
+      }
+      return child;
+    };
+
+    const result = await launchSimulatorAppWithLogging(
+      'test-sim-uuid',
+      'com.example.app',
+      createMockExecutor(42567),
+      undefined,
+      { spawner },
+    );
+    fs.chmodSync(logDir, 0o700);
+
+    expect(result.success).toBe(true);
+    expect(result.osLogPath).toBeUndefined();
+    expect(children[1].kill).toHaveBeenCalledWith('SIGTERM');
+    expect(children[1].unref).toHaveBeenCalledOnce();
   });
 
   it('registers a tracked OSLog session after launch', async () => {
@@ -232,6 +303,7 @@ describe.sequential('launchSimulatorAppWithLogging PID resolution', () => {
     expect(result.success).toBe(true);
     expect(result.osLogPath).toBeUndefined();
     expect(children[1].kill).toHaveBeenCalledWith('SIGTERM');
+    expect(children[1].unref).toHaveBeenCalledOnce();
     await expect(listActiveSimulatorLaunchOsLogSessions()).resolves.toEqual([]);
   });
 });

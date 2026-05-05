@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getDefaultDebuggerManager } from '../utils/debugger/index.ts';
 import { stopXcodeStateWatcher } from '../utils/xcode-state-watcher.ts';
 import { shutdownXcodeToolsBridge } from '../integrations/xcode-tools-bridge/index.ts';
-import { stopOwnedSimulatorLaunchOsLogSessions } from '../utils/log-capture/simulator-launch-oslog-sessions.ts';
+import { cleanupOwnedWorkspaceFilesystemArtifacts } from '../utils/workspace-filesystem-lifecycle.ts';
 import { stopAllVideoCaptureSessions } from '../utils/video_capture.ts';
 import { stopAllTrackedProcesses } from '../mcp/tools/swift-package/active-processes.ts';
 import {
@@ -30,6 +30,8 @@ export interface ShutdownStepResult {
   status: ShutdownStepStatus;
   durationMs: number;
   error?: string;
+  diagnosticCount?: number;
+  diagnostics?: string[];
 }
 
 interface ShutdownStepOutcome<T> {
@@ -112,6 +114,28 @@ function buildExitCode(reason: McpShutdownReason): number {
   return FAILURE_REASONS.has(reason) ? 1 : 0;
 }
 
+function getCleanupDiagnostics(value: unknown): { count: number; messages: string[] } | null {
+  if (value === null || typeof value !== 'object') {
+    return null;
+  }
+
+  const result = value as { errorCount?: unknown; errors?: unknown };
+  const messages = Array.isArray(result.errors)
+    ? result.errors.filter((error): error is string => typeof error === 'string')
+    : [];
+  const explicitCount =
+    typeof result.errorCount === 'number' && Number.isFinite(result.errorCount)
+      ? result.errorCount
+      : 0;
+  const count = Math.max(explicitCount, messages.length);
+
+  return count > 0 ? { count, messages } : null;
+}
+
+function workspaceFilesystemCleanupTimeoutForOwnedSessions(ownedSessionCount: number): number {
+  return Math.max(1, ownedSessionCount) * STEP_TIMEOUT_MS * 2 + STEP_TIMEOUT_HEADROOM_MS;
+}
+
 export async function closeServerWithTimeout(
   server: Pick<McpServer, 'close'> | null | undefined,
   timeoutMs: number,
@@ -150,6 +174,15 @@ export async function runMcpShutdown(input: {
     if (outcome.error) {
       step.error = outcome.error;
     }
+    if (outcome.status === 'completed') {
+      const diagnostics = getCleanupDiagnostics(outcome.value);
+      if (diagnostics) {
+        step.diagnosticCount = diagnostics.count;
+        if (diagnostics.messages.length > 0) {
+          step.diagnostics = diagnostics.messages;
+        }
+      }
+    }
     steps.push(step);
   };
 
@@ -174,6 +207,10 @@ export async function runMcpShutdown(input: {
     );
   };
 
+  const workspaceFilesystemCleanupTimeoutMs = workspaceFilesystemCleanupTimeoutForOwnedSessions(
+    input.snapshot.ownedSimulatorLaunchOsLogSessionCount,
+  );
+
   const cleanupSteps: Array<{
     name: string;
     timeoutMs: number;
@@ -191,19 +228,27 @@ export async function runMcpShutdown(input: {
       operation: () => getDefaultDebuggerManager().disposeAll(),
     },
     {
-      name: 'simulator-launch-oslogs.stop-owned',
-      timeoutMs: bulkStepTimeoutMs(input.snapshot.ownedSimulatorLaunchOsLogSessionCount),
-      operation: () => stopOwnedSimulatorLaunchOsLogSessions(STEP_TIMEOUT_MS),
+      name: 'workspace-filesystem.cleanup-owned',
+      timeoutMs: workspaceFilesystemCleanupTimeoutMs,
+      operation: async (): Promise<unknown> => {
+        return cleanupOwnedWorkspaceFilesystemArtifacts({
+          timeoutMs: STEP_TIMEOUT_MS,
+        });
+      },
     },
     {
       name: 'video-capture.stop-all',
       timeoutMs: bulkStepTimeoutMs(input.snapshot.videoCaptureSessionCount),
-      operation: () => stopAllVideoCaptureSessions(STEP_TIMEOUT_MS),
+      operation: async (): Promise<unknown> => {
+        return stopAllVideoCaptureSessions(STEP_TIMEOUT_MS);
+      },
     },
     {
       name: 'swift-processes.stop-all',
       timeoutMs: bulkStepTimeoutMs(input.snapshot.swiftPackageProcessCount),
-      operation: () => stopAllTrackedProcesses(STEP_TIMEOUT_MS),
+      operation: async (): Promise<unknown> => {
+        return stopAllTrackedProcesses(STEP_TIMEOUT_MS);
+      },
     },
   ];
 
@@ -213,9 +258,13 @@ export async function runMcpShutdown(input: {
   }
 
   const triggerError = input.error === undefined ? undefined : toErrorMessage(input.error);
-  const cleanupFailureCount = steps.filter(
+  const shutdownStepFailureCount = steps.filter(
     (step) => step.status === 'failed' || step.status === 'timed_out',
   ).length;
+  const cleanupDiagnosticCount = steps.reduce(
+    (total, step) => total + (step.diagnosticCount ?? 0),
+    0,
+  );
 
   captureMcpShutdownSummary({
     reason: input.reason,
@@ -223,7 +272,8 @@ export async function runMcpShutdown(input: {
     exitCode,
     transportDisconnected,
     triggerError,
-    cleanupFailureCount,
+    shutdownStepFailureCount,
+    cleanupDiagnosticCount,
     shutdownDurationMs: Date.now() - shutdownStartedAt,
     snapshot: input.snapshot as unknown as Record<string, unknown>,
     steps: steps as unknown as Array<Record<string, unknown>>,

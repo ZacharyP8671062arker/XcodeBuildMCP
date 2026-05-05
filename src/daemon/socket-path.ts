@@ -1,48 +1,46 @@
-import { createHash } from 'node:crypto';
-import { mkdirSync, existsSync, unlinkSync, realpathSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { chmodSync, existsSync, lstatSync, mkdirSync, statSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
+import {
+  resolveWorkspaceRoot,
+  shortWorkspaceHash,
+  workspaceKeyForRoot,
+  resolveWorkspaceIdentity,
+} from '../utils/workspace-identity.ts';
+import { getWorkspaceFilesystemLayout } from '../utils/log-paths.ts';
 
-export function daemonBaseDir(): string {
-  return join(homedir(), '.xcodebuildmcp');
+export { resolveWorkspaceRoot, workspaceKeyForRoot, resolveWorkspaceIdentity };
+
+let daemonRunDirOverrideForTests: string | null = null;
+
+function compactWorkspaceKey(workspaceKey: string): string {
+  const hashSuffix = workspaceKey.match(/-([a-f0-9]{12})$/u)?.[1];
+  return hashSuffix ?? shortWorkspaceHash(workspaceKey);
 }
 
-export function daemonsDir(): string {
-  return join(daemonBaseDir(), 'daemons');
+export function daemonRunDir(): string {
+  return daemonRunDirOverrideForTests ?? tmpdir();
 }
 
-export function resolveWorkspaceRoot(opts: { cwd: string; projectConfigPath?: string }): string {
-  if (opts.projectConfigPath) {
-    const configDir = dirname(opts.projectConfigPath);
-    return dirname(configDir);
-  }
-  try {
-    return realpathSync(opts.cwd);
-  } catch {
-    return opts.cwd;
-  }
-}
-
-export function workspaceKeyForRoot(workspaceRoot: string): string {
-  const hash = createHash('sha256').update(workspaceRoot).digest('hex');
-  return hash.slice(0, 12);
+export function setDaemonRunDirOverrideForTests(dir: string | null): void {
+  daemonRunDirOverrideForTests = dir;
 }
 
 export function daemonDirForWorkspaceKey(key: string): string {
-  return join(daemonsDir(), key);
+  return join(daemonRunDir(), `xcodebuildmcp-${compactWorkspaceKey(key)}`);
 }
 
 export function socketPathForWorkspaceRoot(workspaceRoot: string): string {
   const key = workspaceKeyForRoot(workspaceRoot);
-  return join(daemonDirForWorkspaceKey(key), 'daemon.sock');
+  return join(daemonDirForWorkspaceKey(key), 'd.sock');
 }
 
 export function registryPathForWorkspaceKey(key: string): string {
-  return join(daemonDirForWorkspaceKey(key), 'daemon.json');
+  return join(getWorkspaceFilesystemLayout(key).state, 'daemon', 'daemon.json');
 }
 
 export function logPathForWorkspaceKey(key: string): string {
-  return join(daemonDirForWorkspaceKey(key), 'daemon.log');
+  return join(getWorkspaceFilesystemLayout(key).logs, 'daemon.log');
 }
 
 export interface GetSocketPathOptions {
@@ -67,13 +65,25 @@ export function getSocketPath(opts?: GetSocketPathOptions): string {
   return socketPathForWorkspaceRoot(workspaceRoot);
 }
 
-export function getWorkspaceKey(opts?: GetSocketPathOptions): string {
-  const cwd = opts?.cwd ?? process.cwd();
-  const workspaceRoot = resolveWorkspaceRoot({
-    cwd,
-    projectConfigPath: opts?.projectConfigPath,
-  });
-  return workspaceKeyForRoot(workspaceRoot);
+function validateSocketDir(dir: string): void {
+  const linkStat = lstatSync(dir);
+  if (linkStat.isSymbolicLink()) {
+    throw new Error(`Daemon socket directory cannot be a symlink: ${dir}`);
+  }
+
+  const stat = statSync(dir);
+  if (!stat.isDirectory()) {
+    throw new Error(`Daemon socket path parent is not a directory: ${dir}`);
+  }
+
+  const uid = process.getuid?.();
+  if (uid !== undefined && stat.uid !== uid) {
+    throw new Error(`Daemon socket directory is not owned by the current user: ${dir}`);
+  }
+
+  if ((stat.mode & 0o077) !== 0) {
+    chmodSync(dir, 0o700);
+  }
 }
 
 export function ensureSocketDir(socketPath: string): void {
@@ -81,6 +91,7 @@ export function ensureSocketDir(socketPath: string): void {
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
+  validateSocketDir(dir);
 }
 
 export function removeStaleSocket(socketPath: string): void {
@@ -90,8 +101,8 @@ export function removeStaleSocket(socketPath: string): void {
 }
 
 /**
- * Legacy: Get the default socket path for the daemon.
- * @deprecated Use getSocketPath() with workspace context instead.
+ * Get the daemon socket path for the current workspace context.
+ * @deprecated Use getSocketPath() with explicit workspace context instead.
  */
 export function defaultSocketPath(): string {
   return getSocketPath();

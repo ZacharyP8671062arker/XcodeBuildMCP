@@ -9,7 +9,9 @@ const APPLE_DEVICE_UDID_REGEX = /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}/g;
 const UUID_REGEX = /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/g;
 const DURATION_REGEX = /\d+\.\d+s\b/g;
 const PID_NUMBER_REGEX = /(pid:\s*)\d+/gi;
-const PID_FILENAME_SUFFIX_REGEX = /_pid\d+\.log/g;
+const PID_FILENAME_SUFFIX_REGEX = /_pid\d+(?:_[0-9a-f]{8})?\.log/g;
+const HELPER_PID_FILENAME_SUFFIX_REGEX =
+  /_(?:helperpid\d+_ownerpid\d+|ownerpid\d+)_[0-9a-f]{8}\.log/g;
 const PID_JSON_REGEX = /"pid"\s*:\s*\d+/g;
 const PROCESS_ID_REGEX = /Process ID: \d+/g;
 const PROCESS_INLINE_PID_REGEX = /process \d+/g;
@@ -42,9 +44,60 @@ const ACQUIRED_USAGE_ASSERTION_TIME_REGEX =
   /(^\s*)\d{2}:\d{2}:\d{2}( {2}Acquired usage assertion\.)$/gm;
 const BUILD_SETTINGS_PATH_REGEX = /^( {6}PATH = ).+$/gm;
 const TRAILING_WHITESPACE_REGEX = /[ \t]+$/gm;
+const SIMULATOR_FAILURE_TEST_PROGRESS_BLOCK_REGEX =
+  /(?:^Running tests \(\d+ completed, \d+ failures?, \d+ skipped\)\n){30,}/gm;
+const TEST_PROGRESS_LINE_REGEX =
+  /^Running tests \((\d+) completed, (\d+) failures?, (\d+) skipped\)$/u;
+
+type TestProgress = { completed: number; failed: number; skipped: number };
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function parseTestProgressLine(line: string): TestProgress | null {
+  const match = line.match(TEST_PROGRESS_LINE_REGEX);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    completed: Number(match[1]),
+    failed: Number(match[2]),
+    skipped: Number(match[3]),
+  };
+}
+
+function isMonotonicProgress(progress: TestProgress[]): boolean {
+  return progress.every((current, index) => {
+    const previous = progress[index - 1];
+    return (
+      previous === undefined ||
+      (current.completed >= previous.completed &&
+        current.failed >= previous.failed &&
+        current.skipped >= previous.skipped)
+    );
+  });
+}
+
+function normalizeSimulatorFailureTestProgressBlock(match: string): string {
+  const progress = match.trimEnd().split('\n').map(parseTestProgressLine);
+  const parsedProgress = progress.filter((line): line is TestProgress => line !== null);
+  if (parsedProgress.length !== progress.length) {
+    return match;
+  }
+  const first = parsedProgress[0];
+  const final = parsedProgress.at(-1);
+  if (!first || !final) {
+    return match;
+  }
+
+  const hasCleanStart = first.completed <= 1 && first.failed === 0 && first.skipped === 0;
+  if (!hasCleanStart || final.failed === 0 || !isMonotonicProgress(parsedProgress)) {
+    return match;
+  }
+
+  return `Running tests (<TEST_PROGRESS>; final: ${final.completed} completed, ${final.failed} failed, ${final.skipped} skipped)\n`;
 }
 
 export function normalizeSnapshotOutput(text: string): string {
@@ -76,6 +129,14 @@ export function normalizeSnapshotOutput(text: string): string {
     '<TMPDIR>',
   );
   normalized = normalized.replace(
+    /(<HOME>\/Library\/Developer\/XcodeBuildMCP\/workspaces\/[^/]+)-[0-9a-f]{12}(?=\/logs\/)/g,
+    '$1-<HASH>',
+  );
+  normalized = normalized.replace(
+    /(<HOME>\/Library\/Developer\/XcodeBuildMCP\/workspaces\/[^/]+)-[0-9a-f]{12}\/DerivedData(?=$|[^A-Za-z0-9])/g,
+    '$1-<HASH>/DerivedData',
+  );
+  normalized = normalized.replace(
     /(Build Logs: )(?:<TMPDIR>|<HOME>\/Library\/Developer\/XcodeBuildMCP)\/logs\//g,
     '$1<HOME>/Library/Developer/XcodeBuildMCP/logs/',
   );
@@ -89,6 +150,7 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(DEVICE_TRANSPORT_TYPE_REGEX, '<CONNECTION>');
   normalized = normalized.replace(DURATION_REGEX, '<DURATION>');
   normalized = normalized.replace(PID_NUMBER_REGEX, '$1<PID>');
+  normalized = normalized.replace(HELPER_PID_FILENAME_SUFFIX_REGEX, '_pid<PID>.log');
   normalized = normalized.replace(PID_FILENAME_SUFFIX_REGEX, '_pid<PID>.log');
   normalized = normalized.replace(PID_JSON_REGEX, '"pid" : <PID>');
   normalized = normalized.replace(PROCESS_ID_REGEX, 'Process ID: <PID>');
@@ -126,6 +188,11 @@ export function normalizeSnapshotOutput(text: string): string {
   );
 
   normalized = normalized.replace(COVERAGE_CALL_COUNT_REGEX, 'called <N>x)');
+
+  normalized = normalized.replace(
+    SIMULATOR_FAILURE_TEST_PROGRESS_BLOCK_REGEX,
+    normalizeSimulatorFailureTestProgressBlock,
+  );
 
   // Normalize final test summary line (counts vary across environments)
   normalized = normalized.replace(

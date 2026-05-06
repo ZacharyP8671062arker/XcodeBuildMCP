@@ -16,8 +16,13 @@ import { getDefaultCommandExecutor } from './command.ts';
 import { type TestPreflightResult } from './test-preflight.ts';
 
 import { createSimulatorTwoPhaseExecutionPlan } from './simulator-test-execution.ts';
+import { findResultBundlePathArg } from './result-bundle-args.ts';
 
-import type { BuildTarget, TestResultDomainResult } from '../types/domain-results.ts';
+import type {
+  BuildTarget,
+  TestResultArtifacts,
+  TestResultDomainResult,
+} from '../types/domain-results.ts';
 import type { BuildInvocationRequest } from '../types/domain-fragments.ts';
 import type { StreamingExecutor } from '../types/tool-execution.ts';
 import {
@@ -53,6 +58,18 @@ function getFallbackErrorMessages(
   responseContent?: Array<{ type: 'text'; text: string }>,
 ): string[] {
   return [...streamedLines, ...(responseContent ?? []).map((item) => item.text)];
+}
+
+function createXcodebuildTestArtifacts(
+  params: Pick<SharedTestExecutorParams, 'deviceId'>,
+  started: ReturnType<typeof createDomainStreamingPipeline>,
+  xcresultPath?: string,
+): TestResultArtifacts {
+  return {
+    ...(params.deviceId ? { deviceId: params.deviceId } : {}),
+    buildLogPath: started.pipeline.logPath,
+    ...(xcresultPath ? { xcresultPath } : {}),
+  };
 }
 
 export function resolveTestProgressEnabled(progress: boolean | undefined): boolean {
@@ -140,10 +157,7 @@ export function createTestExecutor(
             started,
             succeeded: false,
             target,
-            artifacts: {
-              ...(params.deviceId ? { deviceId: params.deviceId } : {}),
-              buildLogPath: started.pipeline.logPath,
-            },
+            artifacts: createXcodebuildTestArtifacts(params, started),
             fallbackErrorMessages: getFallbackErrorMessages(
               started.stderrLines,
               buildForTestingResult.content,
@@ -177,10 +191,7 @@ export function createTestExecutor(
           started,
           succeeded: !testWithoutBuildingResult.isError,
           target,
-          artifacts: {
-            ...(params.deviceId ? { deviceId: params.deviceId } : {}),
-            buildLogPath: started.pipeline.logPath,
-          },
+          artifacts: createXcodebuildTestArtifacts(params, started, executionPlan.resultBundlePath),
           fallbackErrorMessages: getFallbackErrorMessages(
             started.stderrLines,
             testWithoutBuildingResult.content,
@@ -206,10 +217,11 @@ export function createTestExecutor(
         started,
         succeeded: !singlePhaseResult.isError,
         target,
-        artifacts: {
-          ...(params.deviceId ? { deviceId: params.deviceId } : {}),
-          buildLogPath: started.pipeline.logPath,
-        },
+        artifacts: createXcodebuildTestArtifacts(
+          params,
+          started,
+          findResultBundlePathArg(params.extraArgs),
+        ),
         fallbackErrorMessages: getFallbackErrorMessages(
           started.stderrLines,
           singlePhaseResult.content,
@@ -225,10 +237,7 @@ export function createTestExecutor(
         started,
         succeeded: false,
         target,
-        artifacts: {
-          ...(params.deviceId ? { deviceId: params.deviceId } : {}),
-          buildLogPath: started.pipeline.logPath,
-        },
+        artifacts: createXcodebuildTestArtifacts(params, started),
         fallbackErrorMessages: [...started.stderrLines, errorMessage],
         preflight: options.preflight,
         request: options.request,

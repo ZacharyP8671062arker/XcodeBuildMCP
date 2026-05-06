@@ -1,3 +1,4 @@
+import { parseResultBundlePathArgs } from './result-bundle-args.ts';
 import type { TestPreflightResult } from './test-preflight.ts';
 
 function parseTestSelectorArgs(extraArgs: string[] | undefined): {
@@ -5,30 +6,27 @@ function parseTestSelectorArgs(extraArgs: string[] | undefined): {
   selectorArgs: string[];
   resultBundlePath?: string;
 } {
-  if (!extraArgs || extraArgs.length === 0) {
-    return { remainingArgs: [], selectorArgs: [] };
+  const parsedResultBundleArgs = parseResultBundlePathArgs(extraArgs);
+  if (parsedResultBundleArgs.remainingArgs.length === 0) {
+    return {
+      remainingArgs: [],
+      selectorArgs: [],
+      ...(parsedResultBundleArgs.resultBundlePath
+        ? { resultBundlePath: parsedResultBundleArgs.resultBundlePath }
+        : {}),
+    };
   }
 
   const remainingArgs: string[] = [];
   const selectorArgs: string[] = [];
-  let resultBundlePath: string | undefined;
 
-  for (let index = 0; index < extraArgs.length; index += 1) {
-    const argument = extraArgs[index]!;
+  for (let index = 0; index < parsedResultBundleArgs.remainingArgs.length; index += 1) {
+    const argument = parsedResultBundleArgs.remainingArgs[index]!;
 
     if (argument === '-only-testing' || argument === '-skip-testing') {
-      const value = extraArgs[index + 1];
+      const value = parsedResultBundleArgs.remainingArgs[index + 1];
       if (value) {
         selectorArgs.push(argument, value);
-        index += 1;
-      }
-      continue;
-    }
-
-    if (argument === '-resultBundlePath') {
-      const value = extraArgs[index + 1];
-      if (value) {
-        resultBundlePath = value;
         index += 1;
       }
       continue;
@@ -42,7 +40,13 @@ function parseTestSelectorArgs(extraArgs: string[] | undefined): {
     remainingArgs.push(argument);
   }
 
-  return { remainingArgs, selectorArgs, resultBundlePath };
+  return {
+    remainingArgs,
+    selectorArgs,
+    ...(parsedResultBundleArgs.resultBundlePath
+      ? { resultBundlePath: parsedResultBundleArgs.resultBundlePath }
+      : {}),
+  };
 }
 
 export function createSimulatorTwoPhaseExecutionPlan(params: {
@@ -53,6 +57,7 @@ export function createSimulatorTwoPhaseExecutionPlan(params: {
   buildArgs: string[];
   testArgs: string[];
   usesExactSelectors: boolean;
+  resultBundlePath?: string;
 } {
   const parsedArgs = parseTestSelectorArgs(params.extraArgs);
   const selectedTestArgs = parsedArgs.selectorArgs;
@@ -67,5 +72,6 @@ export function createSimulatorTwoPhaseExecutionPlan(params: {
       ...(resultBundlePath ? ['-resultBundlePath', resultBundlePath] : []),
     ],
     usesExactSelectors,
+    ...(resultBundlePath ? { resultBundlePath } : {}),
   };
 }

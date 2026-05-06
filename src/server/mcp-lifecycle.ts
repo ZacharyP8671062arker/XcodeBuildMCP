@@ -31,6 +31,7 @@ export type McpShutdownReason =
   | 'sigint'
   | 'sigterm'
   | 'startup-failure'
+  | 'idle-timeout'
   | 'uncaught-exception'
   | 'unhandled-rejection';
 

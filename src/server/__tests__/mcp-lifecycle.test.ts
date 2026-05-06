@@ -290,6 +290,7 @@ describe('mcp lifecycle snapshot', () => {
     expect(isTransportDisconnectReason('stdin-close')).toBe(true);
     expect(isTransportDisconnectReason('stdout-error')).toBe(true);
     expect(isTransportDisconnectReason('stderr-error')).toBe(true);
+    expect(isTransportDisconnectReason('idle-timeout')).toBe(false);
     expect(isTransportDisconnectReason('sigterm')).toBe(false);
   });
 });

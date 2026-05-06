@@ -17,6 +17,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import * as Sentry from '@sentry/node';
 import { log } from '../utils/logger.ts';
 import { version } from '../version.ts';
+import {
+  instrumentMcpRequestLifecycle,
+  type McpRequestLifecycleObserver,
+} from './request-lifecycle.ts';
 import { getServer, setServer } from './server-state.ts';
 
 function createBaseServerInstance(): McpServer {
@@ -85,12 +89,22 @@ export function createServer(): McpServer {
   return server;
 }
 
+export interface StartServerOptions {
+  requestLifecycle?: McpRequestLifecycleObserver;
+}
+
 /**
  * Start the MCP server with stdio transport
  * @param server The MCP server instance to start
  */
-export async function startServer(server: McpServer): Promise<void> {
+export async function startServer(
+  server: McpServer,
+  options: StartServerOptions = {},
+): Promise<void> {
   const transport = new StdioServerTransport();
+  if (options.requestLifecycle) {
+    instrumentMcpRequestLifecycle(transport, options.requestLifecycle);
+  }
   await server.connect(transport);
   log('info', 'XcodeBuildMCP Server running on stdio');
 }

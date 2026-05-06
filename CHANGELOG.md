@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added opt-in MCP server idle shutdown via `XCODEBUILDMCP_MCP_IDLE_TIMEOUT_MS`, allowing unused MCP server processes to gracefully exit after a configured idle period ([#394](https://github.com/getsentry/XcodeBuildMCP/issues/394)).
+
 ### Fixed
 
 - Fixed remaining `/bin/sh -c` shell-injection sites in bundle ID extraction and macOS launch flows by invoking `defaults` and `PlistBuddy` directly with argv arrays so user-supplied app paths are no longer interpreted by a shell ([#367](https://github.com/getsentry/XcodeBuildMCP/issues/367)).

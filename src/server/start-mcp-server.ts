@@ -24,6 +24,12 @@ import { getConfig } from '../utils/config-store.ts';
 import { getRegisteredWorkflows } from '../utils/tool-registry.ts';
 import { hydrateSentryDisabledEnvFromProjectConfig } from '../utils/sentry-config.ts';
 import { createMcpLifecycleCoordinator, isTransportDisconnectReason } from './mcp-lifecycle.ts';
+import {
+  createMcpIdleShutdownController,
+  resolveMcpIdleCheckIntervalMs,
+  resolveMcpIdleTimeoutConfig,
+  type McpIdleShutdownController,
+} from './mcp-idle-shutdown.ts';
 import { runMcpShutdown } from './mcp-shutdown.ts';
 
 /**
@@ -32,8 +38,12 @@ import { runMcpShutdown } from './mcp-shutdown.ts';
  * sets up signal handlers for graceful shutdown, and starts the server.
  */
 export async function startMcpServer(): Promise<void> {
+  let idleShutdown: McpIdleShutdownController | null = null;
+
   const lifecycle = createMcpLifecycleCoordinator({
     onShutdown: async ({ reason, error, snapshot, server }) => {
+      idleShutdown?.stop();
+
       const isCrash = reason === 'uncaught-exception' || reason === 'unhandled-rejection';
       const event = isCrash ? 'crash' : 'shutdown';
 
@@ -42,6 +52,7 @@ export async function startMcpServer(): Promise<void> {
         'stdin-close': 'MCP stdin closed; shutting down MCP server',
         'stdout-error': 'MCP stdout pipe broke; shutting down MCP server',
         'stderr-error': 'MCP stderr pipe broke; shutting down MCP server',
+        'idle-timeout': 'MCP idle timeout reached; shutting down MCP server',
       };
       log('info', transportMessages[reason] ?? `MCP shutdown requested: ${reason}`);
 
@@ -106,9 +117,41 @@ export async function startMcpServer(): Promise<void> {
     const bootstrap = await bootstrapServer(server);
     profiler.mark('bootstrapServer', stageStartMs);
 
+    const idleTimeoutConfig = resolveMcpIdleTimeoutConfig();
+    if (idleTimeoutConfig.invalid && idleTimeoutConfig.rawValue) {
+      log(
+        'warn',
+        `Invalid XCODEBUILDMCP_MCP_IDLE_TIMEOUT_MS=${idleTimeoutConfig.rawValue}; using default ${idleTimeoutConfig.timeoutMs}ms`,
+      );
+    }
+
+    const idleCheckIntervalMs = resolveMcpIdleCheckIntervalMs(idleTimeoutConfig.timeoutMs);
+
+    if (idleTimeoutConfig.timeoutMs === 0) {
+      log('info', 'MCP idle shutdown disabled');
+    } else {
+      log(
+        'info',
+        `MCP idle shutdown enabled: timeout=${idleTimeoutConfig.timeoutMs}ms interval=${idleCheckIntervalMs}ms`,
+      );
+    }
+
+    idleShutdown = createMcpIdleShutdownController({
+      timeoutMs: idleTimeoutConfig.timeoutMs,
+      intervalMs: idleCheckIntervalMs,
+      requestShutdown: () => lifecycle.shutdown('idle-timeout'),
+      isShutdownRequested: () => lifecycle.isShutdownRequested(),
+      logIdleMessage: (message) => log('info', message),
+    });
+
     stageStartMs = getStartupProfileNowMs();
     lifecycle.markPhase('starting-stdio-transport');
-    await startServer(server);
+    await startServer(server, {
+      requestLifecycle: {
+        onRequestStarted: () => idleShutdown?.markRequestStarted(),
+        onRequestCompleted: () => idleShutdown?.markRequestCompleted(),
+      },
+    });
     profiler.mark('startServer', stageStartMs);
 
     const config = getConfig();
@@ -125,6 +168,7 @@ export async function startMcpServer(): Promise<void> {
     });
 
     lifecycle.markPhase('running');
+    idleShutdown.start();
     const startupSnapshot = await lifecycle.getSnapshot();
     log('info', `[mcp-lifecycle] start ${JSON.stringify(startupSnapshot)}`);
     recordMcpLifecycleMetric({

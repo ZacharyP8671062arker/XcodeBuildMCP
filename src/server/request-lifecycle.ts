@@ -47,12 +47,25 @@ export function instrumentMcpRequestLifecycle(
     onMessageWrapped = true;
     const downstreamOnMessage = transport.onmessage;
     transport.onmessage = (message, extra) => {
+      let startedRequestId: string | null = null;
+
       if (isJSONRPCRequest(message)) {
-        pendingRequestIds.add(requestIdKey(message.id));
-        observer.onRequestStarted?.();
+        const requestId = requestIdKey(message.id);
+        if (!pendingRequestIds.has(requestId)) {
+          pendingRequestIds.add(requestId);
+          startedRequestId = requestId;
+          observer.onRequestStarted?.();
+        }
       }
 
-      downstreamOnMessage(message, extra);
+      try {
+        downstreamOnMessage(message, extra);
+      } catch (error) {
+        if (startedRequestId !== null && pendingRequestIds.delete(startedRequestId)) {
+          observer.onRequestCompleted?.();
+        }
+        throw error;
+      }
     };
   };
 

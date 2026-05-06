@@ -101,14 +101,20 @@ describe('MCP server transport request lifecycle instrumentation', () => {
     expect(onRequestCompleted).not.toHaveBeenCalled();
   });
 
-  it('completes duplicate responses only once', async () => {
+  it('ignores duplicate request IDs until the pending request completes', async () => {
+    const onRequestStarted = vi.fn();
     const onRequestCompleted = vi.fn();
-    const { transport } = await createStartedInstrumentedTransport({ onRequestCompleted });
+    const { transport } = await createStartedInstrumentedTransport({
+      onRequestStarted,
+      onRequestCompleted,
+    });
 
     transport.onmessage?.({ jsonrpc: '2.0', id: '1', method: 'initialize' });
+    transport.onmessage?.({ jsonrpc: '2.0', id: '1', method: 'tools/list' });
     await transport.send({ jsonrpc: '2.0', id: '1', result: {} });
     await transport.send({ jsonrpc: '2.0', id: '1', result: {} });
 
+    expect(onRequestStarted).toHaveBeenCalledTimes(1);
     expect(onRequestCompleted).toHaveBeenCalledTimes(1);
   });
 
@@ -122,6 +128,28 @@ describe('MCP server transport request lifecycle instrumentation', () => {
       'broken pipe',
     );
 
+    expect(onRequestCompleted).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks completion when downstream message handling throws synchronously', async () => {
+    const onRequestStarted = vi.fn();
+    const onRequestCompleted = vi.fn();
+    const transport = new TestTransport();
+    const downstreamOnMessage = vi.fn(() => {
+      throw new Error('handler failed');
+    });
+    instrumentMcpRequestLifecycle(transport, { onRequestStarted, onRequestCompleted });
+
+    transport.onmessage = downstreamOnMessage;
+    await transport.start();
+
+    expect(() => {
+      transport.onmessage?.({ jsonrpc: '2.0', id: '1', method: 'tools/list' });
+    }).toThrow('handler failed');
+
+    expect(onRequestStarted).toHaveBeenCalledTimes(1);
+    expect(onRequestCompleted).toHaveBeenCalledTimes(1);
+    await transport.send({ jsonrpc: '2.0', id: '1', result: {} });
     expect(onRequestCompleted).toHaveBeenCalledTimes(1);
   });
 });

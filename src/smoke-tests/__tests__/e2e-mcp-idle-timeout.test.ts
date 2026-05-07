@@ -7,6 +7,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { afterEach, describe, expect, it } from 'vitest';
 const CLI_PATH = join(process.cwd(), 'build/cli.js');
 const MCP_IDLE_TIMEOUT_MS = 1_000;
+const MCP_BASELINE_WAIT_MS = 2_000;
 const MCP_CONNECT_TIMEOUT_MS = 10_000;
 const MCP_EXIT_WAIT_MS = 8_000;
 const MCP_TEST_TIMEOUT_MS = 30_000;
@@ -81,6 +82,31 @@ function waitForExit(
   });
 }
 
+function waitForUnexpectedExit(child: ChildProcess, timeoutMs: number): Promise<ChildExit | null> {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve({ code: child.exitCode, signal: child.signalCode });
+  }
+
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, timeoutMs);
+
+    const cleanup = (): void => {
+      clearTimeout(timeout);
+      child.removeListener('close', onClose);
+    };
+
+    const onClose = (code: number | null, signal: NodeJS.Signals | null): void => {
+      cleanup();
+      resolve({ code, signal });
+    };
+
+    child.once('close', onClose);
+  });
+}
+
 async function cleanupActiveProcess(): Promise<void> {
   const client = activeClient;
   const child = activeChild;
@@ -101,6 +127,58 @@ afterEach(async () => {
 });
 
 describe('MCP server idle timeout e2e', () => {
+  it(
+    'stays running when the idle timeout is not configured',
+    async () => {
+      if (!existsSync(CLI_PATH)) {
+        throw new Error(
+          'MCP idle timeout e2e test requires build/cli.js. Run npm run build first.',
+        );
+      }
+
+      const transport = new StdioClientTransport({
+        command: 'node',
+        args: [CLI_PATH, 'mcp'],
+        cwd: process.cwd(),
+        env: getSmokeTestEnv({
+          SENTRY_DISABLED: 'true',
+          XCODEBUILDMCP_ENABLED_WORKFLOWS: 'simulator',
+          XCODEBUILDMCP_DISABLE_SESSION_DEFAULTS: 'true',
+          XCODEBUILDMCP_DISABLE_XCODE_AUTO_SYNC: '1',
+        }),
+        stderr: 'pipe',
+      });
+      const getStderr = collectOutput(transport.stderr as Readable | null);
+      const client = new Client({ name: 'mcp-idle-timeout-baseline-client', version: '1.0.0' });
+
+      activeClient = client;
+      try {
+        await client.connect(transport, { timeout: MCP_CONNECT_TIMEOUT_MS });
+      } catch (error) {
+        activeChild = getTransportChildIfSpawned(transport);
+        throw error;
+      }
+      const child = getTransportChild(transport);
+      activeChild = child;
+
+      const tools = await client.listTools(undefined, { timeout: 10_000 });
+      expect(tools.tools.length).toBeGreaterThan(0);
+
+      const unexpectedExit = await waitForUnexpectedExit(child, MCP_BASELINE_WAIT_MS);
+      expect(unexpectedExit).toBeNull();
+      expect(child.exitCode).toBeNull();
+      expect(child.signalCode).toBeNull();
+      expect(getStderr()).toContain('MCP idle shutdown disabled');
+
+      await client.close();
+      activeClient = null;
+      const exit = await waitForExit(child, 2_000, getStderr);
+      activeChild = null;
+      expect(exit).toEqual({ code: 0, signal: null });
+    },
+    MCP_TEST_TIMEOUT_MS,
+  );
+
   it(
     'exits gracefully after the opt-in idle timeout',
     async () => {

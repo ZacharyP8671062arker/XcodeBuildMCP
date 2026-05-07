@@ -1,37 +1,10 @@
 # Changelog
 
-## [Unreleased]
-
-### Added
-
-- Added configurable file artifact text rendering with CLI output defaulting to labeled `Files:` lists, MCP text preserving compact trees, and `filePathRenderStyle` / `XCODEBUILDMCP_FILE_PATH_RENDER_STYLE` / `--file-path-render-style` overrides.
-- Added workspace-scoped default xcresult bundles for simulator, device, and macOS test tools so test artifacts are available in structured and text output even when callers do not pass `-resultBundlePath`.
-- Added opt-in MCP server idle shutdown via `XCODEBUILDMCP_MCP_IDLE_TIMEOUT_MS`, allowing unused MCP server processes to gracefully exit after a configured idle period ([#394](https://github.com/getsentry/XcodeBuildMCP/issues/394)).
-- Added canonical `launchArgs` launch-argument input across build-and-run tools (`build_run_sim`, `build_run_device`, `build_run_macos`) and launch-only tools (`launch_app_sim`, `launch_app_device`, `launch_mac_app`) so runtime launch arguments are passed only to app launch steps; `extraArgs` remains build-system-only and launch-only tools no longer use generic `args`.
-
-### Fixed
-
-- Fixed remaining `/bin/sh -c` shell-injection sites in bundle ID extraction and macOS launch flows by invoking `defaults` and `PlistBuddy` directly with argv arrays so user-supplied app paths are no longer interpreted by a shell ([#367](https://github.com/getsentry/XcodeBuildMCP/issues/367)).
-- Fixed simulator test JSONL accuracy by keeping preflight discovery observational, preserving only user-supplied test selectors, discovering multiline parameterized Swift Testing tests, and parsing destination-suffixed xcodebuild test result lines.
-- Removed stale physical-device log session status and shutdown cleanup for deprecated standalone device log capture, and corrected the device build-and-run tool description.
-- Fixed mixed Swift Testing and XCTest summaries so simulator test text output no longer overcounts parameterized Swift Testing results or issue lines.
-- Fixed CLI test summaries showing false-positive compiler errors from xcodebuild NSError dump lines, and added compiler-error snapshot coverage for simulator, device, and macOS build-style flows ([#383](https://github.com/getsentry/XcodeBuildMCP/issues/383)).
-- Fixed simulator OSLog helper cleanup so server and daemon startup reconcile same-workspace orphaned log streams without stopping helpers owned by live sessions in other workspaces ([#382](https://github.com/getsentry/XcodeBuildMCP/issues/382)).
-- Fixed Weather example test discovery and made CLI test progress visible while tests are running instead of leaving the last build phase displayed.
-- Exposed xcresult bundle paths in test result structured output and text output when xcodebuild reports or is given a result bundle path, so agents can inspect test artifacts after simulator, device, and macOS test runs ([#392](https://github.com/getsentry/XcodeBuildMCP/issues/392)).
-- Fixed final test summaries to use xcresult top-level test declaration counts when available, avoiding overcounting dynamic-parameter test runs ([#392](https://github.com/getsentry/XcodeBuildMCP/issues/392)).
-
-### Changed
-
-- Updated Xcode IDE `call-tool` output to save raw remote responses as transient workspace-state JSON artifacts, summarize text output without embedding large relayed payloads, and support `--output json` / `--output jsonl` through the generic CLI output path.
-- Centralized workspace log retention and startup/shutdown filesystem cleanup so XcodeBuildMCP-owned logs are pruned consistently while preserving active daemon and simulator OSLog outputs.
-- Removed internal streaming-fragment context flags so final tool state now comes from explicit structured outputs instead of transient progress fragments ([#360](https://github.com/getsentry/XcodeBuildMCP/issues/360)).
-
-## [2.5.0-beta.1]
+## [2.5.0]
 
 ### Breaking
 
-#### Legacy standalone log-capture tools removed
+#### Standalone log-capture tools removed
 
 The old `logging` workflow and its standalone log-capture tools (`start_sim_log_cap`, `stop_sim_log_cap`, `start_device_log_cap`, `stop_device_log_cap`, and `launch_app_logs_sim`) have been removed. This affects users, scripts, and agents that call those tool names directly.
 
@@ -56,9 +29,47 @@ xcodebuildmcp simulator launch-app --simulator-id <UDID> --bundle-id com.example
 
 For MCP clients, use `build_run_sim` or `launch_app_sim` and read the returned runtime log path.
 
+#### Runtime launch arguments now use `launchArgs`
+
+Build-and-run and launch-only tools now separate build settings from app launch arguments. This affects users, scripts, and agents that previously passed runtime arguments through `extraArgs` or the launch-only `args` input.
+
+If you do nothing, app runtime arguments may not reach the launched process, and launch-only calls that still use `args` will fail validation. Move app arguments to `launchArgs`; keep `extraArgs` only for `xcodebuild` flags and build setting overrides.
+
+Before:
+
+```bash
+xcodebuildmcp simulator build-and-run --json '{
+  "scheme": "MyApp",
+  "projectPath": "./MyApp.xcodeproj",
+  "extraArgs": ["--uitesting"]
+}'
+```
+
+After:
+
+```bash
+xcodebuildmcp simulator build-and-run --json '{
+  "scheme": "MyApp",
+  "projectPath": "./MyApp.xcodeproj",
+  "launchArgs": ["--uitesting"]
+}'
+```
+
+Launch-only tools use the same input:
+
+```bash
+xcodebuildmcp simulator launch-app --json '{
+  "simulatorId": "<UDID>",
+  "bundleId": "com.example.MyApp",
+  "launchArgs": ["--uitesting"]
+}'
+```
+
+For MCP clients, use `launchArgs` on `build_run_sim`, `build_run_device`, `build_run_macos`, `launch_app_sim`, `launch_app_device`, and `launch_mac_app`. See [CLI](https://xcodebuildmcp.com/docs/cli#build-and-run-in-one-step).
+
 ### New! Structured outputs
 
-XcodeBuildMCP now returns structured, machine-readable results across supported MCP clients and the CLI. Agents and scripts no longer have to scrape prose to find build status, log paths, bundle IDs, process IDs, test failures, or app paths. The human-readable text remains available, but every supported result now has a consistent envelope with the same frontmatter fields:
+XcodeBuildMCP now returns structured, machine-readable results across supported MCP clients and the CLI. Agents and scripts no longer have to scrape prose to find build status, log paths, bundle IDs, process IDs, test failures, or app paths. The human-readable text remains available, but every supported result now has a consistent envelope with the same fields:
 
 ```json
 {
@@ -145,29 +156,39 @@ For example: [`xcodebuildmcp.output.build-run-result` v1](https://xcodebuildmcp.
 
 - Added `xcodebuildmcp upgrade` to check for available updates and upgrade in place, with `--check` for report-only use and `--yes`/`-y` for non-interactive upgrades.
 - Added a platform-aware `xcodebuildmcp setup` wizard: choose macOS, iOS, tvOS, watchOS, or visionOS up front; get platform-appropriate workflow recommendations; skip simulator/device prompts for macOS-only projects; and reuse previous choices when re-running setup. Single-platform setups also include the platform in generated config and `--format mcp-json` output. See [Setup](https://xcodebuildmcp.com/docs/setup) ([#365](https://github.com/getsentry/XcodeBuildMCP/pull/365), based on work by [@ichoosetoaccept](https://github.com/ichoosetoaccept)).
-- Added `XCODEBUILDMCP_CWD` so MCP clients that cannot choose the server's start directory can still point project config discovery and relative-path resolution at the right workspace.
-- Added per-test timing output for test runs. JSON and structured results now include a `testCases` list, and text output can show per-test durations with the `showTestTiming` config option or `XCODEBUILDMCP_SHOW_TEST_TIMING=1` ([#339](https://github.com/getsentry/XcodeBuildMCP/pull/339) by [@codeman9](https://github.com/codeman9)).
+- Added `XCODEBUILDMCP_CWD` so MCP clients that cannot choose the server's start directory can still point project config discovery and relative-path resolution at the right workspace. See [Environment Variables](https://xcodebuildmcp.com/docs/env-vars#general-settings).
+- Added per-test timing output, so agents and scripts can identify slow tests without opening the full test report. JSON and structured results include a `testCases` list, and text output can show per-test durations with `showTestTiming` or `XCODEBUILDMCP_SHOW_TEST_TIMING=1` ([#339](https://github.com/getsentry/XcodeBuildMCP/pull/339) by [@codeman9](https://github.com/codeman9)).
+- Added default result bundles for simulator, device, macOS, and Swift Package test runs, so agents can inspect detailed test artifacts without manually choosing a result bundle path.
+- Added opt-in idle shutdown for unused MCP server processes via `XCODEBUILDMCP_MCP_IDLE_TIMEOUT_MS`, reducing leftover background processes for clients that keep server sessions open ([#398](https://github.com/getsentry/XcodeBuildMCP/pull/398)). See [Environment Variables](https://xcodebuildmcp.com/docs/env-vars#mcp-idle-shutdown).
 - Added `toggle_software_keyboard` and `toggle_connect_hardware_keyboard` tools for showing/hiding the iOS Simulator software keyboard and connecting/disconnecting the Mac hardware keyboard. See [Tools Reference](https://xcodebuildmcp.com/docs/tools) ([#346](https://github.com/getsentry/XcodeBuildMCP/issues/346), [#347](https://github.com/getsentry/XcodeBuildMCP/pull/347) by [@yjmeqt](https://github.com/yjmeqt)).
 - Added tvOS, watchOS, and visionOS support to `build_device`, so physical-device builds are no longer limited to iOS. See [Device Code Signing](https://xcodebuildmcp.com/docs/device-signing) ([#352](https://github.com/getsentry/XcodeBuildMCP/pull/352) by [@bitxeno](https://github.com/bitxeno)).
 
 ### Changed
 
 - CLI build and test commands now show live progress while they are running instead of waiting until the command finishes. See [Output Formats](https://xcodebuildmcp.com/docs/output-formats).
-- Runtime log capture is more reliable across server restarts and cleans itself up when apps stop or the server shuts down, reducing orphaned background log streams.
+- CLI text output now shows file paths in a more readable `Files:` list by default. Use `--file-path-render-style tree`, `filePathRenderStyle`, or `XCODEBUILDMCP_FILE_PATH_RENDER_STYLE` if you prefer the compact tree layout used by MCP text responses ([#402](https://github.com/getsentry/XcodeBuildMCP/pull/402)). See [Output Formats](https://xcodebuildmcp.com/docs/output-formats#output-text).
+- Xcode IDE tool results are now shorter in final output, with full details still accessible when needed. CLI JSON and JSONL output now work for Xcode IDE tool calls too ([#396](https://github.com/getsentry/XcodeBuildMCP/pull/396)).
+- Runtime log capture is more reliable across restarts, cleans itself up when apps stop or the server shuts down, and avoids stopping active log streams from another workspace ([#382](https://github.com/getsentry/XcodeBuildMCP/issues/382)).
+- XcodeBuildMCP now cleans up old logs and temporary build artifacts more reliably without disrupting concurrent active sessions ([#391](https://github.com/getsentry/XcodeBuildMCP/pull/391)).
 - Builds and tests now use an isolated DerivedData location per workspace or project when you have not set `derivedDataPath`, reducing cross-project build conflicts while keeping explicit `derivedDataPath` settings unchanged ([#340](https://github.com/getsentry/XcodeBuildMCP/issues/340), [#341](https://github.com/getsentry/XcodeBuildMCP/pull/341) by [@codeman9](https://github.com/codeman9)).
 - Long-form documentation has moved to [xcodebuildmcp.com/docs](https://xcodebuildmcp.com/docs), with the README focused on installation, setup, and quick links to the hosted guides.
 
 ### Fixed
 
-- Fixed a shell injection vulnerability when user-provided values were passed to Apple developer tools and log-capture queries ([#289](https://github.com/getsentry/XcodeBuildMCP/pull/289) by [@sebastiondev](https://github.com/sebastiondev)).
-- Fixed a path traversal vulnerability in structured-output schema loading so schema requests cannot read outside the bundled schema files.
+- Fixed shell-injection vulnerabilities when user-provided values were passed to Apple developer tools, log-capture queries, bundle ID extraction, and macOS launch flows ([#289](https://github.com/getsentry/XcodeBuildMCP/pull/289) by [@sebastiondev](https://github.com/sebastiondev), [#390](https://github.com/getsentry/XcodeBuildMCP/pull/390) by [@voidborne-d](https://github.com/voidborne-d)).
+- Fixed a path traversal vulnerability that could allow reading files outside the expected scope.
+- Fixed portable macOS installs missing a required runtime dependency, which could make packaged installs fail when commands needed file matching.
 - Fixed configured paths that begin with `~` or `~/` so project, workspace, DerivedData, AXe, and template paths resolve under the user's home directory instead of creating literal `~` folders. Absolute configured paths are now normalized before use ([#283](https://github.com/getsentry/XcodeBuildMCP/issues/283), supersedes [#301](https://github.com/getsentry/XcodeBuildMCP/pull/301) by [@trmquang93](https://github.com/trmquang93)).
 - Fixed device build next-step guidance so agents no longer suggest unsupported `--device-id` or `deviceId` arguments ([#287](https://github.com/getsentry/XcodeBuildMCP/issues/287), [#300](https://github.com/getsentry/XcodeBuildMCP/pull/300) by [@trmquang93](https://github.com/trmquang93), [#350](https://github.com/getsentry/XcodeBuildMCP/pull/350) by [@MukundaKatta](https://github.com/MukundaKatta)).
 - Fixed Xcode IDE manual disconnect immediately reconnecting after the user explicitly disconnected it ([#343](https://github.com/getsentry/XcodeBuildMCP/issues/343), [#344](https://github.com/getsentry/XcodeBuildMCP/pull/344) by [@shaun0927](https://github.com/shaun0927)).
 - Fixed simulator defaults refresh so stale simulator IDs are reconciled when both a simulator name and ID are configured, without rewriting shared project config files unnecessarily ([#357](https://github.com/getsentry/XcodeBuildMCP/issues/357)).
-- Fixed session profile JSON output so callers can rely on `persisted: true` after persisting a profile switch.
-- Fixed some long-running commands hanging after the underlying Apple tool finished, especially when helper processes kept output streams open.
+- Fixed session profile output so the `persisted` field accurately reflects whether a profile switch was saved.
+- Fixed long-running commands that could hang even after completing.
 - Fixed build and test failures after command startup returning incomplete output; they now finish with a clear error result and log paths.
+- Fixed final text and JSON results changing unexpectedly when commands also stream live progress ([#360](https://github.com/getsentry/XcodeBuildMCP/issues/360)).
+- Fixed test result output so agents can find xcresult bundle paths after simulator, device, macOS, and Swift Package test runs ([#397](https://github.com/getsentry/XcodeBuildMCP/pull/397)).
+- Fixed test summaries and progress output so CLI tests no longer show false compiler errors, mixed Swift Testing/XCTest suites are counted accurately, parameterized Swift Testing cases are not overcounted, and simulator test progress stays visible while tests run ([#383](https://github.com/getsentry/XcodeBuildMCP/issues/383), [#392](https://github.com/getsentry/XcodeBuildMCP/issues/392)).
+- Fixed device tool calls that use session defaults so they no longer fail when platform is omitted.
 
 Various other internal improvements to stability, performance, and code quality.
 

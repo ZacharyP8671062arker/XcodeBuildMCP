@@ -35,6 +35,8 @@ const COVERAGE_CALL_COUNT_REGEX = /called \d+x\)/g;
 const DEVICE_LABEL_REGEX = /Device: .+ \(<UUID>\)/g;
 const UPTIME_REGEX = /Uptime: \d+s/g;
 const RESULT_BUNDLE_LINE_REGEX = /\S+\[\d+:\d+\] Writing error result bundle to \S+/g;
+const XCRESULT_FILENAME_TIMESTAMP_REGEX =
+  /([^/\s"']+)-\d{4}[.-]\d{2}[.-]\d{2}[_-]\d{2}-\d{2}-\d{2}(?:-[+-][0-9]{4})?\.xcresult/g;
 const DEVICE_TRANSPORT_TYPE_REGEX = /\b(wired|localNetwork)\b/g;
 const TARGET_DEVICE_IDENTIFIER_REGEX = /(TARGET_DEVICE_IDENTIFIER = )([0-9A-Fa-f]{24,40})/g;
 const CODEX_ARG0_PATH_REGEX = /<HOME>\/\.codex\/tmp\/arg0\/codex-arg0[A-Za-z0-9]+/g;
@@ -180,6 +182,7 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(LLDB_FRAME_NUMBER_REGEX, '  frame #<N>:');
   normalized = normalized.replace(LLDB_BREAKPOINT_LOCATIONS_REGEX, 'locations = <LOCATIONS>');
   normalized = normalized.replace(RESULT_BUNDLE_LINE_REGEX, '<RESULT_BUNDLE_ERROR>');
+  normalized = normalized.replace(XCRESULT_FILENAME_TIMESTAMP_REGEX, '$1-<TIMESTAMP>.xcresult');
 
   normalized = normalized.replace(LOCAL_TIMESTAMP_REGEX, '<TIMESTAMP>');
   normalized = normalized.replace(XCTEST_PARENS_DURATION_REGEX, '(<DURATION>) seconds');

@@ -24,6 +24,25 @@ describe('normalizeSnapshotOutput', () => {
     expect(normalizeSnapshotOutput(block)).toBe(block);
   });
 
+  it('normalizes timestamped xcresult filenames in snapshot output', () => {
+    const output = [
+      'Result bundle written to path:',
+      '<HOME>/Library/Developer/Xcode/DerivedData/App/Logs/Test/Test-CalculatorApp-2026.05.07_08-41-22-+0100.xcresult',
+      'Result Bundle: <TMPDIR>/Test-MCPTest-2026-05-07_08-41-22.xcresult',
+      'Stable bundle: <TMPDIR>/TestResults.xcresult',
+    ].join('\n');
+
+    expect(normalizeSnapshotOutput(`${output}\n`)).toBe(
+      [
+        'Result bundle written to path:',
+        '<HOME>/Library/Developer/Xcode/DerivedData/App/Logs/Test/Test-CalculatorApp-<TIMESTAMP>.xcresult',
+        'Result Bundle: <TMPDIR>/Test-MCPTest-<TIMESTAMP>.xcresult',
+        'Stable bundle: <TMPDIR>/TestResults.xcresult',
+        '',
+      ].join('\n'),
+    );
+  });
+
   it('does not collapse long successful progress streams', () => {
     const block = `${progressBlock(40, 0)}\n`;
 

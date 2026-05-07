@@ -5,8 +5,6 @@ import type { Readable } from 'node:stream';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { afterEach, describe, expect, it } from 'vitest';
-import { getSnapshotHarnessEnv } from '../harness.ts';
-
 const CLI_PATH = join(process.cwd(), 'build/cli.js');
 const MCP_IDLE_TIMEOUT_MS = 1_000;
 const MCP_CONNECT_TIMEOUT_MS = 10_000;
@@ -17,6 +15,14 @@ type ChildExit = {
   code: number | null;
   signal: NodeJS.Signals | null;
 };
+
+function getSmokeTestEnv(overrides: Record<string, string> = {}): Record<string, string> {
+  const { VITEST: _vitest, NODE_ENV: _nodeEnv, ...rest } = process.env;
+  const env = Object.fromEntries(
+    Object.entries(rest).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+  return { ...env, ...overrides };
+}
 
 let activeClient: Client | null = null;
 let activeChild: ChildProcess | null = null;
@@ -108,7 +114,7 @@ describe('MCP server idle timeout e2e', () => {
         command: 'node',
         args: [CLI_PATH, 'mcp'],
         cwd: process.cwd(),
-        env: getSnapshotHarnessEnv({
+        env: getSmokeTestEnv({
           SENTRY_DISABLED: 'true',
           XCODEBUILDMCP_ENABLED_WORKFLOWS: 'simulator',
           XCODEBUILDMCP_DISABLE_SESSION_DEFAULTS: 'true',

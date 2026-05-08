@@ -79,6 +79,14 @@ if [[ ! -d "$PORTABLE_ROOT/libexec/manifests" ]]; then
   echo "Missing manifests directory under libexec"
   exit 1
 fi
+if [[ ! -f "$PORTABLE_ROOT/libexec/schemas/structured-output/_defs/common.schema.json" ]]; then
+  echo "Missing structured output common schema under libexec"
+  exit 1
+fi
+if [[ ! -f "$PORTABLE_ROOT/libexec/schemas/structured-output/xcodebuildmcp.output.session-defaults/1.schema.json" ]]; then
+  echo "Missing session defaults structured output schema under libexec"
+  exit 1
+fi
 if [[ ! -x "$PORTABLE_ROOT/libexec/bundled/axe" ]]; then
   echo "Missing bundled axe binary under libexec"
   exit 1

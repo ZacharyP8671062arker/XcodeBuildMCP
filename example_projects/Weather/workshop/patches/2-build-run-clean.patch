@@ -1,0 +1,25 @@
+From db8d2e2fe6f75abcf01fca64aa4bd80dde7c5bec Mon Sep 17 00:00:00 2001
+From: Cameron Cooke <web@cameroncooke.com>
+Date: Fri, 8 May 2026 11:33:18 +0100
+Subject: [PATCH] workshop: stage 2 (build run clean)
+
+---
+ .../Weather/Weather/Views/Sections/SunMiniCard.swift            | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/example_projects/Weather/Weather/Views/Sections/SunMiniCard.swift b/example_projects/Weather/Weather/Views/Sections/SunMiniCard.swift
+index 0783c1ce..b70ac282 100644
+--- a/example_projects/Weather/Weather/Views/Sections/SunMiniCard.swift
++++ b/example_projects/Weather/Weather/Views/Sections/SunMiniCard.swift
+@@ -11,7 +11,7 @@ struct SunMiniCard: View {
+                     .tracking(1.3)
+                     .foregroundStyle(current.theme.foregroundMuted)
+ 
+-                Text(primaryTime)
++                Text(primaryTim)
+                     .font(.system(size: 22, weight: .light))
+                     .tracking(-0.5)
+                     .monospacedDigit()
+-- 
+2.49.0
+

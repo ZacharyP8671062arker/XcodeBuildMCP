@@ -43,12 +43,11 @@ enum PressureTrend: String, CaseIterable, Sendable {
     case falling
 }
 
-/// Wind bearing in meteorological degrees, normalized to the 0..<360 range.
 struct WindDirection: Equatable, Hashable, Sendable {
     let degrees: Double
 
     init(degrees: Double) {
-        precondition(degrees >= 0 && degrees < 360, "wind direction degrees must be in the 0..<360 range")
+        precondition(degrees >= 0 && degrees < 360)
         self.degrees = degrees
     }
 }

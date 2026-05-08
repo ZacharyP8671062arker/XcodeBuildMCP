@@ -238,6 +238,7 @@ struct LocationPickerView: View {
 
     private func preview(_ location: WeatherLocation) {
         onPreviewSearchResult(location)
+        dismiss()
     }
 
     private func select(_ location: WeatherLocation) {

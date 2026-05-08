@@ -1,0 +1,34 @@
+From 9e5d56f8ae6df8cb9ce1f5fd0589febfdc6d40ae Mon Sep 17 00:00:00 2001
+From: Cameron Cooke <web@cameroncooke.com>
+Date: Fri, 8 May 2026 19:14:33 +0100
+Subject: [PATCH] workshop: stage 1 (setup start)
+
+---
+ .../Weather/.xcodebuildmcp/config.yaml            | 15 ---------------
+ 1 file changed, 15 deletions(-)
+ delete mode 100644 example_projects/Weather/.xcodebuildmcp/config.yaml
+
+diff --git a/example_projects/Weather/.xcodebuildmcp/config.yaml b/example_projects/Weather/.xcodebuildmcp/config.yaml
+deleted file mode 100644
+index 23cac437..00000000
+--- a/example_projects/Weather/.xcodebuildmcp/config.yaml
++++ /dev/null
+@@ -1,15 +0,0 @@
+-schemaVersion: 1
+-enabledWorkflows:
+-  - simulator
+-  - ui-automation
+-  - debugging
+-  - logging
+-sessionDefaults:
+-  projectPath: ./Weather.xcodeproj
+-  scheme: Weather
+-  configuration: Debug
+-  simulatorName: iPhone 17 Pro
+-  simulatorId: A2C64636-37E9-4B68-B872-E7F0A82A5670
+-  simulatorPlatform: iOS Simulator
+-  useLatestOS: true
+-  bundleId: com.sentry.weather.Weather
+-- 
+2.49.0
+

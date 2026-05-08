@@ -45,6 +45,7 @@ struct MockWeatherDTOFixtures: Sendable {
             .mock(id: "loc-th-bangkok", name: "Bangkok", subtitle: "Thailand", country: "TH", temperature: 32, high: 34, low: 26, condition: .thunderstorms, time: clock(3, 24)),
             .mock(id: "loc-ae-dubai", name: "Dubai", subtitle: "United Arab Emirates", country: "AE", temperature: 33, high: 37, low: 26, condition: .sunny, time: clock(0, 24)),
             .mock(id: "loc-es-madrid", name: "Madrid", subtitle: "Spain", country: "ES", temperature: 19, high: 22, low: 12, condition: .sunny, time: clock(22, 24)),
+            .mock(id: "loc-jp-search-tokyo", name: "Tokyo", subtitle: "Tokyo Prefecture, Japan", country: "JP", temperature: 14, high: 17, low: 11, condition: .partlyCloudy, time: clock(5, 24)),
         ]
 
         scenarioByLocationID = [
@@ -75,6 +76,7 @@ struct MockWeatherDTOFixtures: Sendable {
             "loc-th-bangkok": .stormy,
             "loc-ae-dubai": .clearDay,
             "loc-es-madrid": .clearDay,
+            "loc-jp-search-tokyo": .clearDay,
         ]
     }
 }

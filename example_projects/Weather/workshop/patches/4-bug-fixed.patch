@@ -1,0 +1,25 @@
+From 4ff2d832f9a9b888959e97b305da469ee4907d72 Mon Sep 17 00:00:00 2001
+From: Cameron Cooke <web@cameroncooke.com>
+Date: Fri, 8 May 2026 16:50:44 +0100
+Subject: [PATCH] workshop: stage 4 (bug fixed)
+
+---
+ .../Weather/Weather/Services/MockWeatherDTOFactories.swift      | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/example_projects/Weather/Weather/Services/MockWeatherDTOFactories.swift b/example_projects/Weather/Weather/Services/MockWeatherDTOFactories.swift
+index 5608cfa9..23ecbedb 100644
+--- a/example_projects/Weather/Weather/Services/MockWeatherDTOFactories.swift
++++ b/example_projects/Weather/Weather/Services/MockWeatherDTOFactories.swift
+@@ -113,7 +113,7 @@ extension CurrentWeatherDTO {
+                 id: "weather-current-loc-is-reykjavik",
+                 temperatureC: 3, highC: 6, lowC: 1, feelsLikeC: 1, dewPointC: 0, condition: .clearNight,
+                 solarProgress: .afterSunset, sunrise: clock(5, 46), sunset: clock(20, 24), airQualityIndex: 12, airQualityCategory: .good,
+-                uvIndex: 0, uvCategory: .none, windKph: 6, windDirectionDegrees: 45, humidity: 71,
++                uvIndex: 0, uvCategory: .none, windKph: 6, windDirectionDegrees: 360, humidity: 71,
+                 visibilityKilometers: 16.1, pressureMillibars: 1014, pressureTrend: .steady, precipChance: 8
+             )
+         case .stormy:
+-- 
+2.49.0
+

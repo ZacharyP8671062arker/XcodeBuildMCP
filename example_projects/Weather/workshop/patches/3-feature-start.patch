@@ -1,0 +1,24 @@
+From 366f08c3013b32fc8a60d9f2020c58cc7d271329 Mon Sep 17 00:00:00 2001
+From: Cameron Cooke <web@cameroncooke.com>
+Date: Fri, 8 May 2026 11:08:23 +0100
+Subject: [PATCH] workshop: stage 3 (feature start)
+
+---
+ example_projects/Weather/Weather/Models/WeatherModels.swift | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/example_projects/Weather/Weather/Models/WeatherModels.swift b/example_projects/Weather/Weather/Models/WeatherModels.swift
+index c6189f92..b90c0f64 100644
+--- a/example_projects/Weather/Weather/Models/WeatherModels.swift
++++ b/example_projects/Weather/Weather/Models/WeatherModels.swift
+@@ -205,6 +205,6 @@ struct WeatherUnits: Equatable, Sendable {
+     var pressure: PressureUnit = .millibars
+     var distance: DistanceUnit = .miles
+     var animationsEnabled = true
+-    var alertsEnabled = true
++    var alertsEnabled = true   // TODO: not yet wired into UI
+     var reduceTransparency = false
+ }
+-- 
+2.49.0
+

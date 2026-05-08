@@ -1,0 +1,55 @@
+From 78aa0de8a64551879a0bb2697bdd3f80e24b86f9 Mon Sep 17 00:00:00 2001
+From: Cameron Cooke <web@cameroncooke.com>
+Date: Fri, 8 May 2026 16:49:17 +0100
+Subject: [PATCH] workshop: stage 4 (bug planted)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ .../Weather/Services/MockWeatherDTOFactories.swift        | 2 +-
+ .../Weather/Weather/Services/WeatherClientDTOs.swift      | 8 +-------
+ 2 files changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/example_projects/Weather/Weather/Services/MockWeatherDTOFactories.swift b/example_projects/Weather/Weather/Services/MockWeatherDTOFactories.swift
+index 5608cfa9..23ecbedb 100644
+--- a/example_projects/Weather/Weather/Services/MockWeatherDTOFactories.swift
++++ b/example_projects/Weather/Weather/Services/MockWeatherDTOFactories.swift
+@@ -113,7 +113,7 @@ extension CurrentWeatherDTO {
+                 id: "weather-current-loc-is-reykjavik",
+                 temperatureC: 3, highC: 6, lowC: 1, feelsLikeC: 1, dewPointC: 0, condition: .clearNight,
+                 solarProgress: .afterSunset, sunrise: clock(5, 46), sunset: clock(20, 24), airQualityIndex: 12, airQualityCategory: .good,
+-                uvIndex: 0, uvCategory: .none, windKph: 6, windDirectionDegrees: 45, humidity: 71,
++                uvIndex: 0, uvCategory: .none, windKph: 6, windDirectionDegrees: 360, humidity: 71,
+                 visibilityKilometers: 16.1, pressureMillibars: 1014, pressureTrend: .steady, precipChance: 8
+             )
+         case .stormy:
+diff --git a/example_projects/Weather/Weather/Services/WeatherClientDTOs.swift b/example_projects/Weather/Weather/Services/WeatherClientDTOs.swift
+index 0a1f39de..ad63e3e0 100644
+--- a/example_projects/Weather/Weather/Services/WeatherClientDTOs.swift
++++ b/example_projects/Weather/Weather/Services/WeatherClientDTOs.swift
+@@ -191,12 +191,6 @@ extension WeatherLocation {
+ 
+ extension CurrentWeather {
+     init(dto: CurrentWeatherDTO) throws {
+-        guard (0...360).contains(dto.windDirectionDegrees) else {
+-            throw WeatherDTOMappingError.invalidWindDirection(dto.windDirectionDegrees)
+-        }
+-
+-        let windDirectionDegrees = dto.windDirectionDegrees == 360 ? 0 : dto.windDirectionDegrees
+-
+         self.init(
+             id: dto.id,
+             temperatureC: dto.temperatureC,
+@@ -213,7 +207,7 @@ extension CurrentWeather {
+             uvIndex: dto.uvIndex,
+             uvCategory: UVIndexCategory(dto: dto.uvCategory),
+             windKph: dto.windKph,
+-            windDirection: WindDirection(degrees: windDirectionDegrees),
++            windDirection: WindDirection(degrees: dto.windDirectionDegrees),
+             humidity: dto.humidity,
+             visibilityKilometers: dto.visibilityKilometers,
+             pressureMillibars: dto.pressureMillibars,
+-- 
+2.49.0
+

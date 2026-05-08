@@ -1,0 +1,76 @@
+From 4888cd7100c2da0afae36324622b1756084551ea Mon Sep 17 00:00:00 2001
+From: Cameron Cooke <web@cameroncooke.com>
+Date: Fri, 8 May 2026 11:14:00 +0100
+Subject: [PATCH] workshop: stage 5 (canonical)
+
+---
+ .../Weather/Weather/ContentView.swift         | 37 ++++++++++++++++++-
+ 1 file changed, 35 insertions(+), 2 deletions(-)
+
+diff --git a/example_projects/Weather/Weather/ContentView.swift b/example_projects/Weather/Weather/ContentView.swift
+index ca85cbf9..bcf1c214 100644
+--- a/example_projects/Weather/Weather/ContentView.swift
++++ b/example_projects/Weather/Weather/ContentView.swift
+@@ -67,10 +67,19 @@ struct ContentView: View {
+         }
+         .frame(maxWidth: .infinity, maxHeight: .infinity)
+         .overlay(alignment: .top) {
+-            WeatherLoadingBanner(isLoading: isLoadingWeather && report != nil, message: weatherErrorMessage)
+-                .padding(.top, 92)
++            VStack(spacing: 8) {
++                WeatherLoadingBanner(isLoading: isLoadingWeather && report != nil, message: weatherErrorMessage)
++                WeatherAlertBanner(isVisible: shouldShowAlertBanner)
++            }
++            .padding(.top, 92)
+         }
+         .animation(.easeInOut(duration: 0.18), value: isLoadingWeather)
++        .animation(.easeInOut(duration: 0.18), value: shouldShowAlertBanner)
++        .onChange(of: shouldShowAlertBanner) { _, newValue in
++            if newValue, let condition = report?.current.condition {
++                AppLog.app.notice("alert banner shown condition=\(condition.rawValue, privacy: .public)")
++            }
++        }
+         .sheet(item: $activeSheet) { sheet in
+             presentedSheet(sheet)
+                 .presentationDetents(sheet.detents)
+@@ -86,6 +95,11 @@ struct ContentView: View {
+         .environment(\.atmosReduceTransparency, units.reduceTransparency)
+     }
+ 
++    private var shouldShowAlertBanner: Bool {
++        guard units.alertsEnabled, let condition = report?.current.condition else { return false }
++        return condition == .thunderstorms || condition == .heavyRain
++    }
++
+     @ViewBuilder
+     private func presentedSheet(_ sheet: WeatherSheet) -> some View {
+         switch sheet {
+@@ -216,6 +230,25 @@ private struct WeatherLoadingBanner: View {
+     }
+ }
+ 
++private struct WeatherAlertBanner: View {
++    let isVisible: Bool
++
++    var body: some View {
++        HStack(spacing: 8) {
++            Image(systemName: "exclamationmark.triangle.fill")
++            Text("Severe weather alert")
++        }
++        .font(.system(size: 12, weight: .semibold))
++        .foregroundStyle(.white)
++        .padding(.horizontal, 12)
++        .padding(.vertical, 8)
++        .background(.black.opacity(isVisible ? 0.22 : 0), in: Capsule())
++        .opacity(isVisible ? 1 : 0)
++        .allowsHitTesting(false)
++        .accessibilityIdentifier("weather.alertBanner")
++    }
++}
++
+ #Preview {
+     ContentView(weatherService: .mock)
+ }
+-- 
+2.49.0
+

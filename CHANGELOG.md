@@ -1,9 +1,14 @@
 # Changelog
 
-## [Unreleased]
+## [2.5.2]
+
+### Changed
+
+- Updated the bundled AXe binary used by UI automation tools to 1.7.0.
 
 ### Fixed
 
+- Fixed a log-capture vulnerability where a crafted `bundleId` or custom subsystem filter could broaden simulator log streams to capture output from other apps or Apple system subsystems. Bundle IDs and subsystem filters are now validated against a strict allowlist before reaching the predicate ([#407](https://github.com/getsentry/XcodeBuildMCP/pull/407) by [@sebastiondev](https://github.com/sebastiondev)).
 - Fixed `debug_attach_sim` so an explicit `pid` overrides an inherited `bundleId` session default before mutual-exclusion validation ([#410](https://github.com/getsentry/XcodeBuildMCP/issues/410)).
 
 ## [2.5.1]
@@ -630,4 +635,5 @@ Please note that the UI automation features are an early preview and currently i
 ## [v1.0.1] - 2025-04-02
 - Initial release of XcodeBuildMCP
 - Basic support for building iOS and macOS applications
+
 

@@ -72,6 +72,7 @@ interface CliTextProcessorOptions {
   showTestTiming: boolean;
   filePathRenderStyle: FilePathRenderStyle;
   includeHeaderDetails: boolean;
+  includeNextSteps: boolean;
 }
 
 interface CliTextRendererOptions {
@@ -80,6 +81,7 @@ interface CliTextRendererOptions {
   showTestTiming?: boolean;
   filePathRenderStyle?: FilePathRenderStyle;
   includeHeaderDetails?: boolean;
+  includeNextSteps?: boolean;
 }
 
 export interface CliTextTranscriptInput {
@@ -91,6 +93,7 @@ export interface CliTextTranscriptInput {
   showTestTiming?: boolean;
   filePathRenderStyle?: FilePathRenderStyle;
   includeHeaderDetails?: boolean;
+  includeNextSteps?: boolean;
 }
 
 interface XcodebuildParserState {
@@ -109,6 +112,7 @@ function createCliTextProcessor(options: CliTextProcessorOptions): TranscriptRen
     showTestTiming,
     filePathRenderStyle,
     includeHeaderDetails,
+    includeNextSteps,
   } = options;
   const groupedCompilerErrors: CompilerErrorRenderItem[] = [];
   const groupedWarnings: CompilerWarningRenderItem[] = [];
@@ -469,7 +473,9 @@ function createCliTextProcessor(options: CliTextProcessorOptions): TranscriptRen
       groupedCompilerErrors.length = 0;
       groupedTestFailures.length = 0;
       groupedWarnings.length = 0;
-      const nextStepsBlock = createNextStepsBlock(nextSteps, nextStepsRuntime);
+      const nextStepsBlock = includeNextSteps
+        ? createNextStepsBlock(nextSteps, nextStepsRuntime)
+        : null;
       if (nextStepsBlock && !sawProgressNextSteps) {
         processItem(nextStepsBlock);
       }
@@ -505,6 +511,7 @@ export function createCliTextRenderer(options: CliTextRendererOptions): Transcri
     showTestTiming: options.showTestTiming ?? false,
     filePathRenderStyle: options.filePathRenderStyle ?? 'list',
     includeHeaderDetails: options.includeHeaderDetails ?? true,
+    includeNextSteps: options.includeNextSteps ?? true,
     sink: {
       clearTransient(): void {
         reporter.clear();
@@ -530,6 +537,7 @@ export function renderCliTextTranscript(input: CliTextTranscriptInput = {}): str
     showTestTiming: input.showTestTiming ?? false,
     filePathRenderStyle: input.filePathRenderStyle ?? 'list',
     includeHeaderDetails: input.includeHeaderDetails ?? true,
+    includeNextSteps: input.includeNextSteps ?? true,
     sink: {
       clearTransient(): void {},
       updateTransient(): void {},

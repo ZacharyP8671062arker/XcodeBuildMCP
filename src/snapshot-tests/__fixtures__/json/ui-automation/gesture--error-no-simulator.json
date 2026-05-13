@@ -1,6 +1,6 @@
 {
   "schema": "xcodebuildmcp.output.ui-action-result",
-  "schemaVersion": "1",
+  "schemaVersion": "2",
   "didError": true,
   "error": "Failed to execute gesture 'scroll-down'.",
   "data": {

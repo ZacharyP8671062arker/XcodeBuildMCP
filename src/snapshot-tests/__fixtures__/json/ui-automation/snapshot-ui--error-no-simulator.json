@@ -1,6 +1,6 @@
 {
   "schema": "xcodebuildmcp.output.capture-result",
-  "schemaVersion": "1",
+  "schemaVersion": "2",
   "didError": true,
   "error": "Failed to get accessibility hierarchy.",
   "data": {

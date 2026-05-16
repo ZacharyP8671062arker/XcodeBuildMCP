@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { execSync } from 'node:child_process';
 import { ensureSimulatorBooted } from '../harness.ts';
-import type { SnapshotRuntime, WorkflowSnapshotHarness } from '../contracts.ts';
+import {
+  isJsonSnapshotRuntime,
+  type SnapshotRuntime,
+  type WorkflowSnapshotHarness,
+} from '../contracts.ts';
 import { createHarnessForRuntime, createWorkflowFixtureMatcher } from './helpers.ts';
 
 const WORKSPACE = 'example_projects/iOS_Calculator/CalculatorApp.xcworkspace';
@@ -50,7 +54,7 @@ export function registerDebuggingSnapshotSuite(runtime: SnapshotRuntime): void {
         const { text, isError } = await harness.invoke(
           'debugging',
           'add-breakpoint',
-          runtime === 'json'
+          isJsonSnapshotRuntime(runtime)
             ? {
                 file: 'ContentView.swift',
                 line: 42,
@@ -74,7 +78,7 @@ export function registerDebuggingSnapshotSuite(runtime: SnapshotRuntime): void {
 
       it('lldb-command - error no session', async () => {
         const { text, isError } = await harness.invoke('debugging', 'lldb-command', {
-          command: runtime === 'json' ? 'breakpoint list' : 'bt',
+          command: isJsonSnapshotRuntime(runtime) ? 'breakpoint list' : 'bt',
         });
         expect(isError).toBe(true);
         expectFixture(text, 'lldb-command--error-no-session');

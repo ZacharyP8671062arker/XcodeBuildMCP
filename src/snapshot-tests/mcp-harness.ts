@@ -86,6 +86,21 @@ function createSnapshotHarnessEnv(overrides: Record<string, string>): Record<str
   return { ...env, ...overrides };
 }
 
+export function resolveMcpSnapshotErrorState(
+  transportDidError: boolean | undefined,
+  envelopeDidError: boolean | undefined,
+  label: string,
+): boolean {
+  const didTransportError = transportDidError ?? false;
+  if (envelopeDidError !== undefined && didTransportError !== envelopeDidError) {
+    throw new Error(
+      `MCP result.isError (${didTransportError}) disagrees with structuredContent.didError (${envelopeDidError}) for ${label}.`,
+    );
+  }
+
+  return didTransportError || envelopeDidError === true;
+}
+
 export async function createMcpSnapshotHarness(
   opts: CreateMcpSnapshotHarnessOptions = {},
 ): Promise<McpSnapshotHarness> {
@@ -112,8 +127,11 @@ export async function createMcpSnapshotHarness(
     const rawText = extractSnapshotTextContent(result);
     const text = normalizeSnapshotOutput(rawText);
     const structuredEnvelope = extractStructuredEnvelope(result);
-    const isError =
-      structuredEnvelope?.didError ?? (result as { isError?: boolean }).isError ?? false;
+    const isError = resolveMcpSnapshotErrorState(
+      (result as { isError?: boolean }).isError,
+      structuredEnvelope?.didError,
+      name,
+    );
 
     return { text, rawText, isError, structuredEnvelope };
   }

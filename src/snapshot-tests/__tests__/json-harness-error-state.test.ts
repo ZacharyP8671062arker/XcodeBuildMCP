@@ -1,0 +1,48 @@
+import { describe, expect, it } from 'vitest';
+import { resolveCliJsonSnapshotErrorState } from '../harness.ts';
+import { resolveMcpSnapshotErrorState } from '../mcp-harness.ts';
+import type { StructuredOutputEnvelope } from '../../types/structured-output.ts';
+
+const successEnvelope: StructuredOutputEnvelope<null> = {
+  schema: 'xcodebuildmcp.output.error',
+  schemaVersion: '1',
+  didError: false,
+  error: null,
+  data: null,
+};
+
+const errorEnvelope: StructuredOutputEnvelope<null> = {
+  ...successEnvelope,
+  didError: true,
+  error: 'Failed',
+};
+
+describe('JSON snapshot harness error state', () => {
+  it('uses CLI process status and envelope.didError when they agree', () => {
+    expect(resolveCliJsonSnapshotErrorState(0, successEnvelope, 'tool')).toBe(false);
+    expect(resolveCliJsonSnapshotErrorState(1, errorEnvelope, 'tool')).toBe(true);
+  });
+
+  it('rejects CLI process status and envelope.didError disagreement', () => {
+    expect(() => resolveCliJsonSnapshotErrorState(1, successEnvelope, 'tool')).toThrow(
+      'CLI process exit status (1) disagrees with envelope.didError (false)',
+    );
+    expect(() => resolveCliJsonSnapshotErrorState(0, errorEnvelope, 'tool')).toThrow(
+      'CLI process exit status (0) disagrees with envelope.didError (true)',
+    );
+  });
+
+  it('uses MCP transport isError and structuredContent.didError when they agree', () => {
+    expect(resolveMcpSnapshotErrorState(false, false, 'tool')).toBe(false);
+    expect(resolveMcpSnapshotErrorState(true, true, 'tool')).toBe(true);
+  });
+
+  it('rejects MCP transport isError and structuredContent.didError disagreement', () => {
+    expect(() => resolveMcpSnapshotErrorState(true, false, 'tool')).toThrow(
+      'MCP result.isError (true) disagrees with structuredContent.didError (false)',
+    );
+    expect(() => resolveMcpSnapshotErrorState(false, true, 'tool')).toThrow(
+      'MCP result.isError (false) disagrees with structuredContent.didError (true)',
+    );
+  });
+});

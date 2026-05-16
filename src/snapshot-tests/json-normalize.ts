@@ -6,8 +6,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeString(value: string, key?: string, path: string[] = []): string {
+  const parentKey = path.at(-2);
   const normalized = normalizeSnapshotOutput(value.replace(/\u00A0/g, ' '));
   let result = normalized.endsWith('\n') ? normalized.slice(0, -1) : normalized;
+
+  if (parentKey === 'stderr') {
+    result = result.replace(/^\[\d+\/\d+\] /, '[<STEP>] ');
+  }
 
   if (key === 'rawResponseJsonPath') {
     return '<RAW_RESPONSE_JSON_PATH>';
@@ -62,6 +67,50 @@ function isBuildSettingsPathEntry(value: Record<string, unknown>, path: string[]
   return path.includes('entries') && value.key === 'PATH' && typeof value.value === 'string';
 }
 
+function isNormalizedTestCase(
+  value: unknown,
+): value is { status?: unknown; suite?: string; test?: string } {
+  return isRecord(value) && typeof value.status === 'string';
+}
+
+function testCaseSortKey(item: unknown): string {
+  const record = item as { suite?: string; test?: string };
+  return `${record.suite ?? ''}|${record.test ?? ''}`;
+}
+
+function normalizeTestCases(items: unknown[]): unknown[] {
+  const sorted = [...items].sort((a, b) => testCaseSortKey(a).localeCompare(testCaseSortKey(b)));
+
+  const hasFailures = sorted.some((item) => isNormalizedTestCase(item) && item.status === 'failed');
+  return hasFailures
+    ? sorted.filter((item) => isNormalizedTestCase(item) && item.status === 'failed')
+    : sorted;
+}
+
+function normalizeStderrLines(items: unknown[]): unknown[] {
+  const normalized: unknown[] = [];
+  let stepRun: string[] = [];
+
+  const flushStepRun = (): void => {
+    if (stepRun.length === 0) return;
+    normalized.push(...stepRun.sort((left, right) => left.localeCompare(right)));
+    stepRun = [];
+  };
+
+  for (const item of items) {
+    if (typeof item === 'string' && item.startsWith('[<STEP>] ')) {
+      stepRun.push(item);
+      continue;
+    }
+
+    flushStepRun();
+    normalized.push(item);
+  }
+
+  flushStepRun();
+  return normalized;
+}
+
 function normalizeValue(value: unknown, path: string[] = []): unknown {
   const key = path.at(-1);
 
@@ -75,12 +124,11 @@ function normalizeValue(value: unknown, path: string[] = []): unknown {
 
   if (Array.isArray(value)) {
     const normalized = value.map((item, index) => normalizeValue(item, [...path, String(index)]));
-    if (path.at(-1) === 'testCases') {
-      return [...normalized].sort((a, b) => {
-        const ka = `${(a as { suite?: string }).suite ?? ''}|${(a as { test?: string }).test ?? ''}`;
-        const kb = `${(b as { suite?: string }).suite ?? ''}|${(b as { test?: string }).test ?? ''}`;
-        return ka.localeCompare(kb);
-      });
+    if (key === 'testCases') {
+      return normalizeTestCases(normalized);
+    }
+    if (key === 'stderr') {
+      return normalizeStderrLines(normalized);
     }
     return normalized;
   }

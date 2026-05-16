@@ -3,7 +3,7 @@ import type { StructuredOutputEnvelope } from '../../types/structured-output.ts'
 import { normalizeStructuredEnvelope } from '../json-normalize.ts';
 
 describe('normalizeStructuredEnvelope', () => {
-  it('keeps suite-less simulator test cases while normalizing volatile durations', () => {
+  it('keeps only failing test cases for failed result snapshots', () => {
     const envelope: StructuredOutputEnvelope<unknown> = {
       schema: 'xcodebuildmcp.output.test-result',
       schemaVersion: '1',
@@ -26,11 +26,7 @@ describe('normalizeStructuredEnvelope', () => {
       error: 'Tests failed',
       data: {
         summary: { target: 'simulator' },
-        testCases: [
-          { test: 'Swift Testing failure', status: 'failed', durationMs: 0 },
-          { test: 'Volatile Swift Testing pass', status: 'passed', durationMs: 0 },
-          { suite: 'XCTestSuite', test: 'testStablePass', status: 'passed', durationMs: 0 },
-        ],
+        testCases: [{ test: 'Swift Testing failure', status: 'failed', durationMs: 0 }],
       },
     });
   });
@@ -73,6 +69,42 @@ describe('normalizeStructuredEnvelope', () => {
       data: {
         summary: { target: 'swift-package' },
         testCases: [{ test: 'Package Swift Testing pass', status: 'passed', durationMs: 0 }],
+      },
+    });
+  });
+
+  it('normalizes and sorts SwiftPM build progress lines in stderr arrays', () => {
+    const envelope: StructuredOutputEnvelope<unknown> = {
+      schema: 'xcodebuildmcp.output.build-run-result',
+      schemaVersion: '1',
+      didError: false,
+      error: null,
+      data: {
+        output: {
+          stderr: [
+            'Building for debugging...',
+            '[5/8] Emitting module spm',
+            '[4/8] Compiling spm main.swift',
+            "Build of product 'spm' complete! (0.42s)",
+          ],
+        },
+      },
+    };
+
+    expect(normalizeStructuredEnvelope(envelope)).toEqual({
+      schema: 'xcodebuildmcp.output.build-run-result',
+      schemaVersion: '1',
+      didError: false,
+      error: null,
+      data: {
+        output: {
+          stderr: [
+            'Building for debugging...',
+            '[<STEP>] Compiling spm main.swift',
+            '[<STEP>] Emitting module spm',
+            "Build of product 'spm' complete! (<DURATION>)",
+          ],
+        },
       },
     });
   });

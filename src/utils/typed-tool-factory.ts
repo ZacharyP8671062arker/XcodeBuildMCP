@@ -65,6 +65,10 @@ function outputStyleForTestResult(): OutputStyle {
   return process.env.XCODEBUILDMCP_RUNTIME === 'mcp' ? 'minimal' : 'normal';
 }
 
+function nextStepsRuntimeForTestResult(): 'cli' | 'mcp' {
+  return process.env.XCODEBUILDMCP_RUNTIME === 'mcp' ? 'mcp' : 'cli';
+}
+
 function sessionToTestResult(session: ReturnType<typeof createRenderSession>): ToolTestResult {
   const outputStyle = outputStyleForTestResult();
   const text = renderCliTextTranscript({
@@ -122,7 +126,7 @@ function createValidatedHandler<TParams, TContext>(
           session!.setStructuredOutput?.(ctx.structuredOutput);
         }
         if (ctx.nextSteps && ctx.nextSteps.length > 0) {
-          session!.setNextSteps?.([...ctx.nextSteps], 'cli');
+          session!.setNextSteps?.([...ctx.nextSteps], nextStepsRuntimeForTestResult());
         }
         return sessionToTestResult(session!);
       }
@@ -271,7 +275,7 @@ function createSessionAwareHandler<TParams, TContext>(opts: {
           session!.setStructuredOutput?.(ctx.structuredOutput);
         }
         if (ctx.nextSteps && ctx.nextSteps.length > 0) {
-          session!.setNextSteps?.([...ctx.nextSteps], 'cli');
+          session!.setNextSteps?.([...ctx.nextSteps], nextStepsRuntimeForTestResult());
         }
         return sessionToTestResult(session!);
       }

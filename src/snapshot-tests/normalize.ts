@@ -9,6 +9,8 @@ const APPLE_DEVICE_UDID_REGEX = /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16}/g;
 const UUID_REGEX = /[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/g;
 const DURATION_REGEX = /\d+\.\d+s\b/g;
 const PID_NUMBER_REGEX = /(pid:\s*)\d+/gi;
+const PID_NAME_REGEX = /\bPID \d+\b/g;
+const KILL_PID_REGEX = /(\bkill:\s*)\d+(?=:)/g;
 const PID_FILENAME_SUFFIX_REGEX = /_pid\d+(?:_[0-9a-f]{8})?\.log/g;
 const XCRESULT_FILENAME_PID_SUFFIX_REGEX = /_pid\d+_[0-9a-f]{8}\.xcresult/g;
 const HELPER_PID_FILENAME_SUFFIX_REGEX =
@@ -178,6 +180,8 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(DEVICE_TRANSPORT_TYPE_REGEX, '<CONNECTION>');
   normalized = normalized.replace(DURATION_REGEX, '<DURATION>');
   normalized = normalized.replace(PID_NUMBER_REGEX, '$1<PID>');
+  normalized = normalized.replace(PID_NAME_REGEX, 'PID <PID>');
+  normalized = normalized.replace(KILL_PID_REGEX, '$1<PID>');
   normalized = normalized.replace(HELPER_PID_FILENAME_SUFFIX_REGEX, '_pid<PID>.log');
   normalized = normalized.replace(PID_FILENAME_SUFFIX_REGEX, '_pid<PID>.log');
   normalized = normalized.replace(XCRESULT_FILENAME_PID_SUFFIX_REGEX, '_pid<PID>.xcresult');

@@ -36,6 +36,12 @@ describe('normalizeSnapshotOutput', () => {
     );
   });
 
+  it('normalizes process identifiers in string output', () => {
+    expect(normalizeSnapshotOutput('appName: PID 123456\nkill: 123456: No such process\n')).toBe(
+      'appName: PID <PID>\nkill: <PID>: No such process\n',
+    );
+  });
+
   it('preserves display-formatted home paths while normalizing workspace hashes', () => {
     expect(
       normalizeSnapshotOutput(

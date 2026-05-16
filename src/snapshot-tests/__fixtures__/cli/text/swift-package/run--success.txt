@@ -13,3 +13,6 @@
 
 Output
   Hello, world!
+
+Next steps:
+1. Stop Swift package run: xcodebuildmcp swift-package stop

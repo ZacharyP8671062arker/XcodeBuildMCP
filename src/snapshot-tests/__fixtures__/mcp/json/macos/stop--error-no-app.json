@@ -9,13 +9,13 @@
     },
     "artifacts": {
       "processId": 99999,
-      "appName": "PID 999999"
+      "appName": "PID <PID>"
     },
     "diagnostics": {
       "warnings": [],
       "errors": [
         {
-          "message": "kill: 999999: No such process"
+          "message": "kill: <PID>: No such process"
         }
       ]
     }

@@ -3,6 +3,6 @@
 
 Errors (1):
 
-  ✗ kill: 999999: No such process
+  ✗ kill: <PID>: No such process
 
 ❌ Failed to stop macOS app.

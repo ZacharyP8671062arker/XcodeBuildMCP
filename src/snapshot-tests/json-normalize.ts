@@ -115,11 +115,9 @@ function testCaseSortKey(item: unknown): string {
 
 function normalizeTestCases(items: unknown[]): unknown[] {
   const sorted = [...items].sort((a, b) => testCaseSortKey(a).localeCompare(testCaseSortKey(b)));
+  const failed = sorted.filter((item) => isNormalizedTestCase(item) && item.status === 'failed');
 
-  const hasFailures = sorted.some((item) => isNormalizedTestCase(item) && item.status === 'failed');
-  return hasFailures
-    ? sorted.filter((item) => isNormalizedTestCase(item) && item.status === 'failed')
-    : sorted;
+  return failed.length > 0 ? failed : sorted;
 }
 
 function normalizeStderrLines(items: unknown[]): unknown[] {

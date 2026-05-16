@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { renderNextStep, renderNextStepsSection } from '../next-steps-renderer.ts';
+import {
+  processToolResponse,
+  renderNextStep,
+  renderNextStepsSection,
+} from '../next-steps-renderer.ts';
 import type { NextStep } from '../../../types/common.ts';
 
 describe('next-steps-renderer', () => {
@@ -188,6 +192,42 @@ describe('next-steps-renderer', () => {
 
       expect(renderNextStep(step, 'cli')).toBe('Verify layout visually before continuing');
       expect(renderNextStep(step, 'mcp')).toBe('Verify layout visually before continuing');
+    });
+  });
+
+  describe('processToolResponse', () => {
+    it('appends next steps to the last text content item even when a non-text item follows', () => {
+      const result = processToolResponse(
+        {
+          content: [
+            { type: 'text', text: 'Initial text' },
+            { type: 'image', data: 'base64', mimeType: 'image/png' },
+          ],
+          nextSteps: [{ tool: 'open_sim', label: 'Open Simulator' }],
+        },
+        'mcp',
+      );
+
+      expect(result.content).toEqual([
+        { type: 'text', text: 'Initial text\n\nNext steps:\n1. Open Simulator: open_sim()' },
+        { type: 'image', data: 'base64', mimeType: 'image/png' },
+      ]);
+      expect(result).not.toHaveProperty('nextSteps');
+    });
+
+    it('adds a new text item when no text content exists', () => {
+      const result = processToolResponse(
+        {
+          content: [{ type: 'image', data: 'base64', mimeType: 'image/png' }],
+          nextSteps: [{ tool: 'open_sim', label: 'Open Simulator' }],
+        },
+        'mcp',
+      );
+
+      expect(result.content).toEqual([
+        { type: 'image', data: 'base64', mimeType: 'image/png' },
+        { type: 'text', text: 'Next steps:\n1. Open Simulator: open_sim()' },
+      ]);
     });
   });
 

@@ -11,9 +11,6 @@ export function resolveFilePathRenderStyle(options: {
   outputStyle?: OutputStyle;
 }): FilePathRenderStyle {
   return (
-    options.explicit ??
-    (options.outputStyle === 'minimal' ? 'tree' : undefined) ??
-    options.configured ??
-    'list'
+    options.explicit ?? options.configured ?? (options.outputStyle === 'minimal' ? 'tree' : 'list')
   );
 }

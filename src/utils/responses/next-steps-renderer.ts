@@ -34,8 +34,26 @@ export function processToolResponse(response: ToolResponse, runtime: RuntimeKind
       ...lastItem,
       text: lastItem.text + '\n\n' + nextStepsSection,
     };
-  } else if (!processedContent.some((item) => item.type === 'text') && nextStepsSection) {
-    processedContent.push({ type: 'text', text: nextStepsSection.trim() });
+  } else {
+    let textItemIndex = -1;
+    for (let index = processedContent.length - 1; index >= 0; index -= 1) {
+      if (processedContent[index]?.type === 'text') {
+        textItemIndex = index;
+        break;
+      }
+    }
+
+    if (textItemIndex >= 0) {
+      const textItem = processedContent[textItemIndex];
+      if (textItem?.type === 'text') {
+        processedContent[textItemIndex] = {
+          ...textItem,
+          text: textItem.text + '\n\n' + nextStepsSection,
+        };
+      }
+    } else if (nextStepsSection) {
+      processedContent.push({ type: 'text', text: nextStepsSection.trim() });
+    }
   }
 
   return { ...rest, content: processedContent };

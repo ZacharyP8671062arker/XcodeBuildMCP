@@ -10,6 +10,32 @@ function progressBlock(total: number, failed: number): string {
 }
 
 describe('normalizeSnapshotOutput', () => {
+  it('normalizes volatile device and build-settings values', () => {
+    expect(
+      normalizeSnapshotOutput(
+        [
+          '1. Stop app: xcodebuildmcp device stop --device-id <UUID> --process-id 12345',
+          'Device: iPhone, OS: 26.4.2 (a)',
+          '      TARGET_DEVICE_MODEL = iPhone17,2',
+          '      TARGET_DEVICE_OS_VERSION = 26.4.2',
+          '      CACHE_ROOT = /var/folders/ab/cache/com.apple.DeveloperTools/26.4-17E192/Xcode',
+          '      SDK_STAT_CACHE_PATH = <HOME>/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.4-23E237-c1e9.sdkstatcache',
+          '      PLATFORM_DEVELOPER_APPLICATIONS_DIR = /Applications/Xcode-26.4.0.app/Contents/Developer/Applications',
+        ].join('\n') + '\n',
+      ),
+    ).toBe(
+      [
+        '1. Stop app: xcodebuildmcp device stop --device-id <UUID> --process-id <PID>',
+        'Device: iPhone, OS: <OS_VERSION>',
+        '      TARGET_DEVICE_MODEL = <DEVICE_MODEL>',
+        '      TARGET_DEVICE_OS_VERSION = <OS_VERSION>',
+        '      CACHE_ROOT = <XCODE_CACHE_ROOT>',
+        '      SDK_STAT_CACHE_PATH = <SDK_STAT_CACHE_PATH>',
+        '      PLATFORM_DEVELOPER_APPLICATIONS_DIR = /Applications/Xcode-<VERSION>.app/Contents/Developer/Applications',
+      ].join('\n') + '\n',
+    );
+  });
+
   it('preserves display-formatted home paths while normalizing workspace hashes', () => {
     expect(
       normalizeSnapshotOutput(

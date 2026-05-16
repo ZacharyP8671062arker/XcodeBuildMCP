@@ -34,6 +34,10 @@ function normalizeString(value: string, key?: string, path: string[] = []): stri
     return '<SIM_STATE>';
   }
 
+  if (key === 'osVersion' && path.includes('devices')) {
+    return '<OS_VERSION>';
+  }
+
   return result;
 }
 
@@ -63,8 +67,39 @@ function normalizeNumber(path: string[], key: string | undefined, value: number)
   }
 }
 
-function isBuildSettingsPathEntry(value: Record<string, unknown>, path: string[]): boolean {
-  return path.includes('entries') && value.key === 'PATH' && typeof value.value === 'string';
+function isBuildSettingsEntry(value: Record<string, unknown>, path: string[]): boolean {
+  return (
+    path.includes('entries') && typeof value.key === 'string' && typeof value.value === 'string'
+  );
+}
+
+function normalizeBuildSettingsEntryValue(key: string, value: string): string {
+  switch (key) {
+    case 'PATH':
+      return '<PATH_ENTRIES>';
+    case 'ALTERNATE_OWNER':
+    case 'INSTALL_OWNER':
+    case 'USER':
+    case 'VERSION_INFO_BUILDER':
+      return '<USER>';
+    case 'UID':
+      return '<UID>';
+    case 'CACHE_ROOT':
+    case 'CCHROOT':
+      return '<XCODE_CACHE_ROOT>';
+    case 'SDK_STAT_CACHE_PATH':
+      return '<SDK_STAT_CACHE_PATH>';
+    case 'TARGET_DEVICE_MODEL':
+    case 'ASSETCATALOG_FILTER_FOR_DEVICE_MODEL':
+      return '<DEVICE_MODEL>';
+    case 'TARGET_DEVICE_OS_VERSION':
+    case 'ASSETCATALOG_FILTER_FOR_DEVICE_OS_VERSION':
+      return '<OS_VERSION>';
+    default: {
+      const normalized = normalizeSnapshotOutput(value.replace(/\u00A0/g, ' '));
+      return normalized.endsWith('\n') ? normalized.slice(0, -1) : normalized;
+    }
+  }
 }
 
 function isNormalizedTestCase(
@@ -136,8 +171,8 @@ function normalizeValue(value: unknown, path: string[] = []): unknown {
   if (isRecord(value)) {
     const normalizedEntries = Object.entries(value).map(([entryKey, entryValue]) => [
       entryKey,
-      isBuildSettingsPathEntry(value, path) && entryKey === 'value'
-        ? '<PATH_ENTRIES>'
+      isBuildSettingsEntry(value, path) && entryKey === 'value'
+        ? normalizeBuildSettingsEntryValue(String(value.key), String(value.value))
         : normalizeValue(entryValue, [...path, entryKey]),
     ]);
 

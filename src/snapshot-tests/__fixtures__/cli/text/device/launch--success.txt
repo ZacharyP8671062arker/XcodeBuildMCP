@@ -8,4 +8,4 @@
   └ Process ID: <PID>
 
 Next steps:
-1. Stop the app: xcodebuildmcp device stop --device-id <UUID> --process-id 31270
+1. Stop the app: xcodebuildmcp device stop --device-id <UUID> --process-id <PID>

@@ -109,6 +109,52 @@ describe('normalizeStructuredEnvelope', () => {
     });
   });
 
+  it('normalizes volatile build settings entry values without dropping entries', () => {
+    const envelope: StructuredOutputEnvelope<unknown> = {
+      schema: 'xcodebuildmcp.output.build-settings',
+      schemaVersion: '1',
+      didError: false,
+      error: null,
+      data: {
+        entries: [
+          { key: 'ALTERNATE_OWNER', value: 'cameroncooke' },
+          { key: 'CACHE_ROOT', value: '/var/folders/hash/C/com.apple.DeveloperTools/26.4/Xcode' },
+          { key: 'TARGET_DEVICE_MODEL', value: 'iPhone17,2' },
+          { key: 'TARGET_DEVICE_OS_VERSION', value: '26.4.2' },
+          {
+            key: 'PLATFORM_DEVELOPER_APPLICATIONS_DIR',
+            value: '/Applications/Xcode-26.4.0.app/Contents/Developer/Applications',
+          },
+          {
+            key: 'SDK_STAT_CACHE_PATH',
+            value:
+              '<HOME>/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphoneos26.4-23E237-c1e9.sdkstatcache',
+          },
+        ],
+      },
+    };
+
+    expect(normalizeStructuredEnvelope(envelope)).toEqual({
+      schema: 'xcodebuildmcp.output.build-settings',
+      schemaVersion: '1',
+      didError: false,
+      error: null,
+      data: {
+        entries: [
+          { key: 'ALTERNATE_OWNER', value: '<USER>' },
+          { key: 'CACHE_ROOT', value: '<XCODE_CACHE_ROOT>' },
+          { key: 'TARGET_DEVICE_MODEL', value: '<DEVICE_MODEL>' },
+          { key: 'TARGET_DEVICE_OS_VERSION', value: '<OS_VERSION>' },
+          {
+            key: 'PLATFORM_DEVELOPER_APPLICATIONS_DIR',
+            value: '/Applications/Xcode-<VERSION>.app/Contents/Developer/Applications',
+          },
+          { key: 'SDK_STAT_CACHE_PATH', value: '<SDK_STAT_CACHE_PATH>' },
+        ],
+      },
+    });
+  });
+
   it('normalizes volatile build settings PATH entry values without dropping the entry', () => {
     const envelope: StructuredOutputEnvelope<unknown> = {
       schema: 'xcodebuildmcp.output.build-settings',

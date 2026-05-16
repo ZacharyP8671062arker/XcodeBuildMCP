@@ -16,7 +16,7 @@ const HELPER_PID_FILENAME_SUFFIX_REGEX =
 const PID_JSON_REGEX = /"pid"\s*:\s*\d+/g;
 const PROCESS_ID_REGEX = /Process ID: \d+/g;
 const PROCESS_INLINE_PID_REGEX = /process \d+/g;
-const CLI_PROCESS_ID_ARG_REGEX = /--process-id "\d+"/g;
+const CLI_PROCESS_ID_ARG_REGEX = /--process-id (["']?)\d+\1/g;
 const MCP_PROCESS_ID_ARG_REGEX = /(processId:\s*)\d+/g;
 const THREAD_ID_REGEX = /Thread \d{5,}/g;
 const HEX_ADDRESS_REGEX = /0x[0-9a-fA-F]{8,}/g;
@@ -38,6 +38,14 @@ const UPTIME_REGEX = /Uptime: \d+s/g;
 const RESULT_BUNDLE_LINE_REGEX = /\S+\[\d+:\d+\] Writing error result bundle to \S+/g;
 const DEVICE_TRANSPORT_TYPE_REGEX = /\b(wired|localNetwork)\b/g;
 const TARGET_DEVICE_IDENTIFIER_REGEX = /(TARGET_DEVICE_IDENTIFIER = )([0-9A-Fa-f]{24,40})/g;
+const TARGET_DEVICE_MODEL_REGEX =
+  /((?:TARGET_DEVICE_MODEL|ASSETCATALOG_FILTER_FOR_DEVICE_MODEL) = ).+$/gm;
+const TARGET_DEVICE_OS_VERSION_REGEX =
+  /((?:TARGET_DEVICE_OS_VERSION|ASSETCATALOG_FILTER_FOR_DEVICE_OS_VERSION) = ).+$/gm;
+const DEVICE_OS_VERSION_LINE_REGEX = /(\bOS: )\d+(?:\.\d+)*(?:\s*\([^)]*\))?/g;
+const XCODE_APPLICATION_PATH_REGEX = /\/Applications\/Xcode[^/\s]+\.app/g;
+const XCODE_CACHE_ROOT_REGEX = /((?:CACHE_ROOT|CCHROOT) = ).+$/gm;
+const SDK_STAT_CACHE_PATH_REGEX = /(SDK_STAT_CACHE_PATH = ).+$/gm;
 const CODEX_ARG0_PATH_REGEX = /<HOME>\/\.codex\/tmp\/arg0\/codex-arg0[A-Za-z0-9]+/g;
 const CODEX_WORKTREE_NODE_MODULES_REGEX =
   /<HOME>\/\.codex\/worktrees\/[^/:]+\/node_modules\/\.bin/g;
@@ -165,7 +173,10 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(PID_JSON_REGEX, '"pid" : <PID>');
   normalized = normalized.replace(PROCESS_ID_REGEX, 'Process ID: <PID>');
   normalized = normalized.replace(PROCESS_INLINE_PID_REGEX, 'process <PID>');
-  normalized = normalized.replace(CLI_PROCESS_ID_ARG_REGEX, '--process-id "<PID>"');
+  normalized = normalized.replace(
+    CLI_PROCESS_ID_ARG_REGEX,
+    (_match: string, quote: string) => `--process-id ${quote}<PID>${quote}`,
+  );
   normalized = normalized.replace(MCP_PROCESS_ID_ARG_REGEX, '$1<PID>');
   normalized = normalized.replace(UPTIME_REGEX, 'Uptime: <UPTIME>');
 
@@ -189,6 +200,15 @@ export function normalizeSnapshotOutput(text: string): string {
   normalized = normalized.replace(TEST_SUMMARY_COUNTS_REGEX, '(<TEST_COUNTS>, ');
 
   normalized = normalized.replace(TARGET_DEVICE_IDENTIFIER_REGEX, '$1<UUID>');
+  normalized = normalized.replace(TARGET_DEVICE_MODEL_REGEX, '$1<DEVICE_MODEL>');
+  normalized = normalized.replace(TARGET_DEVICE_OS_VERSION_REGEX, '$1<OS_VERSION>');
+  normalized = normalized.replace(DEVICE_OS_VERSION_LINE_REGEX, '$1<OS_VERSION>');
+  normalized = normalized.replace(
+    XCODE_APPLICATION_PATH_REGEX,
+    '/Applications/Xcode-<VERSION>.app',
+  );
+  normalized = normalized.replace(XCODE_CACHE_ROOT_REGEX, '$1<XCODE_CACHE_ROOT>');
+  normalized = normalized.replace(SDK_STAT_CACHE_PATH_REGEX, '$1<SDK_STAT_CACHE_PATH>');
   normalized = normalized.replace(BUILD_SETTINGS_PATH_REGEX, '$1<PATH>');
   normalized = normalized.replace(CODEX_ARG0_PATH_REGEX, '<HOME>/.codex/tmp/arg0/codex-arg0<ARG0>');
   normalized = normalized.replace(ACQUIRED_USAGE_ASSERTION_TIME_REGEX, '$1<TIME>$2');

@@ -18,6 +18,6 @@
     }
   },
   "nextSteps": [
-    "Stop the app: xcodebuildmcp device stop --device-id <UUID> --process-id 30016"
+    "Stop the app: xcodebuildmcp device stop --device-id <UUID> --process-id <PID>"
   ]
 }

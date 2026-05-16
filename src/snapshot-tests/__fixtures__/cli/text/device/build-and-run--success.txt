@@ -23,4 +23,4 @@
      └ Build Logs: ~/Library/Developer/XcodeBuildMCP/workspaces/XcodeBuildMCP-<HASH>/logs/build_run_device_<TIMESTAMP>_pid<PID>.log
 
 Next steps:
-1. Stop app on device: xcodebuildmcp device stop --device-id <UUID> --process-id 31269
+1. Stop app on device: xcodebuildmcp device stop --device-id <UUID> --process-id <PID>

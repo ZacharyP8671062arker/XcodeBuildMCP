@@ -11,7 +11,7 @@
         "platform": "iOS",
         "state": "connected",
         "isAvailable": true,
-        "osVersion": "26.4.2"
+        "osVersion": "<OS_VERSION>"
       },
       {
         "name": "iPhone",
@@ -19,7 +19,7 @@
         "platform": "iOS",
         "state": "disconnected",
         "isAvailable": false,
-        "osVersion": "26.1"
+        "osVersion": "<OS_VERSION>"
       },
       {
         "name": "Cameron’s Apple Watch",
@@ -27,7 +27,7 @@
         "platform": "watchOS",
         "state": "disconnected",
         "isAvailable": false,
-        "osVersion": "10.6.1"
+        "osVersion": "<OS_VERSION>"
       },
       {
         "name": "Cameron’s Apple Watch",
@@ -35,7 +35,7 @@
         "platform": "watchOS",
         "state": "connected",
         "isAvailable": true,
-        "osVersion": "26.3"
+        "osVersion": "<OS_VERSION>"
       }
     ]
   },

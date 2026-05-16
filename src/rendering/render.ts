@@ -1,12 +1,9 @@
 import type { AnyFragment } from '../types/domain-fragments.ts';
-import type { NextStep } from '../types/common.ts';
+import type { NextStep, OutputStyle } from '../types/common.ts';
+import type { RuntimeKind } from '../runtime/types.ts';
 import { sessionStore } from '../utils/session-store.ts';
 import { getConfig } from '../utils/config-store.ts';
-import {
-  normalizeRenderRuntime,
-  resolveFilePathRenderStyle,
-  type FilePathRenderRuntime,
-} from '../utils/file-path-render-style.ts';
+import { resolveFilePathRenderStyle } from '../utils/file-path-render-style.ts';
 import type { FilePathRenderStyle } from '../utils/runtime-config-types.ts';
 import {
   createCliTextRenderer,
@@ -94,7 +91,8 @@ function createRenderHooks(
   strategy: RenderStrategy,
   options: {
     interactive: boolean;
-    runtime?: FilePathRenderRuntime;
+    runtime?: RuntimeKind;
+    outputStyle?: OutputStyle;
     filePathRenderStyle?: FilePathRenderStyle;
     includeHeaderDetails?: boolean;
   },
@@ -102,13 +100,13 @@ function createRenderHooks(
   const suppressWarnings = sessionStore.get('suppressWarnings');
   const config = getConfig();
   const showTestTiming = config.showTestTiming;
-  const runtime = options.runtime ?? normalizeRenderRuntime(process.env.XCODEBUILDMCP_RUNTIME);
+  const outputStyle = options.outputStyle ?? 'normal';
   const filePathRenderStyle = resolveFilePathRenderStyle({
     explicit: options.filePathRenderStyle,
     configured: config.filePathRenderStyle,
-    runtime,
+    outputStyle,
   });
-  const includeHeaderDetails = options.includeHeaderDetails ?? runtime !== 'mcp';
+  const includeHeaderDetails = options.includeHeaderDetails ?? outputStyle !== 'minimal';
 
   switch (strategy) {
     case 'text':
@@ -177,7 +175,8 @@ function createRenderHooks(
 
 export interface RenderSessionOptions {
   interactive?: boolean;
-  runtime?: FilePathRenderRuntime;
+  runtime?: RuntimeKind;
+  outputStyle?: OutputStyle;
   filePathRenderStyle?: FilePathRenderStyle;
   includeHeaderDetails?: boolean;
 }
@@ -194,7 +193,10 @@ export function createRenderSession(
 export function renderTranscript(
   input: RenderTranscriptInput,
   strategy: RenderStrategy,
-  options?: Pick<RenderSessionOptions, 'runtime' | 'filePathRenderStyle' | 'includeHeaderDetails'>,
+  options?: Pick<
+    RenderSessionOptions,
+    'runtime' | 'outputStyle' | 'filePathRenderStyle' | 'includeHeaderDetails'
+  >,
 ): string {
   return createRenderHooks(strategy, { ...options, interactive: false }).finalize(input);
 }

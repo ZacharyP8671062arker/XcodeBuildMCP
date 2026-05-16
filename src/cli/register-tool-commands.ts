@@ -9,6 +9,7 @@ import { groupToolsByWorkflow } from '../runtime/tool-catalog.ts';
 import { getWorkflowMetadataFromManifest } from '../core/manifest/load-manifest.ts';
 import type { ResolvedRuntimeConfig } from '../utils/config-store.ts';
 import type { ToolHandlerContext } from '../rendering/types.ts';
+import type { OutputStyle } from '../types/common.ts';
 import type { FilePathRenderStyle } from '../utils/runtime-config-types.ts';
 import type { AnyFragment } from '../types/domain-fragments.ts';
 import { transcriptEmitterStorage } from '../utils/transcript-context.ts';
@@ -92,14 +93,21 @@ function createBufferedHandlerContext(
   };
 }
 
-function writeJsonOutput(handlerContext: ToolHandlerContext): boolean {
-  const structuredOutput = handlerContext.structuredOutput;
-
+function writeJsonOutput(
+  handlerContext: ToolHandlerContext,
+  session: ReturnType<typeof createRenderSession>,
+  outputStyle: OutputStyle,
+): boolean {
+  const { structuredOutput } = handlerContext;
   const envelope = structuredOutput
     ? toStructuredEnvelope(
         structuredOutput.result,
         structuredOutput.schema,
         structuredOutput.schemaVersion,
+        {
+          nextSteps: session.getNextSteps?.(),
+          outputStyle,
+        },
       )
     : toStructuredEnvelope(
         createStructuredErrorOutput({
@@ -109,6 +117,7 @@ function writeJsonOutput(handlerContext: ToolHandlerContext): boolean {
         }).result,
         STRUCTURED_ERROR_SCHEMA,
         STRUCTURED_ERROR_SCHEMA_VERSION,
+        { outputStyle },
       );
 
   process.stdout.write(JSON.stringify(envelope, null, 2) + '\n');
@@ -275,6 +284,7 @@ function registerToolSubcommand(
       const jsonArg = argv.json as string | undefined;
       const profileOverride = argv.profile as string | undefined;
       const outputFormat = (argv.output as OutputFormat) ?? 'text';
+      const outputStyle: OutputStyle = argv.style === 'minimal' ? 'minimal' : 'normal';
       const socketPath = argv.socket as string;
       const logLevel = argv['log-level'] as string | undefined;
       const filePathRenderStyle = argv.filePathRenderStyle as FilePathRenderStyle | undefined;
@@ -361,6 +371,7 @@ function registerToolSubcommand(
         const session = createRenderSession(renderStrategy, {
           interactive: outputFormat === 'text' && process.stdout.isTTY === true,
           runtime: 'cli',
+          outputStyle,
           filePathRenderStyle,
         });
         const writeJsonlFragment =
@@ -395,7 +406,7 @@ function registerToolSubcommand(
         }
 
         if (outputFormat === 'json') {
-          if (writeJsonOutput(handlerContext)) {
+          if (writeJsonOutput(handlerContext, session, outputStyle)) {
             process.exitCode = 1;
           }
           return;

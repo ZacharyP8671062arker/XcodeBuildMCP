@@ -154,7 +154,7 @@ export function setUiActionStructuredOutput(
   ctx.structuredOutput = {
     result,
     schema: UI_ACTION_SCHEMA,
-    schemaVersion: '1',
+    schemaVersion: '2',
   };
 }
 
@@ -165,6 +165,6 @@ export function setCaptureStructuredOutput(
   ctx.structuredOutput = {
     result,
     schema: CAPTURE_SCHEMA,
-    schemaVersion: '1',
+    schemaVersion: '2',
   };
 }

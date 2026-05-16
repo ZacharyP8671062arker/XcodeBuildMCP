@@ -6,7 +6,7 @@ names:
 description: Press key by keycode.
 outputSchema:
   schema: xcodebuildmcp.output.ui-action-result
-  version: "1"
+  version: "2"
 annotations:
   title: Key Press
   readOnlyHint: true

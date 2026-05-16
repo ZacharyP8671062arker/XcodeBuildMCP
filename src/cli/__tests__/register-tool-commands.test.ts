@@ -102,9 +102,93 @@ function mockInvokeDirectThroughHandler() {
       await tool.handler(args, handlerContext);
 
       if (handlerContext.structuredOutput && opts.onStructuredOutput) {
+        opts.renderSession?.setStructuredOutput?.(handlerContext.structuredOutput);
         opts.onStructuredOutput(handlerContext.structuredOutput);
       }
+
+      if (handlerContext.nextSteps) {
+        opts.renderSession?.setNextSteps?.(handlerContext.nextSteps, 'cli');
+      }
     });
+}
+
+function captureStdoutChunks(): string[] {
+  const stdoutChunks: string[] = [];
+  vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+    stdoutChunks.push(String(chunk));
+    return true;
+  });
+  return stdoutChunks;
+}
+
+function createBuildResultTool(options: { emitStatus?: boolean; includeNextSteps?: boolean } = {}) {
+  return createTool({
+    handler: vi.fn(async (_args, ctx) => {
+      if (!ctx) {
+        return;
+      }
+      if (options.emitStatus) {
+        ctx.emit({
+          kind: 'presentation',
+          fragment: 'status',
+          level: 'info',
+          message: 'Starting work',
+        });
+      }
+      ctx.structuredOutput = {
+        schema: 'xcodebuildmcp.output.build-result',
+        schemaVersion: '2',
+        result: {
+          kind: 'build-result',
+          didError: false,
+          error: null,
+          request: {
+            scheme: 'CalculatorApp',
+            workspacePath: 'CalculatorApp.xcworkspace',
+          },
+          summary: { status: 'SUCCEEDED', durationMs: 1234, target: 'simulator' },
+          artifacts: { buildLogPath: '/tmp/build.log' },
+          diagnostics: { warnings: [], errors: [] },
+        },
+      };
+      if (options.includeNextSteps) {
+        ctx.nextSteps = [
+          {
+            tool: 'get_sim_app_path',
+            cliTool: 'get-app-path',
+            workflow: 'simulator',
+            label: 'Get app path',
+            params: { scheme: 'CalculatorApp' },
+            when: 'success',
+          },
+        ];
+      }
+    }) as ToolDefinition['handler'],
+  });
+}
+
+function createAppPathTool() {
+  return createTool({
+    handler: vi.fn(async (_args, ctx) => {
+      if (ctx) {
+        ctx.structuredOutput = {
+          schema: 'xcodebuildmcp.output.app-path',
+          schemaVersion: '2',
+          result: {
+            kind: 'app-path',
+            didError: false,
+            error: null,
+            request: {
+              scheme: 'CalculatorApp',
+              workspacePath: 'CalculatorApp.xcworkspace',
+            },
+            artifacts: { appPath: '/tmp/MyApp.app' },
+            diagnostics: { warnings: [], errors: [] },
+          },
+        };
+      }
+    }) as ToolDefinition['handler'],
+  });
 }
 
 describe('registerToolCommands', () => {
@@ -430,6 +514,92 @@ describe('registerToolCommands', () => {
     expect(stdoutChunks.join('')).not.toContain('└ App Path: /tmp/MyApp.app');
   });
 
+  it('keeps full request payloads in default json output', async () => {
+    mockInvokeDirectThroughHandler();
+    const stdoutChunks = captureStdoutChunks();
+    const app = createApp(createCatalog([createBuildResultTool()]));
+
+    await expect(
+      app.parseAsync(['simulator', 'run-tool', '--output', 'json']),
+    ).resolves.toBeDefined();
+
+    expect(JSON.parse(stdoutChunks.join(''))).toEqual({
+      schema: 'xcodebuildmcp.output.build-result',
+      schemaVersion: '2',
+      didError: false,
+      error: null,
+      data: {
+        request: {
+          scheme: 'CalculatorApp',
+          workspacePath: 'CalculatorApp.xcworkspace',
+        },
+        summary: { status: 'SUCCEEDED', durationMs: 1234, target: 'simulator' },
+        artifacts: { buildLogPath: '/tmp/build.log' },
+        diagnostics: { warnings: [], errors: [] },
+      },
+    });
+  });
+
+  it('prunes request payloads but preserves CLI next steps for minimal json output', async () => {
+    mockInvokeDirectThroughHandler();
+    const stdoutChunks = captureStdoutChunks();
+    const app = createApp(createCatalog([createBuildResultTool({ includeNextSteps: true })]));
+
+    await expect(
+      app.parseAsync(['simulator', 'run-tool', '--style', 'minimal', '--output', 'json']),
+    ).resolves.toBeDefined();
+
+    expect(JSON.parse(stdoutChunks.join(''))).toEqual({
+      schema: 'xcodebuildmcp.output.build-result',
+      schemaVersion: '2',
+      didError: false,
+      error: null,
+      data: {
+        summary: { status: 'SUCCEEDED', durationMs: 1234, target: 'simulator' },
+        artifacts: { buildLogPath: '/tmp/build.log' },
+        diagnostics: { warnings: [], errors: [] },
+      },
+      nextSteps: ['Get app path: xcodebuildmcp simulator get-app-path --scheme CalculatorApp'],
+    });
+  });
+
+  it('uses compact headerless tree artifact formatting for minimal text output', async () => {
+    mockInvokeDirectThroughHandler();
+    const stdoutChunks = captureStdoutChunks();
+    const app = createApp(createCatalog([createAppPathTool()]));
+
+    await expect(
+      app.parseAsync(['simulator', 'run-tool', '--style', 'minimal']),
+    ).resolves.toBeDefined();
+
+    const output = stdoutChunks.join('');
+    expect(output).not.toContain('Scheme: CalculatorApp');
+    expect(output).not.toContain('Workspace: CalculatorApp.xcworkspace');
+    expect(output).toContain('└── /tmp/MyApp.app — App Path');
+    expect(output).not.toContain('└ App Path: /tmp/MyApp.app');
+  });
+
+  it('lets explicit file path render style override minimal text defaults', async () => {
+    mockInvokeDirectThroughHandler();
+    const stdoutChunks = captureStdoutChunks();
+    const app = createApp(createCatalog([createAppPathTool()]));
+
+    await expect(
+      app.parseAsync([
+        'simulator',
+        'run-tool',
+        '--style',
+        'minimal',
+        '--file-path-render-style',
+        'list',
+      ]),
+    ).resolves.toBeDefined();
+
+    const output = stdoutChunks.join('');
+    expect(output).toContain('└ App Path: /tmp/MyApp.app');
+    expect(output).not.toContain('└── /tmp/MyApp.app — App Path');
+  });
+
   it('writes a structured envelope for tools that provide structured output', async () => {
     mockInvokeDirectThroughHandler();
     const stdoutChunks: string[] = [];
@@ -466,6 +636,16 @@ describe('registerToolCommands', () => {
               ],
             },
           };
+          ctx.nextSteps = [
+            {
+              tool: 'boot_sim',
+              cliTool: 'boot',
+              workflow: 'simulator',
+              label: 'Boot this simulator',
+              params: { simulatorId: 'test-uuid-123' },
+              when: 'success',
+            },
+          ];
         }
       }) as ToolDefinition['handler'],
     });
@@ -493,6 +673,9 @@ describe('registerToolCommands', () => {
               },
             ],
           },
+          nextSteps: [
+            'Boot this simulator: xcodebuildmcp simulator boot --simulator-id test-uuid-123',
+          ],
         },
         null,
         2,
@@ -546,6 +729,28 @@ describe('registerToolCommands', () => {
     expect(stdoutChunks.join('')).toBe(
       `${JSON.stringify({ event: 'presentation.status', level: 'info', message: 'Starting work' })}\n` +
         `${JSON.stringify({ event: 'presentation.artifact', name: 'Build Log', path: '/tmp/build.log' })}\n`,
+    );
+  });
+
+  it('emits the same fragment-only jsonl output for minimal style', async () => {
+    mockInvokeDirectThroughHandler();
+    const stdoutChunks = captureStdoutChunks();
+    const app = createApp(createCatalog([createBuildResultTool({ emitStatus: true })]));
+
+    await expect(
+      app.parseAsync(['simulator', 'run-tool', '--output', 'jsonl']),
+    ).resolves.toBeDefined();
+    const normalOutput = stdoutChunks.join('');
+
+    stdoutChunks.length = 0;
+
+    await expect(
+      app.parseAsync(['simulator', 'run-tool', '--style', 'minimal', '--output', 'jsonl']),
+    ).resolves.toBeDefined();
+
+    expect(stdoutChunks.join('')).toBe(normalOutput);
+    expect(normalOutput).toBe(
+      `${JSON.stringify({ event: 'presentation.status', level: 'info', message: 'Starting work' })}\n`,
     );
   });
 
@@ -612,6 +817,13 @@ describe('registerToolCommands', () => {
           level: 'info',
           message: 'legacy event',
         });
+        if (ctx) {
+          ctx.nextSteps = [
+            {
+              label: 'Should not be included without structured output',
+            },
+          ];
+        }
       }) as ToolDefinition['handler'],
     });
     const app = createApp(createCatalog([tool]));

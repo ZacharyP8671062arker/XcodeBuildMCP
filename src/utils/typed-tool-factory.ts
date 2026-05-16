@@ -3,10 +3,10 @@ import * as z from 'zod';
 import type { ToolHandlerContext } from '../rendering/types.ts';
 import { createRenderSession } from '../rendering/render.ts';
 import { getConfig } from './config-store.ts';
-import { normalizeRenderRuntime, resolveFilePathRenderStyle } from './file-path-render-style.ts';
+import { resolveFilePathRenderStyle } from './file-path-render-style.ts';
 import { renderCliTextTranscript } from './renderers/cli-text-renderer.ts';
 import type { CommandExecutor } from './execution/index.ts';
-import type { DomainFragment } from '../types/domain-fragments.ts';
+import type { OutputStyle } from '../types/common.ts';
 import { setStructuredErrorOutput } from './structured-error.ts';
 
 import { sessionStore, type SessionDefaults } from './session-store.ts';
@@ -61,17 +61,21 @@ function setValidationErrorOutput(ctx: ToolHandlerContext, message: string, code
   });
 }
 
+function outputStyleForTestResult(): OutputStyle {
+  return process.env.XCODEBUILDMCP_RUNTIME === 'mcp' ? 'minimal' : 'normal';
+}
+
 function sessionToTestResult(session: ReturnType<typeof createRenderSession>): ToolTestResult {
-  const runtime = normalizeRenderRuntime(process.env.XCODEBUILDMCP_RUNTIME);
+  const outputStyle = outputStyleForTestResult();
   const text = renderCliTextTranscript({
     items: [],
     structuredOutput: session.getStructuredOutput?.(),
     nextSteps: session.getNextSteps?.(),
     nextStepsRuntime: session.getNextStepsRuntime?.(),
-    includeHeaderDetails: runtime !== 'mcp',
+    includeHeaderDetails: outputStyle !== 'minimal',
     filePathRenderStyle: resolveFilePathRenderStyle({
       configured: getConfig().filePathRenderStyle,
-      runtime,
+      outputStyle,
     }),
   });
 

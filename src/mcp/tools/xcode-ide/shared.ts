@@ -73,7 +73,7 @@ export function finalizeBridgeToolExecution(
   executionContext: BridgeToolExecutionContext,
   result: ToolDomainResult,
   schema: string,
-  schemaVersion = '1',
+  schemaVersion = '2',
 ): void {
   ctx.structuredOutput = {
     result,

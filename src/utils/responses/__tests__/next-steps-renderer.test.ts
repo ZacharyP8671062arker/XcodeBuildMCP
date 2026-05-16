@@ -28,7 +28,7 @@ describe('next-steps-renderer', () => {
 
       const result = renderNextStep(step, 'cli');
       expect(result).toBe(
-        'Install an app: xcodebuildmcp simulator install-app-sim --simulator-id "ABC123" --app-path "/path/to/app"',
+        'Install an app: xcodebuildmcp simulator install-app-sim --simulator-id ABC123 --app-path /path/to/app',
       );
     });
 
@@ -43,7 +43,7 @@ describe('next-steps-renderer', () => {
 
       const result = renderNextStep(step, 'cli');
       expect(result).toBe(
-        'Install an app: xcodebuildmcp simulator install-app --simulator-id "ABC123"',
+        'Install an app: xcodebuildmcp simulator install-app --simulator-id ABC123',
       );
     });
 
@@ -90,6 +90,40 @@ describe('next-steps-renderer', () => {
 
       const result = renderNextStep(step, 'cli');
       expect(result).toBe('Do something: xcodebuildmcp some-tool');
+    });
+
+    it('should shell-escape CLI text params that start with a dash', () => {
+      const step: NextStep = {
+        tool: 'test_sim',
+        cliTool: 'test',
+        workflow: 'simulator',
+        label: 'Run focused test',
+        params: { extraArg: '-only-testing:AppTests' },
+      };
+
+      const result = renderNextStep(step, 'cli');
+      expect(result).toBe(
+        "Run focused test: xcodebuildmcp simulator test --extra-arg '-only-testing:AppTests'",
+      );
+    });
+
+    it('should shell-escape CLI text params that contain shell metacharacters', () => {
+      const step: NextStep = {
+        tool: 'launch_app_sim',
+        cliTool: 'launch-app',
+        workflow: 'simulator',
+        label: 'Launch app',
+        params: {
+          simulatorName: 'Cam "Debug" App',
+          bundleId: 'com.example.$APP\\debug',
+          launchArg: 'line1\nline2',
+        },
+      };
+
+      const result = renderNextStep(step, 'cli');
+      expect(result).toBe(
+        "Launch app: xcodebuildmcp simulator launch-app --simulator-name 'Cam \"Debug\" App' --bundle-id 'com.example.$APP\\debug' --launch-arg 'line1\nline2'",
+      );
     });
 
     it('should format step for MCP with no params', () => {
@@ -178,7 +212,7 @@ describe('next-steps-renderer', () => {
       expect(result).toBe(
         'Next steps:\n' +
           '1. Open Simulator: xcodebuildmcp open-sim\n' +
-          '2. Install app: xcodebuildmcp install-app-sim --simulator-id "X"',
+          '2. Install app: xcodebuildmcp install-app-sim --simulator-id X',
       );
     });
 
@@ -196,17 +230,17 @@ describe('next-steps-renderer', () => {
       );
     });
 
-    it('should keep declared order', () => {
+    it('should sort by priority', () => {
       const steps: NextStep[] = [
-        { tool: 'third', label: 'Third', params: {} },
-        { tool: 'first', label: 'First', params: {} },
-        { tool: 'second', label: 'Second', params: {} },
+        { tool: 'third', label: 'Third', params: {}, priority: 3 },
+        { tool: 'first', label: 'First', params: {}, priority: 1 },
+        { tool: 'second', label: 'Second', params: {}, priority: 2 },
       ];
 
       const result = renderNextStepsSection(steps, 'mcp');
-      expect(result).toContain('1. Third: third()');
-      expect(result).toContain('2. First: first()');
-      expect(result).toContain('3. Second: second()');
+      expect(result).toContain('1. First: first()');
+      expect(result).toContain('2. Second: second()');
+      expect(result).toContain('3. Third: third()');
     });
 
     it('should render label-only next step without command', () => {

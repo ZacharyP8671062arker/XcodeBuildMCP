@@ -36,9 +36,9 @@ export type NextStepParams = Record<string, string | number | boolean>;
 export type NextStepParamsMap = Record<string, NextStepParams | NextStepParams[]>;
 
 /**
- * Output style controls verbosity of tool responses.
- * - 'normal': Full output including next steps
- * - 'minimal': Essential result only, no next steps
+ * Output style controls compactness of final tool output.
+ * - 'normal': Detailed, human-friendly CLI text and JSON output
+ * - 'minimal': Compact MCP-like text and JSON output while preserving next steps
  */
 export type OutputStyle = 'normal' | 'minimal';
 

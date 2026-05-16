@@ -661,7 +661,7 @@ describe('DefaultToolInvoker next steps post-processing', () => {
     const text = response.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
     expect(text).toContain('Next steps:');
     expect(text).toContain('Take screenshot');
-    expect(text).toContain('xcodebuildmcp ui-automation screenshot --simulator-id "123"');
+    expect(text).toContain('xcodebuildmcp ui-automation screenshot --simulator-id 123');
   });
 
   it('injects manifest template next steps from dynamic nextStepParams when response omits nextSteps', async () => {

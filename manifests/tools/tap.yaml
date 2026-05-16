@@ -6,7 +6,7 @@ names:
 description: Tap UI element by accessibility id/label (recommended) or coordinates as fallback.
 outputSchema:
   schema: xcodebuildmcp.output.ui-action-result
-  version: "1"
+  version: "2"
 annotations:
   title: Tap
   readOnlyHint: true

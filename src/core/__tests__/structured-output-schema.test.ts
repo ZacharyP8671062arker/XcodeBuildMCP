@@ -127,6 +127,211 @@ describe('structured output schema bundling', () => {
     expectStandaloneCompile(jsonSchema);
   });
 
+  it('rejects nextSteps against the immutable v1 contract', () => {
+    const schema = getMcpOutputSchema({
+      schema: 'xcodebuildmcp.output.build-result',
+      version: '1',
+    });
+    const ajv = new Ajv2020({ allErrors: true, strict: true, validateSchema: true });
+    const validate = ajv.compile(schema);
+
+    expect(
+      validate({
+        schema: 'xcodebuildmcp.output.build-result',
+        schemaVersion: '1',
+        didError: false,
+        error: null,
+        data: {
+          summary: {
+            status: 'SUCCEEDED',
+            durationMs: 1234,
+            target: 'simulator',
+          },
+          artifacts: {
+            buildLogPath: '~/Library/Developer/XcodeBuildMCP/logs/build.log',
+          },
+          diagnostics: {
+            warnings: [],
+            errors: [],
+          },
+        },
+        nextSteps: ['Get app path: get_sim_app_path({ scheme: "CalculatorApp" })'],
+      }),
+    ).toBe(false);
+  });
+
+  it('accepts non-error structured envelopes with nextSteps in the bumped contract', () => {
+    const schema = getMcpOutputSchema({
+      schema: 'xcodebuildmcp.output.build-result',
+      version: '2',
+    });
+    const ajv = new Ajv2020({ allErrors: true, strict: true, validateSchema: true });
+    const validate = ajv.compile(schema);
+
+    expect(
+      validate({
+        schema: 'xcodebuildmcp.output.build-result',
+        schemaVersion: '2',
+        didError: false,
+        error: null,
+        data: {
+          summary: {
+            status: 'SUCCEEDED',
+            durationMs: 1234,
+            target: 'simulator',
+          },
+          artifacts: {
+            buildLogPath: '~/Library/Developer/XcodeBuildMCP/logs/build.log',
+          },
+          diagnostics: {
+            warnings: [],
+            errors: [],
+          },
+        },
+        nextSteps: ['Get app path: get_sim_app_path({ scheme: "CalculatorApp" })'],
+      }),
+    ).toBe(true);
+  });
+
+  it('accepts normal and minimal request-bearing envelopes in the bumped contracts', () => {
+    const ajv = new Ajv2020({ allErrors: true, strict: true, validateSchema: true });
+    const cases = [
+      {
+        schema: getMcpOutputSchema({ schema: 'xcodebuildmcp.output.build-result', version: '2' }),
+        normal: {
+          schema: 'xcodebuildmcp.output.build-result',
+          schemaVersion: '2',
+          didError: false,
+          error: null,
+          data: {
+            request: { scheme: 'CalculatorApp', workspacePath: 'CalculatorApp.xcworkspace' },
+            summary: { status: 'SUCCEEDED', durationMs: 1234, target: 'simulator' },
+            artifacts: { buildLogPath: '~/Library/Developer/XcodeBuildMCP/logs/build.log' },
+            diagnostics: { warnings: [], errors: [] },
+          },
+          nextSteps: ['Get app path: xcodebuildmcp simulator get-app-path --scheme CalculatorApp'],
+        },
+        minimal: {
+          schema: 'xcodebuildmcp.output.build-result',
+          schemaVersion: '2',
+          didError: false,
+          error: null,
+          data: {
+            summary: { status: 'SUCCEEDED', durationMs: 1234, target: 'simulator' },
+            artifacts: { buildLogPath: '~/Library/Developer/XcodeBuildMCP/logs/build.log' },
+            diagnostics: { warnings: [], errors: [] },
+          },
+          nextSteps: ['Get app path: xcodebuildmcp simulator get-app-path --scheme CalculatorApp'],
+        },
+      },
+      {
+        schema: getMcpOutputSchema({
+          schema: 'xcodebuildmcp.output.build-run-result',
+          version: '2',
+        }),
+        normal: {
+          schema: 'xcodebuildmcp.output.build-run-result',
+          schemaVersion: '2',
+          didError: false,
+          error: null,
+          data: {
+            request: { scheme: 'CalculatorApp', workspacePath: 'CalculatorApp.xcworkspace' },
+            summary: { status: 'SUCCEEDED', durationMs: 1234, target: 'simulator' },
+            artifacts: { appPath: '/tmp/CalculatorApp.app', processId: 1234 },
+            diagnostics: { warnings: [], errors: [] },
+          },
+        },
+        minimal: {
+          schema: 'xcodebuildmcp.output.build-run-result',
+          schemaVersion: '2',
+          didError: false,
+          error: null,
+          data: {
+            summary: { status: 'SUCCEEDED', durationMs: 1234, target: 'simulator' },
+            artifacts: { appPath: '/tmp/CalculatorApp.app', processId: 1234 },
+            diagnostics: { warnings: [], errors: [] },
+          },
+        },
+      },
+      {
+        schema: getMcpOutputSchema({ schema: 'xcodebuildmcp.output.test-result', version: '2' }),
+        normal: {
+          schema: 'xcodebuildmcp.output.test-result',
+          schemaVersion: '2',
+          didError: false,
+          error: null,
+          data: {
+            request: { scheme: 'CalculatorApp', workspacePath: 'CalculatorApp.xcworkspace' },
+            summary: {
+              status: 'SUCCEEDED',
+              durationMs: 1234,
+              target: 'simulator',
+              counts: { passed: 1, failed: 0, skipped: 0 },
+            },
+            artifacts: { xcresultPath: '/tmp/result.xcresult' },
+            diagnostics: { warnings: [], errors: [], testFailures: [] },
+          },
+        },
+        minimal: {
+          schema: 'xcodebuildmcp.output.test-result',
+          schemaVersion: '2',
+          didError: false,
+          error: null,
+          data: {
+            summary: {
+              status: 'SUCCEEDED',
+              durationMs: 1234,
+              target: 'simulator',
+              counts: { passed: 1, failed: 0, skipped: 0 },
+            },
+            artifacts: { xcresultPath: '/tmp/result.xcresult' },
+            diagnostics: { warnings: [], errors: [], testFailures: [] },
+          },
+        },
+      },
+      {
+        schema: getMcpOutputSchema({ schema: 'xcodebuildmcp.output.app-path', version: '2' }),
+        normal: {
+          schema: 'xcodebuildmcp.output.app-path',
+          schemaVersion: '2',
+          didError: false,
+          error: null,
+          data: {
+            request: { scheme: 'CalculatorApp', platform: 'iOS Simulator' },
+            artifacts: { appPath: '/tmp/CalculatorApp.app' },
+            diagnostics: { warnings: [], errors: [] },
+          },
+        },
+        minimal: {
+          schema: 'xcodebuildmcp.output.app-path',
+          schemaVersion: '2',
+          didError: false,
+          error: null,
+          data: {
+            artifacts: { appPath: '/tmp/CalculatorApp.app' },
+            diagnostics: { warnings: [], errors: [] },
+          },
+        },
+      },
+    ];
+
+    const failures: string[] = [];
+    for (const testCase of cases) {
+      const validate = ajv.compile(testCase.schema);
+      for (const [style, envelope] of [
+        ['normal', testCase.normal],
+        ['minimal', testCase.minimal],
+      ] as const) {
+        if (!validate(envelope)) {
+          const envelopeSchema = (envelope as { schema: string }).schema;
+          failures.push(`${envelopeSchema} ${style}: ${JSON.stringify(validate.errors)}`);
+        }
+      }
+    }
+
+    expect(failures).toEqual([]);
+  });
+
   it('accepts structured error envelopes in registered output schemas', () => {
     const outputSchema = getMcpOutputSchemaForRegistration({
       schema: 'xcodebuildmcp.output.simulator-list',
@@ -153,7 +358,7 @@ describe('structured output schema bundling', () => {
   it('accepts xcode bridge call-result artifacts', () => {
     const schema = getMcpOutputSchema({
       schema: 'xcodebuildmcp.output.xcode-bridge-call-result',
-      version: '2',
+      version: '3',
     });
     const ajv = new Ajv2020({ allErrors: true, strict: true, validateSchema: true });
     const validate = ajv.compile(schema);
@@ -161,7 +366,7 @@ describe('structured output schema bundling', () => {
     expect(
       validate({
         schema: 'xcodebuildmcp.output.xcode-bridge-call-result',
-        schemaVersion: '2',
+        schemaVersion: '3',
         didError: false,
         error: null,
         data: {
@@ -174,6 +379,36 @@ describe('structured output schema bundling', () => {
         },
       }),
     ).toBe(true);
+  });
+
+  it('every manifest-declared output schema uses a bumped contract that accepts optional top-level nextSteps', () => {
+    const manifest = loadManifest();
+    const failures: string[] = [];
+
+    for (const tool of manifest.tools.values()) {
+      if (!tool.outputSchema) {
+        continue;
+      }
+
+      try {
+        const schema = getMcpOutputSchema(tool.outputSchema);
+        const properties = schema.properties as JsonObject | undefined;
+        const required = schema.required as unknown[] | undefined;
+        const nextSteps = properties?.nextSteps as JsonObject | undefined;
+
+        if (!nextSteps) {
+          failures.push(`${tool.id}: missing optional top-level nextSteps`);
+        }
+        if (required?.includes('nextSteps')) {
+          failures.push(`${tool.id}: nextSteps must stay optional`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        failures.push(`${tool.id}: ${message}`);
+      }
+    }
+
+    expect(failures).toEqual([]);
   });
 
   it('resolves every manifest-declared output schema', () => {

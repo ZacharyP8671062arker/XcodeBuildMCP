@@ -70,7 +70,7 @@ export function setInstallResultStructuredOutput(
   ctx.structuredOutput = {
     result,
     schema: INSTALL_RESULT_STRUCTURED_OUTPUT_SCHEMA,
-    schemaVersion: '1',
+    schemaVersion: '2',
   };
 }
 
@@ -113,7 +113,7 @@ export function setLaunchResultStructuredOutput(
   ctx.structuredOutput = {
     result,
     schema: LAUNCH_RESULT_STRUCTURED_OUTPUT_SCHEMA,
-    schemaVersion: '1',
+    schemaVersion: '2',
   };
 }
 
@@ -164,6 +164,6 @@ export function setStopResultStructuredOutput(
   ctx.structuredOutput = {
     result,
     schema: STOP_RESULT_STRUCTURED_OUTPUT_SCHEMA,
-    schemaVersion: '1',
+    schemaVersion: '2',
   };
 }

@@ -1,7 +1,7 @@
 
 🐛 LLDB Command
 
-   Command: bt
+   Command: breakpoint list
 
 Errors (1):
 

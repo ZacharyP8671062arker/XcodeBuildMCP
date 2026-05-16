@@ -44,8 +44,19 @@ const TARGET_DEVICE_OS_VERSION_REGEX =
   /((?:TARGET_DEVICE_OS_VERSION|ASSETCATALOG_FILTER_FOR_DEVICE_OS_VERSION) = ).+$/gm;
 const DEVICE_OS_VERSION_LINE_REGEX = /(\bOS: )\d+(?:\.\d+)*(?:\s*\([^)]*\))?/g;
 const XCODE_APPLICATION_PATH_REGEX = /\/Applications\/Xcode[^/\s]+\.app/g;
+const APPLE_SDK_BUNDLE_REGEX =
+  /\b(?:iPhoneOS|iPhoneSimulator|AppleTVOS|AppleTVSimulator|WatchOS|WatchSimulator|XROS|XRSimulator|MacOSX)\d+(?:\.\d+)*\.sdk/g;
 const XCODE_CACHE_ROOT_REGEX = /((?:CACHE_ROOT|CCHROOT) = ).+$/gm;
-const SDK_STAT_CACHE_PATH_REGEX = /(SDK_STAT_CACHE_PATH = ).+$/gm;
+const BUILD_SETTINGS_GROUP_REGEX = /^(\s*(?:ALTERNATE_GROUP|GROUP|INSTALL_GROUP) = ).+$/gm;
+const BUILD_SETTINGS_GID_REGEX = /^(\s*GID = )\d+$/gm;
+const SDK_PATH_REGEX =
+  /^(\s*(?:CORRESPONDING_SIMULATOR_SDK_DIR|SDKROOT|SDK_DIR(?:_[A-Za-z0-9_]+)?) = ).+$/gm;
+const SDK_NAME_REGEX = /^(\s*(?:CORRESPONDING_SIMULATOR_SDK_NAME|SDK_NAMES?) = ).+$/gm;
+const SDK_BUILD_VERSION_REGEX =
+  /^(\s*(?:PLATFORM_PRODUCT_BUILD_VERSION|SDK_PRODUCT_BUILD_VERSION) = ).+$/gm;
+const SDK_STAT_CACHE_PATH_REGEX = /^(\s*SDK_STAT_CACHE_PATH = ).+$/gm;
+const SDK_VERSION_REGEX =
+  /^(\s*(?:SDK_VERSION|SDK_VERSION_ACTUAL|SDK_VERSION_MAJOR|SDK_VERSION_MINOR) = ).+$/gm;
 const CODEX_ARG0_PATH_REGEX = /<HOME>\/\.codex\/tmp\/arg0\/codex-arg0[A-Za-z0-9]+/g;
 const CODEX_WORKTREE_NODE_MODULES_REGEX =
   /<HOME>\/\.codex\/worktrees\/[^/:]+\/node_modules\/\.bin/g;
@@ -207,8 +218,15 @@ export function normalizeSnapshotOutput(text: string): string {
     XCODE_APPLICATION_PATH_REGEX,
     '/Applications/Xcode-<VERSION>.app',
   );
+  normalized = normalized.replace(APPLE_SDK_BUNDLE_REGEX, '<SDK_NAME>.sdk');
   normalized = normalized.replace(XCODE_CACHE_ROOT_REGEX, '$1<XCODE_CACHE_ROOT>');
+  normalized = normalized.replace(BUILD_SETTINGS_GROUP_REGEX, '$1<GROUP>');
+  normalized = normalized.replace(BUILD_SETTINGS_GID_REGEX, '$1<GID>');
+  normalized = normalized.replace(SDK_PATH_REGEX, '$1<SDK_PATH>');
+  normalized = normalized.replace(SDK_NAME_REGEX, '$1<SDK_NAME>');
+  normalized = normalized.replace(SDK_BUILD_VERSION_REGEX, '$1<SDK_BUILD_VERSION>');
   normalized = normalized.replace(SDK_STAT_CACHE_PATH_REGEX, '$1<SDK_STAT_CACHE_PATH>');
+  normalized = normalized.replace(SDK_VERSION_REGEX, '$1<SDK_VERSION>');
   normalized = normalized.replace(BUILD_SETTINGS_PATH_REGEX, '$1<PATH>');
   normalized = normalized.replace(CODEX_ARG0_PATH_REGEX, '<HOME>/.codex/tmp/arg0/codex-arg0<ARG0>');
   normalized = normalized.replace(ACQUIRED_USAGE_ASSERTION_TIME_REGEX, '$1<TIME>$2');

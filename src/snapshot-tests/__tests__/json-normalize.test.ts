@@ -118,9 +118,19 @@ describe('normalizeStructuredEnvelope', () => {
       data: {
         entries: [
           { key: 'ALTERNATE_OWNER', value: 'cameroncooke' },
+          { key: 'ALTERNATE_GROUP', value: 'staff' },
           { key: 'CACHE_ROOT', value: '/var/folders/hash/C/com.apple.DeveloperTools/26.4/Xcode' },
+          { key: 'GID', value: '20' },
           { key: 'TARGET_DEVICE_MODEL', value: 'iPhone17,2' },
           { key: 'TARGET_DEVICE_OS_VERSION', value: '26.4.2' },
+          {
+            key: 'SDKROOT',
+            value:
+              '/Applications/Xcode-26.4.0.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk',
+          },
+          { key: 'SDK_NAME', value: 'iphoneos26.4' },
+          { key: 'SDK_VERSION_ACTUAL', value: '260400' },
+          { key: 'SDK_PRODUCT_BUILD_VERSION', value: '23E237' },
           {
             key: 'PLATFORM_DEVELOPER_APPLICATIONS_DIR',
             value: '/Applications/Xcode-26.4.0.app/Contents/Developer/Applications',
@@ -142,9 +152,15 @@ describe('normalizeStructuredEnvelope', () => {
       data: {
         entries: [
           { key: 'ALTERNATE_OWNER', value: '<USER>' },
+          { key: 'ALTERNATE_GROUP', value: '<GROUP>' },
           { key: 'CACHE_ROOT', value: '<XCODE_CACHE_ROOT>' },
+          { key: 'GID', value: '<GID>' },
           { key: 'TARGET_DEVICE_MODEL', value: '<DEVICE_MODEL>' },
           { key: 'TARGET_DEVICE_OS_VERSION', value: '<OS_VERSION>' },
+          { key: 'SDKROOT', value: '<SDK_PATH>' },
+          { key: 'SDK_NAME', value: '<SDK_NAME>' },
+          { key: 'SDK_VERSION_ACTUAL', value: '<SDK_VERSION>' },
+          { key: 'SDK_PRODUCT_BUILD_VERSION', value: '<SDK_BUILD_VERSION>' },
           {
             key: 'PLATFORM_DEVELOPER_APPLICATIONS_DIR',
             value: '/Applications/Xcode-<VERSION>.app/Contents/Developer/Applications',
@@ -176,7 +192,7 @@ describe('normalizeStructuredEnvelope', () => {
       error: null,
       data: {
         entries: [
-          { key: 'SDKROOT', value: 'iphoneos' },
+          { key: 'SDKROOT', value: '<SDK_PATH>' },
           { key: 'PATH', value: '<PATH_ENTRIES>' },
         ],
       },

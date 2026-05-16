@@ -35,7 +35,7 @@
       },
       {
         "key": "ALTERNATE_GROUP",
-        "value": "staff"
+        "value": "<GROUP>"
       },
       {
         "key": "ALTERNATE_MODE",
@@ -475,11 +475,11 @@
       },
       {
         "key": "CORRESPONDING_SIMULATOR_SDK_DIR",
-        "value": "/Applications/Xcode-<VERSION>.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.4.sdk"
+        "value": "<SDK_PATH>"
       },
       {
         "key": "CORRESPONDING_SIMULATOR_SDK_NAME",
-        "value": "iphonesimulator26.4"
+        "value": "<SDK_NAME>"
       },
       {
         "key": "CP",
@@ -1011,11 +1011,11 @@
       },
       {
         "key": "GID",
-        "value": "20"
+        "value": "<GID>"
       },
       {
         "key": "GROUP",
-        "value": "staff"
+        "value": "<GROUP>"
       },
       {
         "key": "HEADERMAP_INCLUDES_FLAT_ENTRIES_FOR_TARGET_BEING_BUILT",
@@ -1147,7 +1147,7 @@
       },
       {
         "key": "INSTALL_GROUP",
-        "value": "staff"
+        "value": "<GROUP>"
       },
       {
         "key": "INSTALL_MODE_FLAG",
@@ -1587,7 +1587,7 @@
       },
       {
         "key": "PLATFORM_PRODUCT_BUILD_VERSION",
-        "value": "23E237"
+        "value": "<SDK_BUILD_VERSION>"
       },
       {
         "key": "PLATFORM_REQUIRES_SWIFT_AUTOLINK_EXTRACT",
@@ -1795,31 +1795,31 @@
       },
       {
         "key": "SDKROOT",
-        "value": "/Applications/Xcode-<VERSION>.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk"
+        "value": "<SDK_PATH>"
       },
       {
         "key": "SDK_DIR",
-        "value": "/Applications/Xcode-<VERSION>.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk"
+        "value": "<SDK_PATH>"
       },
       {
         "key": "SDK_DIR_iphoneos",
-        "value": "/Applications/Xcode-<VERSION>.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk"
+        "value": "<SDK_PATH>"
       },
       {
         "key": "SDK_DIR_iphoneos26_4",
-        "value": "/Applications/Xcode-<VERSION>.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk"
+        "value": "<SDK_PATH>"
       },
       {
         "key": "SDK_NAME",
-        "value": "iphoneos26.4"
+        "value": "<SDK_NAME>"
       },
       {
         "key": "SDK_NAMES",
-        "value": "iphoneos26.4"
+        "value": "<SDK_NAME>"
       },
       {
         "key": "SDK_PRODUCT_BUILD_VERSION",
-        "value": "23E237"
+        "value": "<SDK_BUILD_VERSION>"
       },
       {
         "key": "SDK_STAT_CACHE_DIR",
@@ -1835,19 +1835,19 @@
       },
       {
         "key": "SDK_VERSION",
-        "value": "26.4"
+        "value": "<SDK_VERSION>"
       },
       {
         "key": "SDK_VERSION_ACTUAL",
-        "value": "260400"
+        "value": "<SDK_VERSION>"
       },
       {
         "key": "SDK_VERSION_MAJOR",
-        "value": "260000"
+        "value": "<SDK_VERSION>"
       },
       {
         "key": "SDK_VERSION_MINOR",
-        "value": "260400"
+        "value": "<SDK_VERSION>"
       },
       {
         "key": "SED",
@@ -2203,7 +2203,7 @@
       },
       {
         "key": "TEST_FRAMEWORK_SEARCH_PATHS",
-        "value": "/Applications/Xcode-<VERSION>.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks /Applications/Xcode-<VERSION>.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.4.sdk/Developer/Library/Frameworks"
+        "value": "/Applications/Xcode-<VERSION>.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks /Applications/Xcode-<VERSION>.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/<SDK_NAME>.sdk/Developer/Library/Frameworks"
       },
       {
         "key": "TEST_LIBRARY_SEARCH_PATHS",

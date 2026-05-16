@@ -74,6 +74,10 @@ function isBuildSettingsEntry(value: Record<string, unknown>, path: string[]): b
 }
 
 function normalizeBuildSettingsEntryValue(key: string, value: string): string {
+  if (key === 'SDKROOT' || key === 'SDK_DIR' || key.startsWith('SDK_DIR_')) {
+    return '<SDK_PATH>';
+  }
+
   switch (key) {
     case 'PATH':
       return '<PATH_ENTRIES>';
@@ -84,11 +88,31 @@ function normalizeBuildSettingsEntryValue(key: string, value: string): string {
       return '<USER>';
     case 'UID':
       return '<UID>';
+    case 'GID':
+      return '<GID>';
+    case 'ALTERNATE_GROUP':
+    case 'GROUP':
+    case 'INSTALL_GROUP':
+      return '<GROUP>';
     case 'CACHE_ROOT':
     case 'CCHROOT':
       return '<XCODE_CACHE_ROOT>';
+    case 'CORRESPONDING_SIMULATOR_SDK_DIR':
+      return '<SDK_PATH>';
+    case 'CORRESPONDING_SIMULATOR_SDK_NAME':
+    case 'SDK_NAME':
+    case 'SDK_NAMES':
+      return '<SDK_NAME>';
+    case 'PLATFORM_PRODUCT_BUILD_VERSION':
+    case 'SDK_PRODUCT_BUILD_VERSION':
+      return '<SDK_BUILD_VERSION>';
     case 'SDK_STAT_CACHE_PATH':
       return '<SDK_STAT_CACHE_PATH>';
+    case 'SDK_VERSION':
+    case 'SDK_VERSION_ACTUAL':
+    case 'SDK_VERSION_MAJOR':
+    case 'SDK_VERSION_MINOR':
+      return '<SDK_VERSION>';
     case 'TARGET_DEVICE_MODEL':
     case 'ASSETCATALOG_FILTER_FOR_DEVICE_MODEL':
       return '<DEVICE_MODEL>';

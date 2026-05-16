@@ -100,7 +100,7 @@ function createRenderHooks(
   const suppressWarnings = sessionStore.get('suppressWarnings');
   const config = getConfig();
   const showTestTiming = config.showTestTiming;
-  const outputStyle = options.outputStyle ?? 'normal';
+  const outputStyle = options.outputStyle ?? (options.runtime === 'mcp' ? 'minimal' : 'normal');
   const filePathRenderStyle = resolveFilePathRenderStyle({
     explicit: options.filePathRenderStyle,
     configured: config.filePathRenderStyle,

@@ -341,37 +341,42 @@ describe('text render parity', () => {
   });
 
   it('omits header frontmatter for minimal style text transcripts', () => {
-    const output = renderTranscript(
-      {
-        items: [],
-        structuredOutput: {
-          schema: 'xcodebuildmcp.output.build-run-result',
-          schemaVersion: '1.0.0',
-          result: {
-            kind: 'build-run-result',
-            request: {
-              scheme: 'MyApp',
-              projectPath: '/tmp/MyApp.xcodeproj',
-              configuration: 'Debug',
-              platform: 'iOS Simulator',
-            },
-            didError: false,
-            error: null,
-            summary: { status: 'SUCCEEDED', durationMs: 5000 },
-            artifacts: { appPath: '/tmp/build/MyApp.app', buildLogPath: '/tmp/build.log' },
-            diagnostics: { warnings: [], errors: [] },
+    const input = {
+      items: [],
+      structuredOutput: {
+        schema: 'xcodebuildmcp.output.build-run-result',
+        schemaVersion: '1.0.0',
+        result: {
+          kind: 'build-run-result' as const,
+          request: {
+            scheme: 'MyApp',
+            projectPath: '/tmp/MyApp.xcodeproj',
+            configuration: 'Debug',
+            platform: 'iOS Simulator',
           },
+          didError: false,
+          error: null,
+          summary: { status: 'SUCCEEDED' as const, durationMs: 5000 },
+          artifacts: { appPath: '/tmp/build/MyApp.app', buildLogPath: '/tmp/build.log' },
+          diagnostics: { warnings: [], errors: [] },
         },
       },
-      'text',
-      { outputStyle: 'minimal' },
-    );
+    };
 
-    expect(output).toContain('🚀 Build & Run');
-    expect(output).not.toContain('Scheme: MyApp');
-    expect(output).not.toContain('Project: /tmp/MyApp.xcodeproj');
-    expect(output).not.toContain('Configuration: Debug');
-    expect(output).toContain('✅ Build succeeded. (⏱️ 5.0s)');
+    const output = renderTranscript(input, 'text', { outputStyle: 'minimal' });
+    const mcpDefaultOutput = renderTranscript(input, 'text', { runtime: 'mcp' });
+    const cliOverrideOutput = renderTranscript(input, 'text', {
+      runtime: 'cli',
+      outputStyle: 'minimal',
+    });
+
+    for (const rendered of [output, mcpDefaultOutput, cliOverrideOutput]) {
+      expect(rendered).toContain('🚀 Build & Run');
+      expect(rendered).not.toContain('Scheme: MyApp');
+      expect(rendered).not.toContain('Project: /tmp/MyApp.xcodeproj');
+      expect(rendered).not.toContain('Configuration: Debug');
+      expect(rendered).toContain('✅ Build succeeded. (⏱️ 5.0s)');
+    }
   });
 
   it('defaults minimal style text transcripts to tree artifact paths unless explicitly overridden', () => {
